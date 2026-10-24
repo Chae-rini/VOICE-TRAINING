@@ -1,0 +1,10 @@
+// 서명 설정. 실제 번들 ID와 팀 ID는 이 컴퓨터에만 있는 Signing.local.xcconfig에 둔다 (.gitignore로 깃에 올리지 않음).
+// 처음 받은 사람은 같은 폴더에 Signing.local.xcconfig를 만들고 아래 두 줄을 자기 값으로 적는다.
+//   VOICEPRACTICE_BUNDLE_ID = com.<자기 이름이 드러나지 않는 값>.VoicePractice
+//   DEVELOPMENT_TEAM = <Apple 개발자 팀 ID>
+// Xcode의 Signing & Capabilities 화면에서 팀이나 번들 ID를 바꾸면 프로젝트 파일에 다시 적히므로, 이 파일들로만 바꾼다.
+
+VOICEPRACTICE_BUNDLE_ID = com.example.VoicePractice
+DEVELOPMENT_TEAM =
+
+#include? "Signing.local.xcconfig"

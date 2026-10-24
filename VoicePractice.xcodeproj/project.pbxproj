@@ -17,6 +17,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		5E0A00000000000000000008 /* Signing.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Signing.xcconfig; sourceTree = "<group>"; };
 		5E0A00000000000000000004 /* VoicePractice.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VoicePractice.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		5E0A00000000000000000005 /* VoicePracticeTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VoicePracticeTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -55,6 +56,7 @@
 		5E0A00000000000000000002 = {
 			isa = PBXGroup;
 			children = (
+				5E0A00000000000000000008 /* Signing.xcconfig */,
 				5E0A00000000000000000006 /* VoicePractice */,
 				5E0A00000000000000000007 /* VoicePracticeTests */,
 				5E0A00000000000000000003 /* Products */,
@@ -202,6 +204,7 @@
 /* Begin XCBuildConfiguration section */
 		5E0A00000000000000000031 /* Debug */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5E0A00000000000000000008 /* Signing.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -265,6 +268,7 @@
 		};
 		5E0A00000000000000000032 /* Release */ = {
 			isa = XCBuildConfiguration;
+			baseConfigurationReference = 5E0A00000000000000000008 /* Signing.xcconfig */;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
 				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
@@ -339,7 +343,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.VoicePractice;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(VOICEPRACTICE_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -371,7 +375,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.VoicePractice;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(VOICEPRACTICE_BUNDLE_ID)";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -391,7 +395,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.VoicePracticeTests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(VOICEPRACTICE_BUNDLE_ID)Tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
@@ -411,7 +415,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				GENERATE_INFOPLIST_FILE = YES;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.example.VoicePracticeTests;
+				PRODUCT_BUNDLE_IDENTIFIER = "$(VOICEPRACTICE_BUNDLE_ID)Tests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = NO;
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;

@@ -6,3 +6,6 @@ build/
 
 # 본인 녹음의 피치 자료 — 공개 저장소에 올리지 않는다
 Validation/
+
+# 실제 번들 ID·팀 ID (이름이 드러남) — Signing.xcconfig 설명 참고
+Signing.local.xcconfig

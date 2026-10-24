@@ -51,4 +51,5 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - 오디오 설정: 녹음은 `.playAndRecord` + `.measurement`(분석용), 듣기는 `.playback`(아이폰 스피커 음량 때문). 설정이 바뀌므로 녹음 엔진·재생 엔진을 단계마다 새로 만든다 (`AudioInputManager`).
 - 빌드 설정(`INFOPLIST_KEY_…`)으로 넣을 수 없는 앱 정보(예: `CFBundleDocumentTypes`)는 프로젝트 맨 위의 `VoicePractice-Info.plist`에 둔다. `VoicePractice/` 동기화 폴더 안에 두면 리소스로도 복사돼 빌드가 충돌한다.
 - 다른 앱의 공유 창으로 받은 파일은 iOS가 `tmp/<번들 ID>-Inbox/`에 복사해 준다 (iOS 27 시뮬레이터 확인).
-- 번들 ID는 (개인 값이라 저장소에는 적지 않음) (사용자가 Xcode에서 서명용으로 바꿈). 시뮬레이터에 예전 ID(`…VoicePractice`)의 앱이 따로 남아 있을 수 있다.
+- 번들 ID와 팀 ID는 깃에 올리지 않는 `Signing.local.xcconfig`에 있다 (공개 저장소에 실명이 드러나지 않게). 저장소의 `Signing.xcconfig`에는 자리표시자 `com.example.VoicePractice`만 있다. Xcode의 Signing & Capabilities 화면에서 바꾸면 프로젝트 파일에 다시 적히므로 이 파일을 고친다. 시뮬레이터에 예전 번들 ID의 앱이 따로 남아 있을 수 있다.
+- 공개 저장소에 올리기 전에 실명·학교 메일·개인 녹음 자료가 들어가지 않았는지 확인한다. 커밋 이메일은 GitHub noreply 주소를 쓴다.
