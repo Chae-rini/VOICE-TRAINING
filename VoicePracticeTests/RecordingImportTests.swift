@@ -126,9 +126,11 @@ struct PitchSummaryTests {
         let summary = try #require(PitchSummary(readings: readings, duration: 83, target: 180...220))
         let text = summary.feedbackRequest(title: "방금 녹음", includesAudio: true)
         for expected in ["방금 녹음 (1분 23초)", "피치 중앙값: 200 Hz", "120~280 Hz", "180~220 Hz", "20%",
-                         "문장 끝 안정성", "함께 보낸 녹음 파일", "성대에 무리가 가지 않는"] {
+                         "문장 끝 안정성", "함께 보낸 녹음 파일", "성대에 무리가 가지 않는",
+                         "어둡고 무게감 있는 쪽", "높이거나 낮추는 방향은 가정하지 말고"] {
             #expect(text.contains(expected), "\(expected)")
         }
+        #expect(!text.contains("밝고 가벼운 정도"))  // 한쪽 방향만 전제하던 예전 표현
     }
 
     @Test("글만 보낼 때는 파일이 없다고 밝히고, 음색은 짐작하지 말라고 한다")
@@ -139,6 +141,7 @@ struct PitchSummaryTests {
         #expect(text.contains("녹음 파일은 보내지 않았어요"))
         #expect(text.contains("짐작하지 말아 주세요"))
         #expect(text.contains("성대에 무리가 가지 않는"))
+        #expect(text.contains("높이거나 낮추는 방향은 가정하지 말고"))
         #expect(!text.contains("함께 보낸 녹음 파일"))
     }
 }

@@ -60,11 +60,12 @@ struct PitchSummary: Equatable {
 
     /// 구독 중인 AI 앱(ChatGPT, Claude 등)에 붙여 넣을 피드백 요청문.
     /// 녹음 파일 없이 글만 보낼 때는 음색을 짐작하지 말고 수치만 해석해 달라고 쓴다.
+    /// 높이기·낮추기 어느 방향도 전제하지 않고, 사용자가 정한 목표 범위를 기준으로 봐 달라고 쓴다.
     func feedbackRequest(title: String, includesAudio: Bool) -> String {
         let percent = Int((inTargetFraction * 100).rounded())
         let request = includesAudio
             ? """
-            떨림, 허스키함, 공명(밝고 가벼운 정도), 자연스러운 억양, 문장 끝 안정성 관점에서 피드백 부탁해요.
+            떨림, 허스키함, 공명(밝고 가벼운 쪽인지, 어둡고 무게감 있는 쪽인지), 자연스러운 억양, 문장 끝 안정성 관점에서 피드백 부탁해요.
             함께 보낸 녹음 파일을 들을 수 있다면 파일도 참고해 주세요.
             """
             : """
@@ -82,6 +83,7 @@ struct PitchSummary: Equatable {
         - 내 목표 범위: \(Int(target.lowerBound))~\(Int(target.upperBound)) Hz (목표 범위 안 비율 \(percent)%)
 
         \(request)
+        목소리를 높이거나 낮추는 방향은 가정하지 말고, 위의 내 목표 범위를 기준으로 봐 주세요.
         성대에 무리가 가지 않는 방향으로 알려 주세요.
         수치는 자동 측정이라 오차가 있을 수 있어요.
         """

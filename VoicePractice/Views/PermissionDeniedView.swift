@@ -13,7 +13,7 @@ struct PermissionDeniedView: View {
             VStack(spacing: 8) {
                 Text("마이크 권한이 꺼져 있어요")
                     .font(.title2.bold())
-                Text("목소리의 높이를 분석하려면 마이크가 필요해요.\n녹음은 기기 밖으로 나가지 않아요.")
+                Text("목소리의 높이를 분석하려면 마이크가 필요해요.\n녹음은 직접 공유할 때만 기기 밖으로 나가요.")
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.secondary)
             }
