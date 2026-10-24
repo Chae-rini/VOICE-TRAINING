@@ -25,7 +25,14 @@ struct ContentView: View {
             if audio.permission == .denied {
                 PermissionDeniedView()
             } else {
-                practiceScreen
+                // 아래 탭: [높이] 피치 연습, [모음] 모음 지도. 녹음·듣기 조작은 두 탭이 같은 것을 쓴다.
+                TabView {
+                    practiceScreen
+                        .tabItem { Label("높이", systemImage: "waveform.path") }
+                    VowelMapScreen(audio: audio, caption: vowelCaption)
+                        .safeAreaInset(edge: .bottom) { controls }
+                        .tabItem { Label("모음", systemImage: "mouth") }
+                }
             }
         }
         .onChange(of: scenePhase) { _, phase in
@@ -84,11 +91,7 @@ struct ContentView: View {
             .padding()
         }
         // 시작 버튼은 스크롤과 상관없이 항상 화면 아래에 보이게 한다.
-        .safeAreaInset(edge: .bottom) {
-            PracticeControlsView(audio: audio, practiceDuration: $practiceDuration) {
-                isImporting = true
-            }
-        }
+        .safeAreaInset(edge: .bottom) { controls }
         .sheet(isPresented: $isMeasuringBaseline, onDismiss: {
             // 끌어내려 닫았을 때도 재기를 멈추고 결과를 지운다.
             if audio.loop.phase == .measuring {
@@ -104,6 +107,24 @@ struct ContentView: View {
                 baselinePromptShown = true
                 isMeasuringBaseline = true
             }
+        }
+    }
+
+    /// 화면 아래 고정 영역 (두 탭이 함께 쓴다)
+    private var controls: some View {
+        PracticeControlsView(audio: audio, practiceDuration: $practiceDuration) {
+            isImporting = true
+        }
+    }
+
+    private var vowelCaption: String {
+        switch audio.loop.phase {
+        case .recording: "지금 내는 모음"
+        case .listening, .replaying: "녹음을 다시 듣는 중"
+        case .countdown: "곧 다시 녹음해요"
+        case .measuring: "내 목소리 재는 중"
+        case .idle:
+            audio.hasLastTake ? "마지막 녹음" : "‘반복 루프 재생’을 누르고 모음을 길게 내 보세요"
         }
     }
 

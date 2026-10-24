@@ -58,17 +58,21 @@ nonisolated enum AudioFileAnalyzer {
         return vDSP.multiply(1 / Float(channelCount), mono)
     }
 
-    /// 연습할 때와 같은 방식(2048샘플 창을 절반씩 겹쳐 밀기)으로 처음부터 끝까지 피치를 계산한다.
+    /// 연습할 때와 같은 방식(2048샘플 창을 절반씩 겹쳐 밀기)으로 처음부터 끝까지 피치와 포먼트를 계산한다.
     static func pitchReadings(_ samples: [Float], sampleRate: Double) -> [PitchReading] {
         let detector = PitchDetector(sampleRate: sampleRate)
+        let formantAnalyzer = FormantAnalyzer(sampleRate: sampleRate)
         let frameLength = detector.frameLength
         let hopLength = frameLength / 2
         var readings: [PitchReading] = []
         var start = 0
         while start + frameLength <= samples.count {
-            let estimate = detector.detect(Array(samples[start..<(start + frameLength)]))
+            let frame = Array(samples[start..<(start + frameLength)])
+            let estimate = detector.detect(frame)
             let centerTime = Double(start + frameLength / 2) / sampleRate  // 창 한가운데 시각 [s]
-            readings.append(PitchReading(time: centerTime, frequency: estimate?.frequency))
+            // 목소리가 잡힌 조각에서만 포먼트를 잰다 (무음·잡음의 가짜 울림을 피함).
+            let formants = estimate == nil ? nil : formantAnalyzer.estimate(frame)
+            readings.append(PitchReading(time: centerTime, frequency: estimate?.frequency, formants: formants))
             start += hopLength
         }
         return readings

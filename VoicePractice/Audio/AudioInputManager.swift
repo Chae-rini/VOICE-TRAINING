@@ -593,6 +593,7 @@ nonisolated enum AudioClock {
 /// 탭 블록은 한 번에 하나씩 순서대로 불리므로, 내부 상태를 잠그지 않아도 겹쳐 쓰이지 않는다.
 private nonisolated final class PitchTapProcessor: @unchecked Sendable {
     private let detector: PitchDetector
+    private let formantAnalyzer: FormantAnalyzer
     private let recorder: TakeRecorder
     private let sampleRate: Double  // [Hz]
     private let hopLength: Int      // [샘플] 다음 창으로 미는 간격
@@ -604,6 +605,7 @@ private nonisolated final class PitchTapProcessor: @unchecked Sendable {
     init(sampleRate: Double, recorder: TakeRecorder, onReadings: @escaping @Sendable ([PitchReading]) -> Void) {
         let detector = PitchDetector(sampleRate: sampleRate)
         self.detector = detector
+        formantAnalyzer = FormantAnalyzer(sampleRate: sampleRate)
         self.recorder = recorder
         self.sampleRate = sampleRate
         hopLength = detector.frameLength / 2  // 48kHz에서 약 21ms마다 한 점
@@ -635,10 +637,13 @@ private nonisolated final class PitchTapProcessor: @unchecked Sendable {
         let frameLength = detector.frameLength
         var readings: [PitchReading] = []
         while pending.count >= frameLength {
-            let estimate = detector.detect(Array(pending[0..<frameLength]))
+            let frame = Array(pending[0..<frameLength])
+            let estimate = detector.detect(frame)
             // 창 한가운데 시각을 그 점의 시각으로 쓴다.
             let centerTime = pendingStartTime + Double(frameLength / 2) / sampleRate
-            readings.append(PitchReading(time: centerTime, frequency: estimate?.frequency))
+            // 목소리가 잡힌 조각에서만 포먼트를 잰다 (조각 하나에 수 µs라 오디오 스레드에서도 부담 없음).
+            let formants = estimate == nil ? nil : formantAnalyzer.estimate(frame)
+            readings.append(PitchReading(time: centerTime, frequency: estimate?.frequency, formants: formants))
 
             pending.removeFirst(hopLength)
             pendingStartTime += Double(hopLength) / sampleRate

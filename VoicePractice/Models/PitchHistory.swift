@@ -1,11 +1,19 @@
 import Foundation
 
-/// 피치 한 점: 언제(time) 몇 Hz였는지(frequency).
+/// 피치 한 점: 언제(time) 몇 Hz였는지(frequency), 그때의 포먼트(F1·F2).
 nonisolated struct PitchReading: Sendable {
     /// [s] AudioClock 기준 시각
     let time: TimeInterval
     /// [Hz] nil이면 무음
     let frequency: Double?
+    /// F1·F2. 목소리가 잡히고 또렷한 울림을 두 개 찾았을 때만 있다.
+    let formants: FormantAnalyzer.Estimate?
+
+    init(time: TimeInterval, frequency: Double?, formants: FormantAnalyzer.Estimate? = nil) {
+        self.time = time
+        self.frequency = frequency
+        self.formants = formants
+    }
 }
 
 /// 녹음 한 번 동안의 피치 기록. 그래프에는 그중 최근 10초만 보인다.
@@ -52,6 +60,25 @@ struct PitchHistory {
             segments.append(current)
         }
         return segments
+    }
+
+    /// `range` 시간 안의 점들. 기록은 시간 순서라 이진 탐색으로 시작 위치를 찾는다 (화면이 초당 30번 부른다).
+    func readings(in range: ClosedRange<TimeInterval>) -> ArraySlice<PitchReading> {
+        var low = 0
+        var high = readings.count
+        while low < high {
+            let middle = (low + high) / 2
+            if readings[middle].time < range.lowerBound {
+                low = middle + 1
+            } else {
+                high = middle
+            }
+        }
+        var end = low
+        while end < readings.count, readings[end].time <= range.upperBound {
+            end += 1
+        }
+        return readings[low..<end]
     }
 
     /// `time` 직전의 피치 [Hz]. `tolerance` [s]보다 오래된 값이거나 무음이면 nil.
