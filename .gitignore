@@ -1,0 +1,8 @@
+.DS_Store
+xcuserdata/
+DerivedData/
+build/
+*.xcuserstate
+
+# 본인 녹음의 피치 자료 — 공개 저장소에 올리지 않는다
+Validation/
