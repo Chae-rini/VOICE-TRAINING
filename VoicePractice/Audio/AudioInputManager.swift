@@ -10,9 +10,9 @@ enum MicrophonePermission {
 }
 
 /// 마이크 입력과 녹음·재생을 맡는다.
-/// 연습 고리(녹음 → 듣기 → 숨 고르기 → 다시 녹음)를 PracticeLoop의 순서대로 진행한다.
-/// 녹음 중에 "지금 들어보기"를 누르거나 연습 시간이 다 되면, 그때까지 녹음한 것을 들려주고 다시 녹음한다.
-/// 녹음은 메모리에만 두고, 파일로 저장하거나 밖으로 보내지 않는다.
+/// 연습을 시작하면 정지할 때까지 녹음을 이어 가되, 최근 N초(연습 시간)만 남긴다.
+/// "지금 들어보기"를 누르면 그 N초를 들려주고, 끝나면 숨을 고른 뒤 자동으로 다시 녹음한다 (PracticeLoop 순서).
+/// 녹음은 메모리에만 두고, 사용자가 공유를 고를 때만 임시 파일로 만든다.
 @MainActor
 @Observable
 final class AudioInputManager {
@@ -25,14 +25,16 @@ final class AudioInputManager {
     /// 그래프의 "지금"을 어느 시각으로 볼지 (실시간 / 멈춤 / 녹음 다시 듣기)
     private(set) var graphClock = GraphClock.frozen(nil)
     private(set) var errorMessage: String?
-    /// 연습 고리를 끝까지 마쳤을 때 보여줄 안내.
-    private(set) var completionMessage: String?
-    /// 지금 단계(녹음·듣기·숨 고르기)의 시작~끝 시각. 남은 시간 표시에 쓴다.
+    /// 오래 연습했을 때 목을 쉬어 가라는 안내. 다음 연습이나 파일 불러오기 전까지 남겨 둔다.
+    private(set) var restMessage: String?
+    /// 듣기·숨 고르기의 시작~끝 시각. 남은 시간 표시에 쓴다.
     private(set) var phaseInterval: ClosedRange<Date>?
+    /// 지금 녹음을 시작한 시각. 녹음한 시간 표시에 쓴다.
+    private(set) var recordingStart: Date?
     /// 녹음 한 번이 끝날 때마다 1씩 늘어난다. 화면이 이 값을 보고 가벼운 진동을 울린다.
     private(set) var finishedTakeCount = 0
-    /// 연습 고리를 끝까지 마칠 때마다 1씩 늘어난다. 화면이 이 값을 보고 완료 진동을 울린다.
-    private(set) var completedPracticeCount = 0
+    /// 쉬어 가기 안내를 할 때마다 1씩 늘어난다. 화면이 이 값을 보고 진동을 울린다.
+    private(set) var restReminderCount = 0
     /// 다시 들을 수 있는 마지막 녹음이 있는지.
     private(set) var hasLastTake = false
     /// 마지막 녹음의 이름("방금 녹음" 또는 불러온 파일 이름)
@@ -53,8 +55,10 @@ final class AudioInputManager {
     @ObservationIgnored private var player: AVAudioPlayerNode?
     @ObservationIgnored private var recorder: TakeRecorder?
     @ObservationIgnored private var lastTake: RecordedTake?
-    @ObservationIgnored private var takeDuration: TimeInterval = PracticeDuration.defaultSeconds
+    /// [s] "지금 들어보기"를 누르면 들려줄 최근 길이
+    @ObservationIgnored private var keepDuration: TimeInterval = PracticeDuration.defaultSeconds
     @ObservationIgnored private var phaseTask: Task<Void, Never>?
+    @ObservationIgnored private var restReminderTask: Task<Void, Never>?
     @ObservationIgnored private var isTapInstalled = false
     @ObservationIgnored private var lastVoicedTime: TimeInterval = 0
     @ObservationIgnored private var sessionObservers: [any NSObjectProtocol] = []
@@ -75,9 +79,8 @@ final class AudioInputManager {
         let playbackGain: Float
     }
 
-    /// 예약해 둔 다음 단계
+    /// 예약해 둔 다음 단계. 녹음은 사용자가 멈출 때까지 이어지므로 예약하지 않는다.
     private enum Step {
-        case finishRecording
         case finishListening
         case finishCountdown
     }
@@ -92,12 +95,13 @@ final class AudioInputManager {
         permission = Self.readPermission()
     }
 
-    /// 녹음 최대 길이 `duration` [s]로 `rounds`번 연습 고리를 시작한다.
-    func start(duration: TimeInterval, rounds: Int) async {
+    /// 연습을 시작한다. 정지할 때까지 녹음 → (들어보기를 누르면) 듣기 → 다시 녹음을 이어 간다.
+    /// `duration` [s]: 들어보기를 누르면 들려줄 최근 길이.
+    func start(duration: TimeInterval) async {
         guard !isRunning, !isAnalyzingFile else { return }
         errorMessage = nil
-        completionMessage = nil
         infoMessage = nil
+        restMessage = nil
 
         if permission == .undetermined {
             let granted = await AVAudioApplication.requestRecordPermission()
@@ -105,13 +109,14 @@ final class AudioInputManager {
         }
         guard permission == .granted, !isRunning else { return }
 
-        takeDuration = duration
-        loop = PracticeLoop(totalRounds: rounds)
+        keepDuration = duration
+        loop = PracticeLoop()
         loop.start()
+        startRestReminders()
         beginRecording()
     }
 
-    /// 녹음 중에 누르면, 그때까지 녹음한 것을 바로 들려준다.
+    /// 녹음 중에 누르면, 남겨 둔 최근 녹음(최대 N초)을 바로 들려준다. 다 들으면 자동으로 다시 녹음한다.
     func listenNow() {
         guard case .recording = loop.phase else { return }
         finishRecording()
@@ -136,8 +141,8 @@ final class AudioInputManager {
     func importRecording(from url: URL) async {
         guard !isRunning, !isAnalyzingFile else { return }
         errorMessage = nil
-        completionMessage = nil
         infoMessage = nil
+        restMessage = nil
         isAnalyzingFile = true
         defer { isAnalyzingFile = false }
 
@@ -232,6 +237,9 @@ final class AudioInputManager {
         if isRunning {
             graphClock = .frozen(graphClock.endTime(now: AudioClock.now))
         }
+        restReminderTask?.cancel()
+        restReminderTask = nil
+        recordingStart = nil
         shutDown()
         loop.stop()
     }
@@ -248,7 +256,7 @@ final class AudioInputManager {
             return
         }
 
-        let recorder = TakeRecorder(sampleRate: format.sampleRate, maxSeconds: PracticeDuration.range.upperBound + 1)
+        let recorder = TakeRecorder(sampleRate: format.sampleRate, keepSeconds: keepDuration)
         self.recorder = recorder
         let processor = PitchTapProcessor(sampleRate: format.sampleRate, recorder: recorder) { [weak self] readings in
             guard let self else { return }
@@ -260,8 +268,8 @@ final class AudioInputManager {
         processor.installTap(on: engine.inputNode, bufferSize: tapBufferSize, format: format)
         isTapInstalled = true
 
-        // 불러온 파일 때문에 보관 길이가 바뀌었을 수 있어 새 기록으로 시작한다.
-        history = PitchHistory(retention: PracticeDuration.range.upperBound + 2)
+        // 들려줄 최근 N초 동안의 곡선을 다시 그릴 수 있게 그만큼 보관한다.
+        history = PitchHistory(retention: keepDuration + 2)
         currentFrequency = nil
         lastVoicedTime = 0
         do {
@@ -272,12 +280,14 @@ final class AudioInputManager {
             return
         }
         graphClock = .live
-        schedule(.finishRecording, after: takeDuration)
+        phaseInterval = nil
+        recordingStart = .now
     }
 
     private func finishRecording() {
         removeTap()
         currentFrequency = nil
+        recordingStart = nil
         let take = keepTake()
         finishedTakeCount += 1
         loop.recordingFinished()
@@ -309,14 +319,9 @@ final class AudioInputManager {
         graphClock = .frozen(graphClock.endTime(now: AudioClock.now))
         loop.listeningFinished()
 
-        switch loop.phase {
-        case .countdown:
+        if case .countdown = loop.phase {
             schedule(.finishCountdown, after: PracticeLoop.countdownSeconds)
-        case .finished:
-            shutDown()
-            completedPracticeCount += 1
-            completionMessage = "연습이 끝났어요. 목을 잠깐 쉬어 주세요."
-        default:
+        } else {
             shutDown()  // 마지막 녹음 다시 듣기가 끝남
         }
     }
@@ -340,9 +345,23 @@ final class AudioInputManager {
 
     private func perform(_ step: Step) {
         switch step {
-        case .finishRecording: finishRecording()
         case .finishListening: finishListening()
         case .finishCountdown: finishCountdown()
+        }
+    }
+
+    /// 정지할 때까지 쉬지 않고 연습하면, 일정 시간마다 목을 쉬어 가라고 알린다 (성대 건강). 연습은 멈추지 않는다.
+    private func startRestReminders() {
+        restReminderTask?.cancel()
+        restReminderTask = Task { [weak self] in
+            var elapsed: TimeInterval = 0  // [s]
+            while true {
+                try? await Task.sleep(for: .seconds(PracticeLoop.restReminderInterval))
+                guard !Task.isCancelled, let self else { return }
+                elapsed += PracticeLoop.restReminderInterval
+                self.restMessage = PracticeLoop.restMessage(after: elapsed)
+                self.restReminderCount += 1
+            }
         }
     }
 

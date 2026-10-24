@@ -1,4 +1,4 @@
-/// 한 번 연습하는 시간. 성대를 무리하게 쓰지 않도록 최대 3분으로 제한한다.
+/// 연습 시간: "지금 들어보기"를 누르면 들려줄 최근 녹음 길이. 한 번에 듣고 되짚기 좋게 최대 3분으로 둔다.
 enum PracticeDuration {
     static let range: ClosedRange<Double> = 10...180  // [s]
     static let step: Double = 10                      // [s]

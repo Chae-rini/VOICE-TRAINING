@@ -4,9 +4,9 @@ import Testing
 
 @MainActor
 struct PracticeLoopTests {
-    @Test("녹음 → 듣기 → 숨 고르기를 정한 횟수만큼 돈 뒤 끝난다")
-    func fullLoop() {
-        var loop = PracticeLoop(totalRounds: 2)
+    @Test("녹음 → 듣기 → 숨 고르기 → 다시 녹음으로 이어지고, 회차가 하나씩 늘어난다")
+    func loopsToNextRound() {
+        var loop = PracticeLoop()
         loop.start()
         #expect(loop.phase == .recording(round: 1))
         loop.recordingFinished()
@@ -15,24 +15,27 @@ struct PracticeLoopTests {
         #expect(loop.phase == .countdown(nextRound: 2))
         loop.countdownFinished()
         #expect(loop.phase == .recording(round: 2))
-        loop.recordingFinished()
-        loop.listeningFinished()
-        #expect(loop.phase == .finished)
-        #expect(!loop.isActive)
     }
 
-    @Test("한 번만 하면 녹음 → 듣기 후 바로 끝난다")
-    func singleRound() {
-        var loop = PracticeLoop(totalRounds: 1)
+    @Test("횟수 제한 없이 정지할 때까지 계속된다")
+    func runsUntilStopped() {
+        var loop = PracticeLoop()
         loop.start()
-        loop.recordingFinished()
-        loop.listeningFinished()
-        #expect(loop.phase == .finished)
+        for _ in 1...20 {
+            loop.recordingFinished()
+            loop.listeningFinished()
+            loop.countdownFinished()
+        }
+        #expect(loop.phase == .recording(round: 21))
+        #expect(loop.isActive)
+        loop.stop()
+        #expect(loop.phase == .idle)
+        #expect(!loop.isActive)
     }
 
     @Test("늦게 도착한 신호는 무시한다 (예: 듣는 중에 '녹음 끝')")
     func ignoresOutOfOrderEvents() {
-        var loop = PracticeLoop(totalRounds: 3)
+        var loop = PracticeLoop()
         loop.start()
         loop.recordingFinished()
         loop.recordingFinished()
@@ -42,7 +45,7 @@ struct PracticeLoopTests {
 
     @Test("어느 단계에서든 정지하면 처음 상태로 돌아간다")
     func stop() {
-        var loop = PracticeLoop(totalRounds: 3)
+        var loop = PracticeLoop()
         loop.start()
         loop.recordingFinished()
         loop.stop()
@@ -50,36 +53,35 @@ struct PracticeLoopTests {
         #expect(!loop.isActive)
     }
 
-    @Test("반복 횟수는 1~10회로 제한된다", arguments: [(0, 1), (5, 5), (99, 10)])
-    func roundsAreClamped(requested: Int, expected: Int) {
-        #expect(PracticeLoop(totalRounds: requested).totalRounds == expected)
-    }
-
     @Test("마지막 녹음 다시 듣기는 연습 중이 아닐 때만 되고, 끝나면 처음 상태로 돌아간다")
     func replay() {
-        var loop = PracticeLoop(totalRounds: 1)
+        var loop = PracticeLoop()
         loop.start()
         loop.startReplay()
         #expect(loop.phase == .recording(round: 1))  // 연습 중에는 무시
 
-        loop.recordingFinished()
-        loop.listeningFinished()
+        loop.stop()
         loop.startReplay()
         #expect(loop.phase == .replaying)
         #expect(loop.isActive)
         loop.listeningFinished()
         #expect(loop.phase == .idle)
     }
+
+    @Test("쉬어 가기 안내는 연습한 분을 알려 준다", arguments: [(900.0, "15분"), (1800.0, "30분")])
+    func restMessage(elapsed: Double, minutes: String) {
+        #expect(PracticeLoop.restMessage(after: elapsed) == "\(minutes) 연습했어요. 목을 잠깐 쉬어 주세요.")
+    }
 }
 
 struct TakeRecorderTests {
-    @Test("모은 소리를 같은 길이의 재생 버퍼로 만들고, 첫 조각의 시각을 기억한다")
+    @Test("모은 소리를 같은 길이의 재생 버퍼로 만들고, 첫 샘플의 시각을 기억한다")
     func makesBuffer() throws {
-        let recorder = TakeRecorder(sampleRate: 48_000, maxSeconds: 1)
+        let recorder = TakeRecorder(sampleRate: 48_000, keepSeconds: 1)
         recorder.append([0.1, 0.2, 0.3], at: 5.0)
-        recorder.append([0.4], at: 6.0)
+        recorder.append([0.4], at: 5.0 + 3.0 / 48_000)
 
-        #expect(recorder.startTime == 5.0)
+        #expect(abs(try #require(recorder.startTime) - 5.0) < 1e-9)
         let playback = try #require(recorder.makePlaybackBuffer())
         let buffer = playback.buffer
         #expect(abs(playback.gain - TakeRecorder.playbackPeak / 0.4) < 1e-4)
@@ -103,17 +105,35 @@ struct TakeRecorderTests {
         #expect(abs(TakeRecorder.playbackGain(forPeak: peak) - expected) < 1e-3)
     }
 
-    @Test("최대 길이를 넘는 소리는 버린다")
-    func dropsBeyondCapacity() {
-        let recorder = TakeRecorder(sampleRate: 10, maxSeconds: 1)  // 최대 10샘플
-        recorder.append(Array(repeating: 0.5, count: 8), at: 0)
-        recorder.append(Array(repeating: 0.5, count: 8), at: 0.8)
+    @Test("보관 길이를 넘으면 오래된 소리부터 버리고 최근 소리만 순서대로 남긴다")
+    func keepsMostRecent() throws {
+        let recorder = TakeRecorder(sampleRate: 10, keepSeconds: 1)  // 최근 10샘플
+        recorder.append((0..<8).map(Float.init), at: 0)
+        recorder.append((8..<16).map(Float.init), at: 0.8)
+
         #expect(recorder.sampleCount == 10)
+        #expect(abs(try #require(recorder.startTime) - 0.6) < 1e-9)  // 1.6초에 끝난 소리의 최근 1초
+        let buffer = try #require(recorder.makePlaybackBuffer()).buffer  // 이미 커서 배율 1
+        let channel = try #require(buffer.floatChannelData?[0])
+        #expect((0..<10).map { channel[$0] } == (6..<16).map(Float.init))
+    }
+
+    @Test("조각 하나가 보관 길이보다 길면 그 끝부분만 남긴다")
+    func longChunk() throws {
+        let recorder = TakeRecorder(sampleRate: 10, keepSeconds: 1)
+        recorder.append((0..<25).map(Float.init), at: 0)
+
+        #expect(recorder.sampleCount == 10)
+        #expect(abs(try #require(recorder.startTime) - 1.5) < 1e-9)
+        // 버퍼를 변수로 잡아 두어야 아래에서 읽는 동안 소리 데이터가 사라지지 않는다.
+        let buffer = try #require(recorder.makePlaybackBuffer()).buffer
+        let channel = try #require(buffer.floatChannelData?[0])
+        #expect((0..<10).map { channel[$0] } == (15..<25).map(Float.init))
     }
 
     @Test("아무것도 녹음하지 않았으면 재생 버퍼가 없다")
     func emptyRecorder() {
-        let recorder = TakeRecorder(sampleRate: 48_000, maxSeconds: 1)
+        let recorder = TakeRecorder(sampleRate: 48_000, keepSeconds: 1)
         #expect(recorder.makePlaybackBuffer() == nil)
         #expect(recorder.startTime == nil)
     }

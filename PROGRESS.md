@@ -116,14 +116,25 @@
 - 프로젝트 설정: 앱 타깃의 `INFOPLIST_FILE`을 `VoicePractice-Info.plist`로 지정 (Xcode가 만드는 나머지 항목과 합쳐진다). 이 파일은 프로젝트 맨 위 폴더에 있어서 Xcode 왼쪽 목록에는 안 보인다
 - 검증: 테스트 통과(새 1개: 지워도 되는 복사본인지 판정). 시뮬레이터 파일 앱에서 합성음 m4a → 공유 → VoicePractice → 앱이 열리며 201 Hz 재생·요약 카드 확인, 원본 파일은 그대로
 
+## 실시간 자동 녹음 (2026-10-25)
+- "반복 루프 재생"을 한 번 누르면 **정지할 때까지** 녹음이 이어진다. 반복 횟수 설정은 없앴다
+- 녹음은 최근 N초(연습 시간 슬라이더, 10초~3분)만 메모리에 남긴다 (고리 모양 버퍼, 3분이면 약 35MB). **"지금 들어보기"**를 누르면 그 N초를 꺾은선과 함께 들려주고, 끝나면 1초 숨 고르기 뒤 **자동으로 다시 녹음**한다
+- 상태 줄: 녹음 중에는 "녹음 중 · 2번째 0:35"처럼 녹음한 시간이 늘어나고, 듣는 중에는 남은 시간이 줄어든다
+- 성대 건강: 반복 횟수 제한 대신, 쉬지 않고 연습하면 **15분마다** "15분 연습했어요. 목을 잠깐 쉬어 주세요." 안내 + 진동. 연습은 멈추지 않는다. 15분은 임시로 정한 값
+- 검증
+  - 테스트 모두 통과 (테스트 함수 51개, 실패 0, 경고 0). 새 테스트: 정지할 때까지 도는 순서, 최근 N초만 남기기, 보관 길이보다 긴 조각, 쉬어 가기 문구
+  - 처음 돌렸을 때 테스트 앱이 죽었다. 테스트 코드가 재생 버퍼를 변수에 잡아 두지 않아 사라진 메모리를 읽은 것이라 테스트를 고쳤다 (앱 코드 문제 아님)
+  - 시뮬레이터: 반복 루프 재생 → "녹음 중 · 1번째" 시간 증가 → 지금 들어보기 → 듣기 → 자동으로 다음 녹음(2·3번째) → 정지 후 ▶ 마지막 녹음 버튼까지 확인. 시뮬레이터 마이크는 소리가 안 들어와 실제 목소리 확인은 아이폰에서
+
 ## 다음 할 일
 - [x] 아이폰에서 재생 음량 확인 (70%에서 잘 들림)
 - [x] 아이폰에서: 공유 창 확인 → 녹음 파일과 함께면 제미나이만 뜸 → 공유 메뉴 나눔
 - [ ] **(직접)** 아이폰에서: "요약 글만 보내기"를 고르면 ChatGPT·Claude가 공유 창에 뜨는지
 - [x] 음성 메모의 공유 창에 이 앱이 바로 뜨게 하기 (시뮬레이터 파일 앱으로 확인)
 - [ ] **(직접)** 아이폰 음성 메모에서: 녹음 → 공유 → VoicePractice가 뜨고, 누르면 바로 재생되는지
-- [ ] 실시간 자동 녹음: 버튼 한 번이면 정지할 때까지 녹음 → 재생 → 다시 녹음. 재생 전까지는 최근 N초만 보관 (승인됨, 진행 중)
-- [ ] 아이패드 버전 (요청됨, 자동 녹음 다음에 계획)
+- [x] 실시간 자동 녹음: 버튼 한 번이면 정지할 때까지 녹음 → 재생 → 다시 녹음. 재생 전까지는 최근 N초만 보관
+- [ ] **(직접)** 아이폰에서: 반복 루프 재생 → 지금 들어보기 → 다 들으면 자동으로 다시 녹음되는지, 3분으로 두고 오래 녹음해도 최근 3분만 들리는지
+- [ ] 아이패드 버전 — 보류 (2026-10-25)
 - [ ] **(직접)** 아이폰에서: 작은 목소리에도 꺾은선이 끊기지 않는지(무음 판정 기준)
 - [ ] (나중) 기기 안 AI(Apple Foundation Models)로 앱 안에서 바로 피드백 문장 만들기
 - [ ] (선택) 시뮬레이터 마이크: Mac 설정 → 개인정보 보호 및 보안 → 마이크에서 "Simulator" 확인, 시뮬레이터 메뉴 I/O → Audio Input 확인
@@ -156,21 +167,21 @@
 | `VoicePractice/VoicePracticeApp.swift` | 앱의 시작점. 앱이 켜지면 첫 화면(ContentView)을 띄운다 |
 | `VoicePractice/ContentView.swift` | 첫 화면. 권한이 꺼져 있으면 안내 화면을, 아니면 그래프·문장 카드와 아래 고정된 연습 조작 영역을 보여준다 |
 | `VoicePractice/Audio/AudioInputManager.swift` | 마이크·스피커 담당. 연습 고리 순서대로 녹음하고, 들어온 소리를 피치 검출기에 넘기고, 방금 녹음을 들려준다 |
-| `VoicePractice/Audio/TakeRecorder.swift` | 녹음 한 번 동안 들어온 소리를 메모리에 모아 두는 통 (다시 듣기용) |
+| `VoicePractice/Audio/TakeRecorder.swift` | 녹음 중 들어온 소리 중 최근 N초만 메모리에 남기는 고리 모양 통 (다시 듣기용) |
 | `VoicePractice/Audio/AudioFileAnalyzer.swift` | 녹음 파일(음성 메모 등)을 읽어 피치를 미리 계산하고, 공유용 WAV 파일을 만드는 도구 |
 | `VoicePractice/Models/PitchSummary.swift` | 녹음의 요약 수치(중앙값·범위·목표 범위 안 비율)와 AI에게 보낼 피드백 요청문 |
 | `VoicePractice/Views/RecordingSummaryView.swift` | 그래프 아래 요약 카드와 "AI에게 피드백 받기"·"요약 복사" 버튼, iOS 공유 창 |
 | `VoicePracticeTests/RecordingImportTests.swift` | 파일 분석·WAV 저장·요약 수치·요청문을 확인하는 시험지 |
-| `VoicePractice/Models/PracticeLoop.swift` | 녹음 → 듣기 → 숨 고르기 → 다시 녹음 순서와 반복 횟수를 관리하는 순서표 |
-| `VoicePractice/Views/PracticeControlsView.swift` | 화면 아래 고정 영역: 연습 시간, 반복 횟수, 지금 단계·남은 시간, 시작·정지·건너뛰기·다시 듣기 버튼 |
-| `VoicePracticeTests/PracticeLoopTests.swift` | 연습 고리 순서, 녹음 통, 다시 듣기 중 그래프 시계를 확인하는 시험지 |
+| `VoicePractice/Models/PracticeLoop.swift` | 녹음 → 듣기 → 숨 고르기 → 다시 녹음을 정지할 때까지 잇는 순서표, 쉬어 가기 안내 간격(15분) |
+| `VoicePractice/Views/PracticeControlsView.swift` | 화면 아래 고정 영역: 연습 시간, 지금 단계·시간, 쉬어 가기 안내, 시작·정지·지금 들어보기·건너뛰기·다시 듣기 버튼 |
+| `VoicePracticeTests/PracticeLoopTests.swift` | 연습 고리 순서, 최근 N초만 남기는 녹음 통, 다시 듣기 중 그래프 시계를 확인하는 시험지 |
 | `VoicePractice/Audio/PitchDetector.swift` | 소리 조각 하나를 받아 "지금 몇 Hz인지" 계산하는 계산기 (YIN 알고리즘) |
 | `VoicePractice/Models/PitchHistory.swift` | 최근 10초 동안의 피치 기록을 담아 두는 메모장 |
 | `VoicePractice/Models/PracticeSentences.swift` | 직접 쓴 연습 문장 목록. 직접 고쳐도 되는 파일 |
 | `VoicePractice/Models/SentencePatterns.swift` | 자동 생성용 문장 틀(패턴)과 단어 목록. 직접 고쳐도 되는 파일 |
 | `VoicePractice/Models/SentenceGenerator.swift` | 패턴의 빈칸을 단어로 채우고, 받침에 맞게 조사를 고르고, 말투와 모음이 고르게 15문장을 골라 주는 문장 공장 |
 | `VoicePractice/Models/KoreanVowel.swift` | 한글 글자를 분해해서 어떤 단모음(아·어·오·우·으·이·에)이 몇 번 나오는지 세는 도구 |
-| `VoicePractice/Models/PracticeDuration.swift` | 연습 시간(녹음 한 번의 최대 길이) 규칙: 10초~3분, 10초 단위, "1분 30초" 같은 표시 문구 |
+| `VoicePractice/Models/PracticeDuration.swift` | 연습 시간("지금 들어보기"로 들려줄 최근 길이) 규칙: 10초~3분, 10초 단위, "1분 30초" 같은 표시 문구 |
 | `VoicePractice/Models/PracticeScripts.json` | 낭독 대본 200편. 직접 고치거나 추가해도 되는 파일 (고친 뒤 ⌘U로 검사) |
 | `VoicePractice/Models/PracticeScript.swift` | 대본 파일을 읽고, 음절 수로 예상 낭독 시간을 계산하는 도구 |
 | `VoicePractice/Views/ScriptReaderView.swift` | 대본을 고르고 스크롤해서 읽는 화면 조각 |

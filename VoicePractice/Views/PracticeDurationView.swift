@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// 녹음 한 번의 최대 길이(10초~3분)를 고르는 슬라이더.
-/// "지금 들어보기"를 누르지 않아도 이 시간이 지나면 녹음을 자동으로 들려준다.
+/// "지금 들어보기"를 누르면 들려줄 최근 길이(10초~3분)를 고르는 슬라이더.
+/// 녹음은 정지할 때까지 이어지고, 이 길이만큼의 최근 소리만 남긴다.
 struct PracticeDurationView: View {
     @Binding var seconds: Double
     /// 연습 중에는 바꾸지 못하게 잠근다.
@@ -28,7 +28,7 @@ struct PracticeDurationView: View {
             .foregroundStyle(.secondary)
             .disabled(isLocked)
 
-            Text("녹음이 이 시간을 넘으면 자동으로 들려줘요.")
+            Text("‘지금 들어보기’를 누르면 최근 이만큼을 들려줘요.")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }

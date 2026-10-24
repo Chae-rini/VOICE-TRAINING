@@ -1,39 +1,34 @@
 import SwiftUI
 
-/// 화면 아래 고정 영역: 연습 시간·반복 횟수, 지금 단계와 남은 시간, 단계별 버튼.
+/// 화면 아래 고정 영역: 연습 시간, 지금 단계와 시간, 단계별 버튼.
 ///
 /// 버튼은 단계마다 바뀐다.
-/// - 쉬는 중: [녹음 불러오기] [▶ 마지막 녹음] [반복 루프 재생]
-/// - 녹음 중: [정지] [지금 들어보기] → 그때까지 녹음한 것을 들려주고, 끝나면 자동으로 다시 녹음
+/// - 쉬는 중: [녹음 불러오기] [▶ 마지막 녹음] [반복 루프 재생] → 정지할 때까지 녹음이 이어진다
+/// - 녹음 중: [정지] [지금 들어보기] → 최근 녹음을 들려주고, 끝나면 자동으로 다시 녹음
 /// - 듣는 중: [정지] [건너뛰기]
 struct PracticeControlsView: View {
     let audio: AudioInputManager
-    /// 녹음 한 번의 길이 [s]
+    /// "지금 들어보기"를 누르면 들려줄 최근 길이 [s]
     @Binding var practiceDuration: Double
     /// 파일 앱에서 녹음 파일을 고르는 창을 연다.
     let onImport: () -> Void
-    @AppStorage("practiceRounds") private var rounds = PracticeLoop.defaultRounds
 
     var body: some View {
         VStack(spacing: 10) {
             PracticeDurationView(seconds: $practiceDuration, isLocked: audio.isRunning)
 
-            Stepper(value: $rounds, in: PracticeLoop.roundRange) {
-                HStack {
-                    Text("반복 횟수")
-                    Spacer()
-                    Text("\(rounds)회")
-                        .monospacedDigit()
-                }
-                .font(.subheadline.weight(.medium))
-            }
-            .disabled(audio.isRunning)
-
             status
+
+            if let message = audio.restMessage {
+                Label(message, systemImage: "cup.and.saucer")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
 
             HStack(spacing: 10) {
                 switch audio.loop.phase {
-                case .idle, .finished:
+                case .idle:
                     Button(action: onImport) {
                         Label("녹음 불러오기", systemImage: "folder")
                             .labelStyle(.iconOnly)
@@ -54,8 +49,7 @@ struct PracticeControlsView: View {
                     }
                     mainButton("반복 루프 재생", systemImage: "repeat") {
                         let duration = PracticeDuration.normalized(practiceDuration)
-                        let rounds = rounds
-                        Task { await audio.start(duration: duration, rounds: rounds) }
+                        Task { await audio.start(duration: duration) }
                     }
                     .disabled(audio.isAnalyzingFile)
                 case .recording:
@@ -99,20 +93,19 @@ struct PracticeControlsView: View {
         .tint(.red)
     }
 
-    /// 지금 단계와 남은 시간. 연습 중이 아니면 안내·오류 문구.
+    /// 지금 단계와 시간(녹음은 녹음한 시간, 나머지는 남은 시간). 연습 중이 아니면 안내·오류 문구.
     @ViewBuilder
     private var status: some View {
-        let total = audio.loop.totalRounds
         switch audio.loop.phase {
         case .recording(let round):
-            phaseRow(icon: "record.circle", tint: .red, text: "녹음 중 · \(round)/\(total)회")
+            phaseRow(icon: "record.circle", tint: .red, text: "녹음 중 · \(round)번째")
         case .listening(let round):
-            phaseRow(icon: "speaker.wave.2.fill", tint: .teal, text: "방금 녹음 듣는 중 · \(round)/\(total)회")
+            phaseRow(icon: "speaker.wave.2.fill", tint: .teal, text: "방금 녹음 듣는 중 · \(round)번째")
         case .countdown(let nextRound):
             phaseRow(icon: "pause.circle", tint: .secondary, text: "숨 고르기 · 곧 \(nextRound)번째 녹음")
         case .replaying:
             phaseRow(icon: "speaker.wave.2.fill", tint: .teal, text: "‘\(audio.lastTakeTitle ?? "마지막 녹음")’ 듣는 중")
-        case .idle, .finished:
+        case .idle:
             if audio.isAnalyzingFile {
                 HStack(spacing: 8) {
                     ProgressView()
@@ -123,7 +116,7 @@ struct PracticeControlsView: View {
                 Text(message)
                     .font(.footnote)
                     .foregroundStyle(.red)
-            } else if let message = audio.completionMessage ?? audio.infoMessage {
+            } else if let message = audio.infoMessage {
                 Text(message)
                     .font(.footnote)
                     .foregroundStyle(.teal)
@@ -137,12 +130,17 @@ struct PracticeControlsView: View {
                 .foregroundStyle(tint)
             Text(text)
             Spacer()
-            if let interval = audio.phaseInterval {
-                // 남은 시간이 1초마다 줄어든다.
-                Text(timerInterval: interval, countsDown: true)
-                    .monospacedDigit()
-                    .foregroundStyle(.secondary)
+            Group {
+                if let start = audio.recordingStart {
+                    // 녹음한 시간이 1초마다 늘어난다.
+                    Text(start, style: .timer)
+                } else if let interval = audio.phaseInterval {
+                    // 남은 시간이 1초마다 줄어든다.
+                    Text(timerInterval: interval, countsDown: true)
+                }
             }
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
         }
         .font(.subheadline)
     }

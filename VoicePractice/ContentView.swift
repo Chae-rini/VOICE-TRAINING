@@ -37,7 +37,7 @@ struct ContentView: View {
             }
         }
         .sensoryFeedback(.impact(weight: .light), trigger: audio.finishedTakeCount)
-        .sensoryFeedback(.success, trigger: audio.completedPracticeCount)
+        .sensoryFeedback(.impact(weight: .heavy), trigger: audio.restReminderCount)
         // 음성 메모는 공유 → "파일에 저장"을 해 두면 여기서 고를 수 있다.
         .fileImporter(isPresented: $isImporting, allowedContentTypes: [.audio]) { result in
             if case .success(let url) = result {
@@ -109,7 +109,7 @@ struct ContentView: View {
         case .recording: "현재 목소리 높이"
         case .listening, .replaying: "녹음을 다시 듣는 중"
         case .countdown: "곧 다시 녹음해요"
-        case .idle, .finished:
+        case .idle:
             audio.hasLastTake ? "마지막 녹음" : "‘반복 루프 재생’을 누르면 녹음과 분석을 시작해요"
         }
     }
