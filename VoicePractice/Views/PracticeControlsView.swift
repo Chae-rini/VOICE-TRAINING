@@ -106,7 +106,8 @@ struct PracticeControlsView: View {
         case .replaying:
             phaseRow(icon: "speaker.wave.2.fill", tint: .teal, text: "‘\(audio.lastTakeTitle ?? "마지막 녹음")’ 듣는 중")
         case .measuring:
-            phaseRow(icon: "waveform", tint: .indigo, text: "내 목소리 재는 중")
+            phaseRow(icon: "waveform", tint: .indigo,
+                     text: audio.measuringVowel.map { "‘\($0.rawValue)’ 길게 내는 중" } ?? "내 목소리 재는 중")
         case .idle:
             if audio.isAnalyzingFile {
                 HStack(spacing: 8) {

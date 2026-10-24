@@ -47,6 +47,16 @@ final class AudioInputManager {
     private(set) var infoMessage: String?
     /// 내 목소리 재기의 결과. 재는 화면이 보여 주고 저장하거나 닫으면 지운다.
     private(set) var measurement: VoiceBaseline.Measurement?
+    /// 모음 하나를 잰 결과. [모음] 탭이 저장한 뒤 지운다.
+    private(set) var vowelResult: VowelResult?
+    /// 지금 재고 있는 모음 (상태 표시용)
+    private(set) var measuringVowel: KoreanVowel?
+
+    struct VowelResult: Equatable {
+        let vowel: KoreanVowel
+        /// nil이면 목소리가 너무 짧게 잡혀 저장하지 않음
+        let entry: VowelMap.Entry?
+    }
 
     var isRunning: Bool { loop.isActive }
 
@@ -61,6 +71,13 @@ final class AudioInputManager {
     @ObservationIgnored private var keepDuration: TimeInterval = PracticeDuration.defaultSeconds
     @ObservationIgnored private var phaseTask: Task<Void, Never>?
     @ObservationIgnored private var restReminderTask: Task<Void, Never>?
+    /// 지금 재는 것: 내 기준 목소리, 또는 모음 하나
+    @ObservationIgnored private var measuringTarget = MeasuringTarget.baseline
+
+    private enum MeasuringTarget {
+        case baseline
+        case vowel(KoreanVowel)
+    }
     @ObservationIgnored private var isTapInstalled = false
     @ObservationIgnored private var lastVoicedTime: TimeInterval = 0
     @ObservationIgnored private var sessionObservers: [any NSObjectProtocol] = []
@@ -197,13 +214,48 @@ final class AudioInputManager {
         errorMessage = nil
         measurement = nil
         guard await ensurePermission(), !isRunning else { return }
+        measuringTarget = .baseline
+        startMeasuring(seconds: VoiceBaseline.recordingSeconds)
+    }
 
-        keepDuration = VoiceBaseline.recordingSeconds
+    /// 내 모음 지도: 모음 하나를 3초 동안 길게 낸 소리로 F1·F2를 잰다. 결과는 `vowelResult`.
+    func measureVowel(_ vowel: KoreanVowel) async {
+        guard !isRunning, !isAnalyzingFile else { return }
+        errorMessage = nil
+        vowelResult = nil
+        guard await ensurePermission(), !isRunning else { return }
+        measuringTarget = .vowel(vowel)
+        measuringVowel = vowel
+        startMeasuring(seconds: VowelMap.recordingSeconds)
+    }
+
+    /// 녹음 파일(음성 메모 등)에 담긴 모음 하나로 F1·F2를 잰다. 파일 전체를 그 모음으로 본다.
+    func measureVowel(_ vowel: KoreanVowel, fromFile url: URL) async {
+        guard !isRunning, !isAnalyzingFile else { return }
+        errorMessage = nil
+        vowelResult = nil
+        isAnalyzingFile = true
+        defer { isAnalyzingFile = false }
+        do {
+            let readings = try await analyzeFile(at: url).readings
+            vowelResult = VowelResult(vowel: vowel, entry: VowelMap.measure(readings))
+        } catch {
+            errorMessage = "이 파일을 읽지 못했어요. 녹음(오디오) 파일인지 확인해 주세요."
+        }
+    }
+
+    /// 모음을 잰 결과를 지운다 (화면이 저장한 뒤).
+    func clearVowelResult() {
+        vowelResult = nil
+    }
+
+    private func startMeasuring(seconds: TimeInterval) {
+        keepDuration = seconds
         loop.startMeasuring()
         beginRecording()
         guard case .measuring = loop.phase else { return }  // 마이크를 못 켰으면 이미 정지됨
         recordingStart = nil  // 재는 동안에는 남은 시간을 보여 준다
-        schedule(.finishMeasuring, after: VoiceBaseline.recordingSeconds)
+        schedule(.finishMeasuring, after: seconds)
     }
 
     /// 녹음 파일(음성 메모 등)로 기준 목소리를 잰다. 파일은 기기 안에서 읽기만 한다.
@@ -233,7 +285,13 @@ final class AudioInputManager {
         graphClock = .frozen(graphClock.endTime(now: AudioClock.now))
         shutDown()
         loop.stop()
-        measurement = VoiceBaseline.measure(history.readings)
+        switch measuringTarget {
+        case .baseline:
+            measurement = VoiceBaseline.measure(history.readings)
+        case .vowel(let vowel):
+            vowelResult = VowelResult(vowel: vowel, entry: VowelMap.measure(history.readings))
+            measuringVowel = nil
+        }
     }
 
     /// 다른 앱(음성 메모 등)의 공유 창에서 이 앱으로 보낸 녹음을 연다.
@@ -298,6 +356,7 @@ final class AudioInputManager {
         restReminderTask?.cancel()
         restReminderTask = nil
         recordingStart = nil
+        measuringVowel = nil
         shutDown()
         loop.stop()
     }

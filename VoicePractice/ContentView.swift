@@ -11,8 +11,17 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isImporting = false
+    /// 파일 고르기 창을 무엇에 쓰는지. 파일 고르기 창은 화면에 하나만 두고 용도만 바꾼다.
+    @State private var importPurpose = ImportPurpose.recording
     @State private var sharePayload: SharePayload?
     @State private var isMeasuringBaseline = false
+
+    private enum ImportPurpose {
+        /// 녹음을 불러와 재생하며 보기
+        case recording
+        /// 내 모음 지도에 모음 하나로 재기
+        case vowel(KoreanVowel)
+    }
 
     /// 공유 창에 넘길 것: 피드백 요청문과 녹음 파일
     private struct SharePayload: Identifiable {
@@ -29,8 +38,11 @@ struct ContentView: View {
                 TabView {
                     practiceScreen
                         .tabItem { Label("높이", systemImage: "waveform.path") }
-                    VowelMapScreen(audio: audio, caption: vowelCaption)
-                        .safeAreaInset(edge: .bottom) { controls }
+                    VowelMapScreen(audio: audio, caption: vowelCaption) { vowel in
+                        importPurpose = .vowel(vowel)
+                        isImporting = true
+                    }
+                    .safeAreaInset(edge: .bottom) { controls }
                         .tabItem { Label("모음", systemImage: "mouth") }
                 }
             }
@@ -50,8 +62,12 @@ struct ContentView: View {
         .sensoryFeedback(.impact(weight: .heavy), trigger: audio.restReminderCount)
         // 음성 메모는 공유 → "파일에 저장"을 해 두면 여기서 고를 수 있다.
         .fileImporter(isPresented: $isImporting, allowedContentTypes: [.audio]) { result in
-            if case .success(let url) = result {
+            guard case .success(let url) = result else { return }
+            switch importPurpose {
+            case .recording:
                 Task { await audio.importRecording(from: url) }
+            case .vowel(let vowel):
+                Task { await audio.measureVowel(vowel, fromFile: url) }
             }
         }
         // 음성 메모 등의 공유 창에서 이 앱을 고르면, iOS가 파일을 앱 안에 복사해 넘겨준다.
@@ -113,6 +129,7 @@ struct ContentView: View {
     /// 화면 아래 고정 영역 (두 탭이 함께 쓴다)
     private var controls: some View {
         PracticeControlsView(audio: audio, practiceDuration: $practiceDuration) {
+            importPurpose = .recording
             isImporting = true
         }
     }
@@ -122,7 +139,7 @@ struct ContentView: View {
         case .recording: "지금 내는 모음"
         case .listening, .replaying: "녹음을 다시 듣는 중"
         case .countdown: "곧 다시 녹음해요"
-        case .measuring: "내 목소리 재는 중"
+        case .measuring: audio.measuringVowel.map { "‘\($0.rawValue)’ 길게 내는 중" } ?? "내 목소리 재는 중"
         case .idle:
             audio.hasLastTake ? "마지막 녹음" : "‘반복 루프 재생’을 누르고 모음을 길게 내 보세요"
         }
@@ -155,7 +172,7 @@ struct ContentView: View {
         case .recording: "현재 목소리 높이"
         case .listening, .replaying: "녹음을 다시 듣는 중"
         case .countdown: "곧 다시 녹음해요"
-        case .measuring: "내 목소리 재는 중"
+        case .measuring: audio.measuringVowel.map { "‘\($0.rawValue)’ 길게 내는 중" } ?? "내 목소리 재는 중"
         case .idle:
             audio.hasLastTake ? "마지막 녹음" : "‘반복 루프 재생’을 누르면 녹음과 분석을 시작해요"
         }

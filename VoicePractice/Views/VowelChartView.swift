@@ -2,12 +2,16 @@ import SwiftUI
 
 /// 모음 지도: 가로 F2(왼쪽이 혀 앞쪽), 세로 F1(위가 입을 좁게).
 /// 지금 내는 소리를 큰 점으로, 최근 1.5초를 흐린 꼬리로 보여 준다. 녹음을 다시 들을 때는 재생 위치를 따라간다.
-/// 성별 평균 같은 기준 위치는 그리지 않는다 (원칙 3).
+/// 내가 잰 모음(내 모음 지도)은 남보라 원과 글자로 표시한다. 성별 평균 같은 기준 위치는 그리지 않는다 (원칙 3).
 struct VowelChartView: View {
     let history: PitchHistory
     let clock: GraphClock
     /// 숫자 아래의 안내 문구 ("지금 내는 모음", "녹음을 다시 듣는 중" 등)
     let caption: String
+    /// 내가 잰 모음들
+    var map = VowelMap()
+    /// 비교할 모음. 이 모음을 쟀으면 지금 점과의 차이를 숫자로 보여 준다.
+    var selected: KoreanVowel?
 
     /// [s] 지금 점을 정할 때 모으는 길이 (흔들림 줄이기)
     private let currentWindow: TimeInterval = 0.3
@@ -15,6 +19,8 @@ struct VowelChartView: View {
     private let trailWindow: TimeInterval = 1.5
     private let pointColor = Color.teal
     private let trailColor = Color.gray
+    /// 내 기준(내 모음 지도) 색. [높이] 탭의 기준 목소리 점선과 같은 색이다.
+    private let markerColor = Color.indigo
 
     var body: some View {
         // 녹음 중이거나 다시 듣는 중에만 초당 30번 다시 그린다.
@@ -44,7 +50,19 @@ struct VowelChartView: View {
             Text(point?.isF1Uncertain == true ? "목소리가 높아 F1(세로)은 정확하지 않을 수 있어요" : caption)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
+            // 내가 잰 같은 모음과의 차이 (어느 쪽이 낫다는 뜻이 아니라 얼마나 다른지만)
+            if let point, let selected, let saved = map[selected] {
+                Text("내 ‘\(selected.rawValue)’와 비교 · F1 \(signed(point.f1 - saved.f1)) · F2 \(signed(point.f2 - saved.f2)) Hz")
+                    .font(.footnote.weight(.medium))
+                    .monospacedDigit()
+                    .foregroundStyle(markerColor)
+            }
         }
+    }
+
+    private func signed(_ difference: Double) -> String {
+        let value = Int(difference.rounded())
+        return value > 0 ? "+\(value)" : "\(value)"
     }
 
     private func value(_ name: String, _ frequency: Double?, dimmed: Bool) -> some View {
@@ -99,6 +117,27 @@ struct VowelChartView: View {
         context.draw(label("← 혀 앞쪽"), at: CGPoint(x: plot.minX, y: plot.maxY + 22), anchor: .topLeading)
         context.draw(label("F2", bold: true), at: CGPoint(x: plot.midX, y: plot.maxY + 22), anchor: .top)
         context.draw(label("혀 뒤쪽 →"), at: CGPoint(x: plot.maxX, y: plot.maxY + 22), anchor: .topTrailing)
+
+        // 내 모음 지도: 잰 모음마다 남보라 원과 글자. 길게 내는 동안 흔들린 범위(25%~75%)는 옅은 십자로.
+        // 잴 때 F1이 불확실했으면 원을 점선으로 그린다.
+        for vowel in KoreanVowel.allCases {
+            guard let entry = map[vowel] else { continue }
+            let p = point(f1: entry.f1, f2: entry.f2)
+            var cross = Path()
+            cross.move(to: CGPoint(x: point(f1: entry.f1, f2: entry.f2Spread.upperBound).x, y: p.y))
+            cross.addLine(to: CGPoint(x: point(f1: entry.f1, f2: entry.f2Spread.lowerBound).x, y: p.y))
+            cross.move(to: CGPoint(x: p.x, y: point(f1: entry.f1Spread.lowerBound, f2: entry.f2).y))
+            cross.addLine(to: CGPoint(x: p.x, y: point(f1: entry.f1Spread.upperBound, f2: entry.f2).y))
+            context.stroke(cross, with: .color(markerColor.opacity(0.35)), lineWidth: 1.5)
+
+            let isSelected = vowel == selected
+            let radius: CGFloat = isSelected ? 15 : 12
+            let circle = Path(ellipseIn: CGRect(x: p.x - radius, y: p.y - radius, width: 2 * radius, height: 2 * radius))
+            context.fill(circle, with: .color(markerColor.opacity(isSelected ? 0.22 : 0.10)))
+            context.stroke(circle, with: .color(markerColor),
+                           style: StrokeStyle(lineWidth: isSelected ? 2 : 1.2, dash: entry.isF1Uncertain ? [3, 3] : []))
+            context.draw(Text(vowel.rawValue).font(.caption.weight(.semibold)).foregroundStyle(markerColor), at: p)
+        }
 
         // 꼬리: 최근 1.5초. 오래된 점일수록 흐리게
         for reading in trail {
