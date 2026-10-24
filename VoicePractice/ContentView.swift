@@ -8,6 +8,7 @@ struct ContentView: View {
     @AppStorage(TargetRangeStore.upperKey) private var targetUpper: Double?
     @AppStorage(TargetRangeStore.baselineMedianKey) private var baselineMedian: Double?
     @AppStorage(TargetRangeStore.baselinePromptShownKey) private var baselinePromptShown = false
+    @AppStorage(PracticeLanguage.storageKey) private var language = PracticeLanguage.korean
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isImporting = false
@@ -97,10 +98,18 @@ struct ContentView: View {
                 }
 
                 if let summary, let title = audio.lastTakeTitle {
-                    RecordingSummaryView(title: title, summary: summary) { includesAudio in
-                        share(summary: summary, title: title, includesAudio: includesAudio)
-                    }
+                    RecordingSummaryView(
+                        title: title, summary: summary, isSaved: audio.lastTakeIsSaved, isSaving: audio.isSavingTake,
+                        onSave: { memo in
+                            Task { await audio.saveLastTake(summary: summary, memo: memo, language: language) }
+                        },
+                        onShare: { includesAudio in
+                            share(summary: summary, title: title, includesAudio: includesAudio)
+                        }
+                    )
                 }
+
+                languageRow
 
                 SentenceCardView(isPracticing: audio.isRunning)
             }
@@ -128,10 +137,27 @@ struct ContentView: View {
 
     /// 화면 아래 고정 영역 (두 탭이 함께 쓴다)
     private var controls: some View {
-        PracticeControlsView(audio: audio, practiceDuration: $practiceDuration) {
+        PracticeControlsView(audio: audio, practiceDuration: $practiceDuration, language: language) {
             importPurpose = .recording
             isImporting = true
         }
+    }
+
+    /// 연습할 때 말하는 언어. 기록에 함께 남아, 나중에 언어별로 높이를 비교할 수 있다. 연습 중에는 바꾸지 않는다.
+    private var languageRow: some View {
+        HStack {
+            Label("말하는 언어", systemImage: "globe")
+            Spacer()
+            Picker("말하는 언어", selection: $language) {
+                ForEach(PracticeLanguage.allCases) { language in
+                    Text(language.label).tag(language)
+                }
+            }
+            .pickerStyle(.menu)
+            .disabled(audio.isRunning)
+        }
+        .font(.subheadline)
+        .padding(.horizontal, 4)
     }
 
     private var vowelCaption: String {

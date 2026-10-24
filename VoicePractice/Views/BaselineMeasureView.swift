@@ -179,6 +179,7 @@ struct BaselineMeasureView: View {
 
             Button {
                 TargetRangeStore.save(baseline, applyingTarget: applyToTarget, in: .standard)
+                audio.archive.saveBaseline(baseline)  // 날짜별 이력에도 남긴다
                 audio.clearMeasurement()
                 dismiss()
             } label: {

@@ -34,13 +34,14 @@ struct VowelMapScreen: View {
             }
             .padding()
         }
-        // 모음 하나를 다 재면 저장한다 (기기 안에만).
+        // 모음 하나를 다 재면 저장한다 (기기 안에만). 지도에는 마지막 값, 이력에는 잴 때마다 하나씩.
         .onChange(of: audio.vowelResult) { _, result in
             guard let result else { return }
             if let entry = result.entry {
                 var updated = map
                 updated.set(entry, for: result.vowel)
                 mapData = updated.data
+                audio.archive.saveVowel(entry, for: result.vowel)
                 message = "‘\(result.vowel.rawValue)’를 저장했어요 · F1 \(Int(entry.f1.rounded())) · F2 \(Int(entry.f2.rounded())) Hz"
                 messageIsWarning = false
             } else {

@@ -12,10 +12,13 @@ enum MicrophonePermission {
 /// 마이크 입력과 녹음·재생을 맡는다.
 /// 연습을 시작하면 정지할 때까지 녹음을 이어 가되, 최근 N초(연습 시간)만 남긴다.
 /// "지금 들어보기"를 누르면 그 N초를 들려주고, 끝나면 숨을 고른 뒤 자동으로 다시 녹음한다 (PracticeLoop 순서).
-/// 녹음은 메모리에만 두고, 사용자가 공유를 고를 때만 임시 파일로 만든다.
+/// 녹음은 메모리에만 두고, 사용자가 공유를 고르면 임시 파일로, ‘기록에 남기기’를 누르면 기기 안 기록으로 만든다.
+/// 정지하면 연습 한 번의 요약(숫자만)을 기록에 남긴다.
 @MainActor
 @Observable
 final class AudioInputManager {
+    /// 연습 기록을 저장하는 곳 (기기 안)
+    let archive: PracticeArchive
     private(set) var loop = PracticeLoop()
     private(set) var permission: MicrophonePermission
     /// 지금(또는 마지막) 녹음 한 번의 피치 기록. 다시 들을 때 처음부터 그릴 수 있게 녹음 길이만큼 보관한다.
@@ -41,6 +44,10 @@ final class AudioInputManager {
     private(set) var lastTakeTitle: String?
     /// [s] 마지막 녹음의 길이
     private(set) var lastTakeDuration: TimeInterval?
+    /// 마지막 녹음을 이미 기록에 남겼는지
+    private(set) var lastTakeIsSaved = false
+    /// 마지막 녹음을 기록에 남기는 중인지
+    private(set) var isSavingTake = false
     /// 녹음 파일을 분석하는 중인지
     private(set) var isAnalyzingFile = false
     /// 잠깐 보여줄 안내 (예: 긴 파일은 앞부분만 불러왔다는 안내)
@@ -66,7 +73,11 @@ final class AudioInputManager {
     @ObservationIgnored private var playbackEngine: AVAudioEngine?
     @ObservationIgnored private var player: AVAudioPlayerNode?
     @ObservationIgnored private var recorder: TakeRecorder?
-    @ObservationIgnored private var lastTake: RecordedTake?
+    @ObservationIgnored private var lastTake: RecordedTake? {
+        didSet { lastTakeIsSaved = false }
+    }
+    /// 지금 하고 있는 연습 한 번의 기록. 연습 중에만 있다.
+    @ObservationIgnored private var sessionLog: PracticeSessionLog?
     /// [s] "지금 들어보기"를 누르면 들려줄 최근 길이
     @ObservationIgnored private var keepDuration: TimeInterval = PracticeDuration.defaultSeconds
     @ObservationIgnored private var phaseTask: Task<Void, Never>?
@@ -90,12 +101,19 @@ final class AudioInputManager {
     private let playbackTailMargin: TimeInterval = 0.2
 
     private struct RecordedTake {
+        let id = UUID()
         /// 들려줄 수 있게 키운 소리
         let buffer: AVAudioPCMBuffer
         /// [s] 첫 샘플의 시각. 피치 기록과 같은 시계를 쓴다 (불러온 파일은 0)
         let startTime: TimeInterval
         /// 재생용으로 곱한 배율. 원래 소리 = buffer ÷ playbackGain
         let playbackGain: Float
+        /// 녹음을 마친(또는 파일을 불러온) 때
+        let recordedAt = Date.now
+        /// 기록에 남길 때의 제목. 불러온 파일은 파일 이름, 방금 녹음한 것은 빈 글자
+        let archiveTitle: String
+        /// 연습 중에 녹음했으면 그 연습의 언어. 불러온 파일은 nil (남길 때 고른 언어를 쓴다)
+        let language: PracticeLanguage?
     }
 
     /// 예약해 둔 다음 단계. 녹음은 사용자가 멈출 때까지 이어지므로 예약하지 않는다.
@@ -105,7 +123,9 @@ final class AudioInputManager {
         case finishMeasuring
     }
 
-    init() {
+    /// `archive`를 주지 않으면 앱 전체가 함께 쓰는 저장소를 쓴다.
+    init(archive: PracticeArchive? = nil) {
+        self.archive = archive ?? .shared
         permission = Self.readPermission()
         observeInterruptions()
     }
@@ -125,8 +145,8 @@ final class AudioInputManager {
     }
 
     /// 연습을 시작한다. 정지할 때까지 녹음 → (들어보기를 누르면) 듣기 → 다시 녹음을 이어 간다.
-    /// `duration` [s]: 들어보기를 누르면 들려줄 최근 길이.
-    func start(duration: TimeInterval) async {
+    /// `duration` [s]: 들어보기를 누르면 들려줄 최근 길이. `language`: 기록에 함께 남길 연습 언어.
+    func start(duration: TimeInterval, language: PracticeLanguage) async {
         guard !isRunning, !isAnalyzingFile else { return }
         errorMessage = nil
         infoMessage = nil
@@ -136,6 +156,7 @@ final class AudioInputManager {
         keepDuration = duration
         loop = PracticeLoop()
         loop.start()
+        sessionLog = PracticeSessionLog(language: language)
         startRestReminders()
         beginRecording()
     }
@@ -184,9 +205,11 @@ final class AudioInputManager {
 
         history = PitchHistory(retention: analysis.duration + 2)
         history.append(contentsOf: analysis.readings)
-        lastTake = RecordedTake(buffer: playback.buffer, startTime: 0, playbackGain: playback.gain)
+        let title = url.deletingPathExtension().lastPathComponent
+        lastTake = RecordedTake(buffer: playback.buffer, startTime: 0, playbackGain: playback.gain,
+                                archiveTitle: title, language: nil)
         hasLastTake = true
-        lastTakeTitle = url.deletingPathExtension().lastPathComponent
+        lastTakeTitle = title
         lastTakeDuration = analysis.duration
         if analysis.wasTruncated {
             infoMessage = "5분이 넘는 녹음이라 앞 5분만 불러왔어요."
@@ -319,13 +342,38 @@ final class AudioInputManager {
         return inboxes.contains { path.hasPrefix($0.resolvingSymlinksInPath().path + "/") }
     }
 
+    /// 마지막 녹음을 기록에 남긴다 (사용자가 ‘기록에 남기기’를 눌렀을 때만). 소리는 m4a로 기기 안에 저장한다.
+    /// `summary`: 화면에 보이는 그 녹음의 요약. `language`: 불러온 파일일 때 붙일 언어 (연습 중 녹음은 그 연습의 언어).
+    func saveLastTake(summary: PitchSummary, memo: String, language: PracticeLanguage) async {
+        guard let take = lastTake, !lastTakeIsSaved, !isSavingTake, let samples = originalSamples(of: take) else { return }
+        isSavingTake = true
+        defer { isSavingTake = false }
+        do {
+            try await archive.saveRecording(
+                samples: samples, sampleRate: take.buffer.format.sampleRate, summary: summary,
+                title: take.archiveTitle, memo: memo, language: take.language ?? language, recordedAt: take.recordedAt
+            )
+            // 저장하는 동안 새 녹음으로 바뀌었으면 새 녹음은 아직 남기지 않은 것이다.
+            if lastTake?.id == take.id {
+                lastTakeIsSaved = true
+            }
+        } catch {
+            errorMessage = "녹음을 기록에 남기지 못했어요. 기기 저장 공간을 확인해 주세요."
+        }
+    }
+
+    /// 재생용으로 키우기 전의 원래 소리
+    private func originalSamples(of take: RecordedTake) -> [Float]? {
+        guard let channel = take.buffer.floatChannelData?[0] else { return nil }
+        let boosted = Array(UnsafeBufferPointer(start: channel, count: Int(take.buffer.frameLength)))
+        return take.playbackGain == 1 ? boosted : vDSP.divide(boosted, take.playbackGain)
+    }
+
     /// 마지막 녹음의 원래 소리를 공유용 WAV 파일로 임시 폴더에 만든다. 다 쓰면 지워도 된다.
     func exportLastTake() throws -> URL {
-        guard let lastTake, let channel = lastTake.buffer.floatChannelData?[0] else {
+        guard let lastTake, let original = originalSamples(of: lastTake) else {
             throw AudioFileAnalyzer.AnalysisError.emptyFile
         }
-        let boosted = Array(UnsafeBufferPointer(start: channel, count: Int(lastTake.buffer.frameLength)))
-        let original = lastTake.playbackGain == 1 ? boosted : vDSP.divide(boosted, lastTake.playbackGain)
 
         let directory = FileManager.default.temporaryDirectory
         // 지난번에 공유하려고 만든 파일은 지운다 (임시 폴더라 iOS도 때때로 비운다).
@@ -359,6 +407,17 @@ final class AudioInputManager {
         measuringVowel = nil
         shutDown()
         loop.stop()
+        finishSession()
+    }
+
+    /// 연습 한 번을 마치며 요약(숫자만)을 기록에 남긴다. 30초 넘게 연습하고 목소리가 5초 넘게 잡혔을 때만.
+    private func finishSession() {
+        guard let log = sessionLog else { return }
+        sessionLog = nil
+        // 목표 범위는 연습 중에도 옮길 수 있으므로, 정지한 때의 값과 비교한다.
+        guard let summary = log.finish(at: .now, target: TargetRangeStore.savedTarget(in: .standard)) else { return }
+        archive.saveSession(summary)
+        infoMessage = "연습 기록을 남겼어요 · \(PitchSummary.durationLabel(summary.pitch.duration))"
     }
 
     // MARK: - 단계 진행
@@ -399,6 +458,7 @@ final class AudioInputManager {
         graphClock = .live
         phaseInterval = nil
         recordingStart = .now
+        sessionLog?.beginTake()  // 연습 중일 때만 있다 (내 목소리 재기는 기록하지 않음)
     }
 
     private func finishRecording() {
@@ -568,7 +628,9 @@ final class AudioInputManager {
         let take = RecordedTake(
             buffer: playback.buffer,
             startTime: recorder.startTime ?? AudioClock.now,
-            playbackGain: playback.gain
+            playbackGain: playback.gain,
+            archiveTitle: "",
+            language: sessionLog?.language
         )
         lastTake = take
         hasLastTake = true
@@ -580,8 +642,12 @@ final class AudioInputManager {
     private func receive(_ readings: [PitchReading]) {
         // 녹음·재기 단계가 끝난 뒤에 늦게 도착한 결과는 버린다.
         switch loop.phase {
-        case .recording, .measuring: break
-        default: return
+        case .recording:
+            sessionLog?.add(readings)
+        case .measuring:
+            break
+        default:
+            return
         }
         history.append(contentsOf: readings)
 

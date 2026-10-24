@@ -1,7 +1,7 @@
 import Accelerate
 import AVFoundation
 
-/// 녹음 파일(음성 메모 등)을 읽어 피치를 미리 계산하고, 공유용 WAV 파일을 만든다.
+/// 녹음 파일(음성 메모 등)을 읽어 피치를 미리 계산하고, 공유용 WAV·기록용 m4a 파일을 만든다.
 /// 모두 기기 안에서만 처리한다. 화면이 멈추지 않도록 백그라운드에서 부를 수 있게 메인 액터에 묶지 않는다.
 nonisolated enum AudioFileAnalyzer {
     /// [s] 불러오는 최대 길이. 더 긴 파일은 앞부분만 쓴다 (5분이면 약 58MB).
@@ -80,6 +80,32 @@ nonisolated enum AudioFileAnalyzer {
 
     /// 공유용으로 16비트 WAV 파일을 만든다 (거의 모든 앱이 열 수 있는 형식).
     static func writeWAV(samples: [Float], sampleRate: Double, to url: URL) throws {
+        try write(samples: samples, sampleRate: sampleRate, to: url, settings: [
+            AVFormatIDKey: kAudioFormatLinearPCM,
+            AVSampleRateKey: sampleRate,
+            AVNumberOfChannelsKey: 1,
+            AVLinearPCMBitDepthKey: 16,
+            AVLinearPCMIsFloatKey: false,
+            AVLinearPCMIsBigEndianKey: false,
+        ])
+    }
+
+    /// 기록 보관용으로 AAC(m4a) 파일을 만든다. 모노 64 kbps라 1분에 약 0.5MB.
+    /// 압축은 높은 소리부터 덜어내므로, 피치·포먼트를 재는 5.5 kHz 아래는 거의 그대로 남는다.
+    static func writeM4A(samples: [Float], sampleRate: Double, to url: URL) throws {
+        var settings: [String: Any] = [
+            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVSampleRateKey: sampleRate,
+            AVNumberOfChannelsKey: 1,
+        ]
+        // 낮은 샘플레이트에서는 64 kbps를 받지 않는 경우가 있어 인코더가 정하게 둔다.
+        if sampleRate >= 44_100 {
+            settings[AVEncoderBitRateKey] = 64_000
+        }
+        try write(samples: samples, sampleRate: sampleRate, to: url, settings: settings)
+    }
+
+    private static func write(samples: [Float], sampleRate: Double, to url: URL, settings: [String: Any]) throws {
         guard let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1),
               let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: AVAudioFrameCount(samples.count)),
               let channel = buffer.floatChannelData?[0] else {
@@ -92,15 +118,7 @@ nonisolated enum AudioFileAnalyzer {
         }
         buffer.frameLength = AVAudioFrameCount(samples.count)
 
-        let settings: [String: Any] = [
-            AVFormatIDKey: kAudioFormatLinearPCM,
-            AVSampleRateKey: sampleRate,
-            AVNumberOfChannelsKey: 1,
-            AVLinearPCMBitDepthKey: 16,
-            AVLinearPCMIsFloatKey: false,
-            AVLinearPCMIsBigEndianKey: false,
-        ]
-        // 파일은 이 블록이 끝나며 닫힌다.
+        // 파일은 이 함수가 끝나며 닫힌다.
         let file = try AVAudioFile(forWriting: url, settings: settings, commonFormat: .pcmFormatFloat32, interleaved: false)
         try file.write(from: buffer)
     }

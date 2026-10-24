@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 
 @main
@@ -11,5 +12,7 @@ struct VoicePracticeApp: App {
         WindowGroup {
             ContentView()
         }
+        // 연습 기록 저장소 (기기 안). 화면에서 기록을 읽을 때 쓴다.
+        .modelContainer(PracticeArchive.shared.container)
     }
 }

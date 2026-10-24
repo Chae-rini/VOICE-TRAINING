@@ -2,15 +2,24 @@ import SwiftUI
 import UIKit
 
 /// 마지막 녹음(방금 녹음 또는 불러온 파일)의 피치 요약 카드.
+/// "기록에 남기기"는 이 녹음의 소리와 요약을 기기 안에 저장한다 (누를 때만).
 /// "AI에게 피드백 받기"는 요약(원하면 녹음 파일도)을 iOS 공유 창에 넘기고, 보낼 앱은 사용자가 고른다.
 /// 앱 자체는 인터넷으로 아무것도 보내지 않는다.
 struct RecordingSummaryView: View {
     let title: String
     let summary: PitchSummary
+    /// 이미 기록에 남겼는지
+    let isSaved: Bool
+    /// 기록에 남기는 중인지
+    let isSaving: Bool
+    /// 기록에 남긴다. 메모는 비어 있을 수 있다.
+    let onSave: (_ memo: String) -> Void
     /// 공유 창을 연다. true면 녹음 파일도 함께 넘긴다.
     let onShare: (_ includesAudio: Bool) -> Void
 
     @State private var didCopy = false
+    @State private var isAskingMemo = false
+    @State private var memo = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
@@ -30,6 +39,24 @@ struct RecordingSummaryView: View {
                 stat("범위", "\(Int(summary.p10.rounded()))–\(Int(summary.p90.rounded())) Hz")
                 stat("목표 범위 안", summary.inTargetFraction.map { "\(Int(($0 * 100).rounded()))%" } ?? "–")
             }
+
+            Button {
+                isAskingMemo = true
+            } label: {
+                Group {
+                    if isSaving {
+                        Label("남기는 중…", systemImage: "hourglass")
+                    } else if isSaved {
+                        Label("기록에 남겼어요", systemImage: "checkmark")
+                    } else {
+                        Label("기록에 남기기", systemImage: "tray.and.arrow.down")
+                    }
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .font(.subheadline)
+            .disabled(isSaved || isSaving)
 
             HStack(spacing: 10) {
                 // 녹음 파일을 같이 넘기면 오디오를 받는 앱만 공유 창에 뜬다 (ChatGPT·Claude는 안 뜸, 2026-10 아이폰 확인).
@@ -69,6 +96,18 @@ struct RecordingSummaryView: View {
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
         .onChange(of: summary) {
             didCopy = false
+        }
+        .alert("기록에 남기기", isPresented: $isAskingMemo) {
+            TextField("메모 (안 써도 돼요)", text: $memo)
+            Button("남기기") {
+                onSave(memo.trimmingCharacters(in: .whitespacesAndNewlines))
+                memo = ""
+            }
+            Button("취소", role: .cancel) {
+                memo = ""
+            }
+        } message: {
+            Text("이 녹음의 소리와 요약을 이 기기 안에만 저장해요. 나중에 날짜별로 다시 듣고 비교할 수 있어요.")
         }
     }
 

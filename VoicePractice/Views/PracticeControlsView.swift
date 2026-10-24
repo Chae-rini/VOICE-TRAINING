@@ -10,6 +10,8 @@ struct PracticeControlsView: View {
     let audio: AudioInputManager
     /// "지금 들어보기"를 누르면 들려줄 최근 길이 [s]
     @Binding var practiceDuration: Double
+    /// 기록에 함께 남길 연습 언어
+    let language: PracticeLanguage
     /// 파일 앱에서 녹음 파일을 고르는 창을 연다.
     let onImport: () -> Void
 
@@ -49,7 +51,7 @@ struct PracticeControlsView: View {
                     }
                     mainButton("반복 루프 재생", systemImage: "repeat") {
                         let duration = PracticeDuration.normalized(practiceDuration)
-                        Task { await audio.start(duration: duration) }
+                        Task { await audio.start(duration: duration, language: language) }
                     }
                     .disabled(audio.isAnalyzingFile)
                 case .recording:

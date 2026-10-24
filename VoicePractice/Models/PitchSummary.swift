@@ -20,16 +20,21 @@ struct PitchSummary: Equatable {
 
     /// 목소리가 한 번도 잡히지 않았으면 nil.
     init?(readings: [PitchReading], duration: TimeInterval, target: ClosedRange<Double>?) {
-        let voiced = readings.compactMap(\.frequency).sorted()
-        guard !voiced.isEmpty else { return nil }
-
+        let voiced = readings.compactMap(\.frequency)
         // 점 사이 간격(분석 간격)으로 목소리가 잡힌 시간을 어림한다.
         let interval = readings.count > 1
             ? (readings[readings.count - 1].time - readings[0].time) / Double(readings.count - 1)
             : 0
+        self.init(voiced: voiced, voicedSeconds: Double(voiced.count) * interval, duration: duration, target: target)
+    }
+
+    /// 목소리가 잡힌 높이 [Hz]들로 요약한다. 녹음 여러 번을 모은 연습 기록도 이것으로 만든다. 비어 있으면 nil.
+    init?(voiced unsorted: [Double], voicedSeconds: TimeInterval, duration: TimeInterval, target: ClosedRange<Double>?) {
+        let voiced = unsorted.sorted()
+        guard !voiced.isEmpty else { return nil }
 
         self.duration = duration
-        voicedSeconds = Double(voiced.count) * interval
+        self.voicedSeconds = voicedSeconds
         median = Self.percentile(voiced, 0.5)
         p10 = Self.percentile(voiced, 0.1)
         p90 = Self.percentile(voiced, 0.9)
