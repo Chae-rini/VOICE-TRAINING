@@ -45,6 +45,8 @@ final class AudioInputManager {
     private(set) var isAnalyzingFile = false
     /// 잠깐 보여줄 안내 (예: 긴 파일은 앞부분만 불러왔다는 안내)
     private(set) var infoMessage: String?
+    /// 내 목소리 재기의 결과. 재는 화면이 보여 주고 저장하거나 닫으면 지운다.
+    private(set) var measurement: VoiceBaseline.Measurement?
 
     var isRunning: Bool { loop.isActive }
 
@@ -83,6 +85,7 @@ final class AudioInputManager {
     private enum Step {
         case finishListening
         case finishCountdown
+        case finishMeasuring
     }
 
     init() {
@@ -95,6 +98,15 @@ final class AudioInputManager {
         permission = Self.readPermission()
     }
 
+    /// 마이크 권한을 처음이면 묻고, 쓸 수 있으면 true.
+    private func ensurePermission() async -> Bool {
+        if permission == .undetermined {
+            let granted = await AVAudioApplication.requestRecordPermission()
+            permission = granted ? .granted : .denied
+        }
+        return permission == .granted
+    }
+
     /// 연습을 시작한다. 정지할 때까지 녹음 → (들어보기를 누르면) 듣기 → 다시 녹음을 이어 간다.
     /// `duration` [s]: 들어보기를 누르면 들려줄 최근 길이.
     func start(duration: TimeInterval) async {
@@ -102,12 +114,7 @@ final class AudioInputManager {
         errorMessage = nil
         infoMessage = nil
         restMessage = nil
-
-        if permission == .undetermined {
-            let granted = await AVAudioApplication.requestRecordPermission()
-            permission = granted ? .granted : .denied
-        }
-        guard permission == .granted, !isRunning else { return }
+        guard await ensurePermission(), !isRunning else { return }
 
         keepDuration = duration
         loop = PracticeLoop()
@@ -148,15 +155,7 @@ final class AudioInputManager {
 
         let analysis: AudioFileAnalyzer.Analysis
         do {
-            // 분석은 시간이 걸리므로 화면이 멈추지 않게 백그라운드에서 한다.
-            analysis = try await Task.detached(priority: .userInitiated) {
-                // 파일 앱에서 고른 파일은 읽는 동안만 접근 허락을 받는다.
-                let isAccessing = url.startAccessingSecurityScopedResource()
-                defer {
-                    if isAccessing { url.stopAccessingSecurityScopedResource() }
-                }
-                return try AudioFileAnalyzer.analyze(url: url)
-            }.value
+            analysis = try await analyzeFile(at: url)
         } catch {
             errorMessage = "이 파일을 읽지 못했어요. 음성 메모에서 ‘파일에 저장’한 녹음 파일인지 확인해 주세요."
             return
@@ -176,6 +175,65 @@ final class AudioInputManager {
             infoMessage = "5분이 넘는 녹음이라 앞 5분만 불러왔어요."
         }
         replayLastTake()
+    }
+
+    /// 녹음 파일을 읽어 피치를 미리 계산한다. 시간이 걸리므로 화면이 멈추지 않게 백그라운드에서 한다.
+    private func analyzeFile(at url: URL) async throws -> AudioFileAnalyzer.Analysis {
+        try await Task.detached(priority: .userInitiated) {
+            // 파일 앱에서 고른 파일은 읽는 동안만 접근 허락을 받는다.
+            let isAccessing = url.startAccessingSecurityScopedResource()
+            defer {
+                if isAccessing { url.stopAccessingSecurityScopedResource() }
+            }
+            return try AudioFileAnalyzer.analyze(url: url)
+        }.value
+    }
+
+    // MARK: - 내 목소리 재기
+
+    /// 내 목소리 재기: 마이크로 10초 녹음해 기준 목소리를 잰다 (연습과 같은 YIN 분석). 결과는 `measurement`.
+    func measureBaseline() async {
+        guard !isRunning, !isAnalyzingFile else { return }
+        errorMessage = nil
+        measurement = nil
+        guard await ensurePermission(), !isRunning else { return }
+
+        keepDuration = VoiceBaseline.recordingSeconds
+        loop.startMeasuring()
+        beginRecording()
+        guard case .measuring = loop.phase else { return }  // 마이크를 못 켰으면 이미 정지됨
+        recordingStart = nil  // 재는 동안에는 남은 시간을 보여 준다
+        schedule(.finishMeasuring, after: VoiceBaseline.recordingSeconds)
+    }
+
+    /// 녹음 파일(음성 메모 등)로 기준 목소리를 잰다. 파일은 기기 안에서 읽기만 한다.
+    func measureBaseline(fromFile url: URL) async {
+        guard !isRunning, !isAnalyzingFile else { return }
+        errorMessage = nil
+        measurement = nil
+        isAnalyzingFile = true
+        defer { isAnalyzingFile = false }
+        do {
+            measurement = VoiceBaseline.measure(try await analyzeFile(at: url).readings)
+        } catch {
+            errorMessage = "이 파일을 읽지 못했어요. 녹음(오디오) 파일인지 확인해 주세요."
+        }
+    }
+
+    /// 잰 결과를 지운다 (다시 재거나 화면을 닫을 때).
+    func clearMeasurement() {
+        measurement = nil
+        errorMessage = nil
+    }
+
+    private func finishMeasuring() {
+        removeTap()
+        recorder = nil
+        currentFrequency = nil
+        graphClock = .frozen(graphClock.endTime(now: AudioClock.now))
+        shutDown()
+        loop.stop()
+        measurement = VoiceBaseline.measure(history.readings)
     }
 
     /// 다른 앱(음성 메모 등)의 공유 창에서 이 앱으로 보낸 녹음을 연다.
@@ -347,6 +405,7 @@ final class AudioInputManager {
         switch step {
         case .finishListening: finishListening()
         case .finishCountdown: finishCountdown()
+        case .finishMeasuring: finishMeasuring()
         }
     }
 
@@ -460,8 +519,11 @@ final class AudioInputManager {
     }
 
     private func receive(_ readings: [PitchReading]) {
-        // 녹음 단계가 끝난 뒤에 늦게 도착한 결과는 버린다.
-        guard case .recording = loop.phase else { return }
+        // 녹음·재기 단계가 끝난 뒤에 늦게 도착한 결과는 버린다.
+        switch loop.phase {
+        case .recording, .measuring: break
+        default: return
+        }
         history.append(contentsOf: readings)
 
         for reading in readings {

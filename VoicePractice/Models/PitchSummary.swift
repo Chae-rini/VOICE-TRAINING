@@ -13,13 +13,13 @@ struct PitchSummary: Equatable {
     let p10: Double
     /// [Hz] 위 10% 지점 — 높은 쪽 끝
     let p90: Double
-    /// [Hz] 비교한 목표 범위
-    let target: ClosedRange<Double>
-    /// 0~1. 목소리가 잡힌 순간 중 목표 범위 안에 있던 비율
-    let inTargetFraction: Double
+    /// [Hz] 비교한 목표 범위. 아직 정하지 않았으면 nil.
+    let target: ClosedRange<Double>?
+    /// 0~1. 목소리가 잡힌 순간 중 목표 범위 안에 있던 비율. 목표 범위가 없으면 nil.
+    let inTargetFraction: Double?
 
     /// 목소리가 한 번도 잡히지 않았으면 nil.
-    init?(readings: [PitchReading], duration: TimeInterval, target: ClosedRange<Double>) {
+    init?(readings: [PitchReading], duration: TimeInterval, target: ClosedRange<Double>?) {
         let voiced = readings.compactMap(\.frequency).sorted()
         guard !voiced.isEmpty else { return nil }
 
@@ -34,7 +34,9 @@ struct PitchSummary: Equatable {
         p10 = Self.percentile(voiced, 0.1)
         p90 = Self.percentile(voiced, 0.9)
         self.target = target
-        inTargetFraction = Double(voiced.filter { target.contains($0) }.count) / Double(voiced.count)
+        inTargetFraction = target.map { target in
+            Double(voiced.filter { target.contains($0) }.count) / Double(voiced.count)
+        }
     }
 
     /// 정렬된 값에서 `fraction`(0~1) 위치의 값. 사이에 있으면 양쪽 값을 직선으로 나눠 갖는다.
@@ -62,7 +64,13 @@ struct PitchSummary: Equatable {
     /// 녹음 파일 없이 글만 보낼 때는 음색을 짐작하지 말고 수치만 해석해 달라고 쓴다.
     /// 높이기·낮추기 어느 방향도 전제하지 않고, 사용자가 정한 목표 범위를 기준으로 봐 달라고 쓴다.
     func feedbackRequest(title: String, includesAudio: Bool) -> String {
-        let percent = Int((inTargetFraction * 100).rounded())
+        let targetLine = target.map { target in
+            let percent = Int(((inTargetFraction ?? 0) * 100).rounded())
+            return "\(Int(target.lowerBound))~\(Int(target.upperBound)) Hz (목표 범위 안 비율 \(percent)%)"
+        } ?? "아직 정하지 않음"
+        let direction = target == nil
+            ? "목소리를 높이거나 낮추는 방향은 가정하지 말아 주세요."
+            : "목소리를 높이거나 낮추는 방향은 가정하지 말고, 위의 내 목표 범위를 기준으로 봐 주세요."
         let request = includesAudio
             ? """
             떨림, 허스키함, 공명(밝고 가벼운 쪽인지, 어둡고 무게감 있는 쪽인지), 자연스러운 억양, 문장 끝 안정성 관점에서 피드백 부탁해요.
@@ -80,10 +88,10 @@ struct PitchSummary: Equatable {
         - 목소리가 잡힌 시간: \(String(format: "%.1f", voicedSeconds))초
         - 피치 중앙값: \(Int(median.rounded())) Hz
         - 피치 범위(아래 10%~위 10%): \(Int(p10.rounded()))~\(Int(p90.rounded())) Hz
-        - 내 목표 범위: \(Int(target.lowerBound))~\(Int(target.upperBound)) Hz (목표 범위 안 비율 \(percent)%)
+        - 내 목표 범위: \(targetLine)
 
         \(request)
-        목소리를 높이거나 낮추는 방향은 가정하지 말고, 위의 내 목표 범위를 기준으로 봐 주세요.
+        \(direction)
         성대에 무리가 가지 않는 방향으로 알려 주세요.
         수치는 자동 측정이라 오차가 있을 수 있어요.
         """

@@ -4,12 +4,15 @@ import UniformTypeIdentifiers
 struct ContentView: View {
     @State private var audio = AudioInputManager()
     @AppStorage("practiceDurationSeconds") private var practiceDuration = PracticeDuration.defaultSeconds
-    @AppStorage("targetLowerHz") private var targetLower = 180.0
-    @AppStorage("targetUpperHz") private var targetUpper = 220.0
+    @AppStorage(TargetRangeStore.lowerKey) private var targetLower: Double?
+    @AppStorage(TargetRangeStore.upperKey) private var targetUpper: Double?
+    @AppStorage(TargetRangeStore.baselineMedianKey) private var baselineMedian: Double?
+    @AppStorage(TargetRangeStore.baselinePromptShownKey) private var baselinePromptShown = false
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isImporting = false
     @State private var sharePayload: SharePayload?
+    @State private var isMeasuringBaseline = false
 
     /// 공유 창에 넘길 것: 피드백 요청문과 녹음 파일
     private struct SharePayload: Identifiable {
@@ -64,8 +67,11 @@ struct ContentView: View {
                     history: audio.history,
                     currentFrequency: audio.currentFrequency,
                     clock: audio.graphClock,
-                    caption: graphCaption
-                )
+                    caption: graphCaption,
+                    canMeasure: !audio.isRunning && !audio.isAnalyzingFile
+                ) {
+                    isMeasuringBaseline = true
+                }
 
                 if let summary, let title = audio.lastTakeTitle {
                     RecordingSummaryView(title: title, summary: summary) { includesAudio in
@@ -83,13 +89,32 @@ struct ContentView: View {
                 isImporting = true
             }
         }
+        .sheet(isPresented: $isMeasuringBaseline, onDismiss: {
+            // 끌어내려 닫았을 때도 재기를 멈추고 결과를 지운다.
+            if audio.loop.phase == .measuring {
+                audio.stop()
+            }
+            audio.clearMeasurement()
+        }) {
+            BaselineMeasureView(audio: audio)
+        }
+        .onAppear {
+            // 처음 실행할 때 한 번: 기준 목소리를 아직 안 쟀으면 재기 화면을 띄운다 ("나중에"로 건너뛸 수 있음).
+            if baselineMedian == nil, !baselinePromptShown {
+                baselinePromptShown = true
+                isMeasuringBaseline = true
+            }
+        }
     }
 
     /// 마지막 녹음의 피치 요약. 녹음하는 동안에는 숨긴다.
     private var summary: PitchSummary? {
         guard audio.hasLastTake, let duration = audio.lastTakeDuration else { return nil }
         if case .recording = audio.loop.phase { return nil }
-        let target = min(targetLower, targetUpper)...max(targetLower, targetUpper)
+        var target: ClosedRange<Double>?
+        if let targetLower, let targetUpper {
+            target = min(targetLower, targetUpper)...max(targetLower, targetUpper)
+        }
         return PitchSummary(readings: audio.history.readings, duration: duration, target: target)
     }
 
@@ -109,6 +134,7 @@ struct ContentView: View {
         case .recording: "현재 목소리 높이"
         case .listening, .replaying: "녹음을 다시 듣는 중"
         case .countdown: "곧 다시 녹음해요"
+        case .measuring: "내 목소리 재는 중"
         case .idle:
             audio.hasLastTake ? "마지막 녹음" : "‘반복 루프 재생’을 누르면 녹음과 분석을 시작해요"
         }

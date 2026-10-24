@@ -11,6 +11,7 @@ struct PracticeLoop: Equatable {
         case listening(round: Int)      // round번째 녹음을 듣는 중
         case countdown(nextRound: Int)  // 다음 녹음 전 숨 고르기
         case replaying                  // 연습하지 않을 때 마지막 녹음(또는 불러온 파일)을 듣는 중
+        case measuring                  // 내 목소리 재기 (10초 녹음, 끝나면 처음 상태로)
     }
 
     /// [s] 듣기가 끝나고 다음 녹음까지 숨 고르는 시간. 들려준 뒤 곧바로 다시 녹음되도록 짧게 둔다.
@@ -20,7 +21,7 @@ struct PracticeLoop: Equatable {
 
     private(set) var phase: Phase = .idle
 
-    /// 녹음·듣기·숨 고르기·다시 듣기 중 하나면 true. 이때는 설정을 바꾸지 못하게 잠근다.
+    /// 녹음·듣기·숨 고르기·다시 듣기·목소리 재기 중 하나면 true. 이때는 설정을 바꾸지 못하게 잠근다.
     var isActive: Bool {
         phase != .idle
     }
@@ -61,6 +62,11 @@ struct PracticeLoop: Equatable {
     mutating func startReplay() {
         guard !isActive else { return }
         phase = .replaying
+    }
+
+    mutating func startMeasuring() {
+        guard !isActive else { return }
+        phase = .measuring
     }
 
     mutating func stop() {

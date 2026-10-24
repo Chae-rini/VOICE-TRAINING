@@ -28,7 +28,7 @@ struct RecordingSummaryView: View {
             HStack(spacing: 0) {
                 stat("중앙", "\(Int(summary.median.rounded())) Hz")
                 stat("범위", "\(Int(summary.p10.rounded()))–\(Int(summary.p90.rounded())) Hz")
-                stat("목표 범위 안", "\(Int((summary.inTargetFraction * 100).rounded()))%")
+                stat("목표 범위 안", summary.inTargetFraction.map { "\(Int(($0 * 100).rounded()))%" } ?? "–")
             }
 
             HStack(spacing: 10) {

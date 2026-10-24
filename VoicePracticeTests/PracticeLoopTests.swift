@@ -68,6 +68,24 @@ struct PracticeLoopTests {
         #expect(loop.phase == .idle)
     }
 
+    @Test("내 목소리 재기는 연습 중이 아닐 때만 시작되고, 다른 신호는 무시하며, 정지하면 처음 상태로 돌아간다")
+    func measuring() {
+        var loop = PracticeLoop()
+        loop.startMeasuring()
+        #expect(loop.phase == .measuring)
+        #expect(loop.isActive)
+        loop.recordingFinished()
+        loop.listeningFinished()
+        loop.countdownFinished()
+        #expect(loop.phase == .measuring)
+        loop.stop()
+        #expect(loop.phase == .idle)
+
+        loop.start()
+        loop.startMeasuring()
+        #expect(loop.phase == .recording(round: 1))  // 연습 중에는 무시
+    }
+
     @Test("쉬어 가기 안내는 연습한 분을 알려 준다", arguments: [(900.0, "15분"), (1800.0, "30분")])
     func restMessage(elapsed: Double, minutes: String) {
         #expect(PracticeLoop.restMessage(after: elapsed) == "\(minutes) 연습했어요. 목을 잠깐 쉬어 주세요.")

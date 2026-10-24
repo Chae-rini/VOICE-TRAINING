@@ -62,7 +62,7 @@ struct PracticeControlsView: View {
                     mainButton("건너뛰기", systemImage: "forward.fill") {
                         audio.skipListening()
                     }
-                case .countdown, .replaying:
+                case .countdown, .replaying, .measuring:
                     stopButton
                         .frame(maxWidth: .infinity)
                 }
@@ -105,6 +105,8 @@ struct PracticeControlsView: View {
             phaseRow(icon: "pause.circle", tint: .secondary, text: "숨 고르기 · 곧 \(nextRound)번째 녹음")
         case .replaying:
             phaseRow(icon: "speaker.wave.2.fill", tint: .teal, text: "‘\(audio.lastTakeTitle ?? "마지막 녹음")’ 듣는 중")
+        case .measuring:
+            phaseRow(icon: "waveform", tint: .indigo, text: "내 목소리 재는 중")
         case .idle:
             if audio.isAnalyzingFile {
                 HStack(spacing: 8) {

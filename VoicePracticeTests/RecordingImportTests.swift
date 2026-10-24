@@ -106,7 +106,7 @@ struct PitchSummaryTests {
         #expect(summary.median == 200)
         #expect(abs(summary.p10 - 120) < 1e-9)  // 100과 150 사이 40% 지점
         #expect(abs(summary.p90 - 280) < 1e-9)  // 250과 300 사이 60% 지점
-        #expect(abs(summary.inTargetFraction - 0.2) < 1e-9)
+        #expect(abs(try #require(summary.inTargetFraction) - 0.2) < 1e-9)
         #expect(abs(summary.voicedSeconds - 0.1) < 1e-9)
     }
 
@@ -114,6 +114,15 @@ struct PitchSummaryTests {
     func noVoice() {
         let silent = [PitchReading(time: 0, frequency: nil), PitchReading(time: 0.02, frequency: nil)]
         #expect(PitchSummary(readings: silent, duration: 1, target: 180...220) == nil)
+    }
+
+    @Test("목표 범위가 아직 없으면 비율을 비워 두고, 요청문에도 정하지 않았다고 쓴다")
+    func noTarget() throws {
+        let summary = try #require(PitchSummary(readings: readings, duration: 3, target: nil))
+        #expect(summary.inTargetFraction == nil)
+        let text = summary.feedbackRequest(title: "방금 녹음", includesAudio: true)
+        #expect(text.contains("내 목표 범위: 아직 정하지 않음"))
+        #expect(text.contains("높이거나 낮추는 방향은 가정하지 말아 주세요"))
     }
 
     @Test("녹음 길이 표시", arguments: [(45.0, "45초"), (60.0, "1분"), (83.4, "1분 23초")])
