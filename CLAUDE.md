@@ -49,4 +49,6 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - `xcodebuild test`가 끝나면 시뮬레이터가 꺼질 때가 있다. 화면 확인 전에 `xcrun simctl boot <기기>`로 다시 켠다.
 - 오디오 스레드에서 불리는 클로저(탭 블록 등)는 메인 액터 코드 안에서 만들지 않는다. 재생 끝 감지는 완료 콜백 대신 메인 액터의 취소 가능한 타이머로 한다.
 - 오디오 설정: 녹음은 `.playAndRecord` + `.measurement`(분석용), 듣기는 `.playback`(아이폰 스피커 음량 때문). 설정이 바뀌므로 녹음 엔진·재생 엔진을 단계마다 새로 만든다 (`AudioInputManager`).
+- 빌드 설정(`INFOPLIST_KEY_…`)으로 넣을 수 없는 앱 정보(예: `CFBundleDocumentTypes`)는 프로젝트 맨 위의 `VoicePractice-Info.plist`에 둔다. `VoicePractice/` 동기화 폴더 안에 두면 리소스로도 복사돼 빌드가 충돌한다.
+- 다른 앱의 공유 창으로 받은 파일은 iOS가 `tmp/<번들 ID>-Inbox/`에 복사해 준다 (iOS 27 시뮬레이터 확인).
 - 번들 ID는 (개인 값이라 저장소에는 적지 않음) (사용자가 Xcode에서 서명용으로 바꿈). 시뮬레이터에 예전 ID(`…VoicePractice`)의 앱이 따로 남아 있을 수 있다.

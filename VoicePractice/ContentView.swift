@@ -44,6 +44,11 @@ struct ContentView: View {
                 Task { await audio.importRecording(from: url) }
             }
         }
+        // 음성 메모 등의 공유 창에서 이 앱을 고르면, iOS가 파일을 앱 안에 복사해 넘겨준다.
+        .onOpenURL { url in
+            guard url.isFileURL else { return }
+            Task { await audio.openSharedRecording(url) }
+        }
         .sheet(item: $sharePayload) { payload in
             ActivityView(items: payload.items) {
                 sharePayload = nil

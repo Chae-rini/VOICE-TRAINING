@@ -173,6 +173,31 @@ final class AudioInputManager {
         replayLastTake()
     }
 
+    /// 다른 앱(음성 메모 등)의 공유 창에서 이 앱으로 보낸 녹음을 연다.
+    /// iOS가 앱 안에 복사해 준 파일이라, 메모리로 읽은 뒤에는 지운다.
+    func openSharedRecording(_ url: URL) async {
+        stop()  // 사용자가 직접 보낸 파일이므로 하던 연습보다 먼저 연다
+        await importRecording(from: url)
+        if Self.isInboxCopy(url) {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    /// iOS가 이 앱 안에 복사해 준 파일인지. 다른 곳의 원본을 지우지 않도록 이 경우에만 지운다.
+    /// 복사 위치는 tmp/<번들 ID>-Inbox(iOS 27 시뮬레이터에서 확인)이고, 예전 iOS는 Documents/Inbox를 썼다.
+    static func isInboxCopy(_ url: URL) -> Bool {
+        let fileManager = FileManager.default
+        var inboxes = [
+            fileManager.temporaryDirectory
+                .appendingPathComponent("\(Bundle.main.bundleIdentifier ?? "")-Inbox", isDirectory: true),
+        ]
+        if let documents = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first {
+            inboxes.append(documents.appendingPathComponent("Inbox", isDirectory: true))
+        }
+        let path = url.resolvingSymlinksInPath().path
+        return inboxes.contains { path.hasPrefix($0.resolvingSymlinksInPath().path + "/") }
+    }
+
     /// 마지막 녹음의 원래 소리를 공유용 WAV 파일로 임시 폴더에 만든다. 다 쓰면 지워도 된다.
     func exportLastTake() throws -> URL {
         guard let lastTake, let channel = lastTake.buffer.floatChannelData?[0] else {

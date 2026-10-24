@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  빌드 설정(INFOPLIST_KEY_…)으로 넣을 수 없는 항목만 여기에 둔다. 나머지는 Xcode가 만들어 합친다.
+  오디오 파일을 열 수 있는 앱으로 등록해서, 음성 메모 등의 공유 창에 이 앱이 뜨게 한다.
+  원본을 직접 열지 않고(LSSupportsOpeningDocumentsInPlace = false) iOS가 앱 안에 복사해 넘겨준다.
+-->
+<plist version="1.0">
+<dict>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Audio Recording</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>public.audio</string>
+			</array>
+		</dict>
+	</array>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<false/>
+</dict>
+</plist>

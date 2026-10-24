@@ -72,6 +72,22 @@ struct AudioFileAnalyzerTests {
 }
 
 @MainActor
+struct SharedRecordingTests {
+    @Test("공유로 받은 복사본(tmp/<번들 ID>-Inbox, Documents/Inbox 안)만 지울 대상이고, 다른 위치의 파일은 아니다")
+    func onlyInboxCopiesAreRemovable() throws {
+        let documents = try #require(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first)
+        let bundleID = try #require(Bundle.main.bundleIdentifier)
+        let temporary = FileManager.default.temporaryDirectory
+        #expect(AudioInputManager.isInboxCopy(temporary.appendingPathComponent("\(bundleID)-Inbox/새로운 녹음.m4a")))
+        #expect(AudioInputManager.isInboxCopy(documents.appendingPathComponent("Inbox/새로운 녹음.m4a")))
+        #expect(!AudioInputManager.isInboxCopy(documents.appendingPathComponent("새로운 녹음.m4a")))
+        #expect(!AudioInputManager.isInboxCopy(documents.appendingPathComponent("Inbox")))
+        #expect(!AudioInputManager.isInboxCopy(documents.appendingPathComponent("Inbox2/a.m4a")))
+        #expect(!AudioInputManager.isInboxCopy(FileManager.default.temporaryDirectory.appendingPathComponent("a.m4a")))
+    }
+}
+
+@MainActor
 struct PitchSummaryTests {
     /// 0.02초 간격, 가운데 무음 2개를 낀 다섯 점: 100, 150, 200, 250, 300 Hz
     let readings: [PitchReading] = [
