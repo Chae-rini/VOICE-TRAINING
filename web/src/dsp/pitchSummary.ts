@@ -1,3 +1,5 @@
+import { phraseRequestLines } from '../text/phraseEnding'
+import type { PhraseEndingAnalysis } from './phraseEnding'
 import type { PitchReading } from './pitchHistory'
 import { contains, type Range } from './range'
 
@@ -84,8 +86,10 @@ export class PitchSummary {
    * 구독 중인 AI 앱(ChatGPT, Claude 등)에 붙여 넣을 피드백 요청문.
    * 녹음 파일 없이 글만 보낼 때는 음색을 짐작하지 말고 수치만 해석해 달라고 쓴다.
    * 높이기·낮추기 어느 방향도 전제하지 않고, 사용자가 정한 목표 범위를 기준으로 봐 달라고 쓴다.
+   * `phraseEndings`를 주면 구절별 문장 끝 요약을 수치 아래에 덧붙인다 (구절이 없으면 붙이지 않는다).
    */
-  feedbackRequest(title: string, includesAudio: boolean): string {
+  feedbackRequest(title: string, includesAudio: boolean, phraseEndings: PhraseEndingAnalysis | null = null): string {
+    const phraseLines = phraseEndings === null ? [] : phraseRequestLines(phraseEndings)
     const request = includesAudio
       ? '떨림, 허스키함, 공명(밝고 가벼운 쪽인지, 어둡고 무게감 있는 쪽인지), 자연스러운 억양, 문장 끝 안정성 관점에서 피드백 부탁해요.\n' +
         '함께 보낸 녹음 파일을 들을 수 있다면 파일도 참고해 주세요.'
@@ -101,6 +105,8 @@ export class PitchSummary {
       `- 피치 범위(아래 10%~위 10%): ${Math.round(this.p10)}~${Math.round(this.p90)} Hz`,
       `- 내 목표 범위: ${this.targetDescription}`,
       '',
+      // 문장 끝 줄이 있으면 앞뒤에 빈 줄을 둔다
+      ...(phraseLines.length === 0 ? [] : [...phraseLines, '']),
       request,
       this.directionLine,
       PitchSummary.closingLines,

@@ -112,6 +112,9 @@ struct PhraseEndingAnalysis: Equatable {
     /// [s] 시각을 비교할 때의 여유. 부동소수 반올림 때문에 경계에 딱 걸친 프레임이 빠지지 않게 한다
     static let tolerance = 1e-9
 
+    /// 계산에 쓴 기준값과 목표 범위 (화면 글·요청문이 같은 숫자를 쓰게 함께 둔다)
+    let rules: PhraseEndingRules
+    let target: ClosedRange<Double>?
     /// [s] 피치 점 사이 간격 (48 kHz에서 약 21.3 ms, 샘플레이트에 따라 다르다)
     let frameInterval: TimeInterval
     let phrases: [PhraseEnding]
@@ -181,6 +184,8 @@ struct PhraseEndingAnalysis: Equatable {
         let fallingOrDropping = phrases.filter { $0.endType == .falling || $0.endType == .dropping }.count
         let count = Double(phrases.count)
 
+        self.rules = rules
+        self.target = target
         frameInterval = interval
         self.phrases = phrases
         summary = PhraseEndingSummary(

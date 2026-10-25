@@ -1,17 +1,23 @@
 <script lang="ts">
+  import type { PhraseEndingAnalysis } from '../dsp/phraseEnding'
   import { PitchSummary } from '../dsp/pitchSummary'
   import { session } from '../practice/session.svelte'
   import { copyText, downloadTake, shareFeedback } from '../practice/sharing'
   import type { RecordedTake } from '../practice/take'
   import { store } from '../storage/recordStore.svelte'
+  import PhraseEndingList from './PhraseEndingList.svelte'
 
   /**
    * 마지막 녹음(방금 녹음 또는 불러온 파일)의 피치 요약 카드 (iOS `RecordingSummaryView`).
    * "AI에게 피드백 받기"는 요약(원하면 녹음 파일도)을 브라우저 공유 창에 넘기고, 보낼 앱은 사용자가 고른다.
    * "파일로 저장"은 녹음을 WAV로 이 기기에 내려받는다. "기록에 남기기"는 소리와 요약·메모를 내 기록 폴더(또는 기록 파일)에 남긴다.
-   * 앱 자체는 인터넷으로 아무것도 보내지 않는다.
+   * 앱 자체는 인터넷으로 아무것도 보내지 않는다. 숫자 아래에는 구절별 문장 끝 요약(`PhraseEndingList`)을 둔다.
    */
-  let { take, summary }: { take: RecordedTake; summary: PitchSummary } = $props()
+  let {
+    take,
+    summary,
+    phraseEndings,
+  }: { take: RecordedTake; summary: PitchSummary; phraseEndings: PhraseEndingAnalysis } = $props()
 
   let isShareMenuOpen = $state(false)
   let message: string | null = $state(null)
@@ -44,7 +50,7 @@
 
   async function share(includesAudio: boolean) {
     isShareMenuOpen = false
-    const result = await shareFeedback(take, summary, includesAudio)
+    const result = await shareFeedback(take, summary, includesAudio, phraseEndings)
     message =
       result === 'copied'
         ? includesAudio
@@ -56,7 +62,7 @@
   }
 
   async function copy() {
-    didCopy = await copyText(summary.feedbackRequest(take.title, false))
+    didCopy = await copyText(summary.feedbackRequest(take.title, false, phraseEndings))
     message = didCopy ? null : '복사하지 못했어요. 브라우저가 붙여 넣기 권한을 막았을 수 있어요.'
   }
 </script>
@@ -75,6 +81,8 @@
       <dd>{summary.inTargetFraction === null ? '–' : `${Math.round(summary.inTargetFraction * 100)}%`}</dd>
     </div>
   </dl>
+
+  <PhraseEndingList analysis={phraseEndings} takeStart={take.startTime} />
 
   <div class="actions">
     <button class="record" onclick={askMemo} disabled={session.isLastTakeSaved || session.savingTake}>

@@ -1,4 +1,5 @@
 import { encodeWav, exportFileName } from '../audio/wav'
+import type { PhraseEndingAnalysis } from '../dsp/phraseEnding'
 import type { PitchSummary } from '../dsp/pitchSummary'
 import type { RecordedTake } from './take'
 
@@ -58,10 +59,15 @@ export async function shareText(text: string): Promise<ShareResult> {
  * 피드백 요청문(원하면 녹음 파일도)을 브라우저 공유 창에 넘긴다. 받을 앱은 사용자가 고른다.
  * 공유 창이 없는 브라우저(컴퓨터의 일부 브라우저)이거나 파일을 넘길 수 없으면 요청문을 복사한다.
  */
-export async function shareFeedback(take: RecordedTake, summary: PitchSummary, includesAudio: boolean): Promise<ShareResult> {
+export async function shareFeedback(
+  take: RecordedTake,
+  summary: PitchSummary,
+  includesAudio: boolean,
+  phraseEndings: PhraseEndingAnalysis | null = null,
+): Promise<ShareResult> {
   const file = includesAudio ? takeWavFile(take) : null
   const canShareFile = file !== null && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })
-  const text = summary.feedbackRequest(take.title, canShareFile)
+  const text = summary.feedbackRequest(take.title, canShareFile, phraseEndings)
   if (typeof navigator.share === 'function' && (file === null || canShareFile)) {
     try {
       await navigator.share(canShareFile && file !== null ? { text, files: [file] } : { text })

@@ -98,6 +98,9 @@ export interface PhraseEndingSummary {
 
 /** 녹음 한 번의 구절별 문장 끝 분석 (iOS `PhraseEndingAnalysis`). */
 export interface PhraseEndingAnalysis {
+  /** 계산에 쓴 기준값과 목표 범위 (화면 글·요청문이 같은 숫자를 쓰게 함께 둔다) */
+  readonly rules: PhraseEndingRules
+  readonly target: Range | null
   /** [s] 피치 점 사이 간격 (48 kHz에서 약 21.3 ms, 샘플레이트에 따라 다르다) */
   readonly frameInterval: number
   readonly phrases: readonly PhraseEnding[]
@@ -185,6 +188,8 @@ export function analyzePhraseEndings(
   const count = phrases.length
 
   return {
+    rules,
+    target,
     frameInterval: interval,
     phrases,
     summary: {

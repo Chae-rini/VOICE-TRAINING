@@ -5,6 +5,7 @@ import UIKit
 /// "기록에 남기기"는 이 녹음의 소리와 요약을 기기 안에 저장한다 (누를 때만).
 /// "AI에게 피드백 받기"는 요약(원하면 녹음 파일도)을 iOS 공유 창에 넘기고, 보낼 앱은 사용자가 고른다.
 /// "파일로 저장"은 녹음을 m4a로 만들어 iOS 파일 저장 창을 열고, 저장할 곳은 사용자가 고른다.
+/// 숫자 아래에는 구절별 문장 끝 요약(`PhraseEndingSection`)을 둔다.
 /// 앱 자체는 인터넷으로 아무것도 보내지 않는다.
 struct RecordingSummaryView: View {
     let title: String
@@ -21,6 +22,10 @@ struct RecordingSummaryView: View {
     var isPreparingFile = false
     /// 녹음을 m4a로 만들어 파일 저장 창을 연다.
     var onSaveFile: () -> Void = {}
+    /// 구절별 문장 끝 분석. 기준값 파일을 읽지 못했으면 nil (그 칸을 숨긴다)
+    var phraseEndings: PhraseEndingAnalysis?
+    /// [s] 녹음의 첫 샘플 시각 (구절 시작을 녹음 처음부터의 시간으로 보여 준다)
+    var takeStart: TimeInterval = 0
 
     @State private var didCopy = false
     @State private var isAskingMemo = false
@@ -43,6 +48,10 @@ struct RecordingSummaryView: View {
                 stat("중앙", "\(Int(summary.median.rounded())) Hz")
                 stat("범위", "\(Int(summary.p10.rounded()))–\(Int(summary.p90.rounded())) Hz")
                 stat("목표 범위 안", summary.inTargetFraction.map { "\(Int(($0 * 100).rounded()))%" } ?? "–")
+            }
+
+            if let phraseEndings {
+                PhraseEndingSection(analysis: phraseEndings, takeStart: takeStart)
             }
 
             // 한 줄에 들어가면 나란히, 아주 큰 글자에서는 위아래로
@@ -77,7 +86,8 @@ struct RecordingSummaryView: View {
                 .buttonStyle(.borderedProminent)
 
                 Button {
-                    UIPasteboard.general.string = summary.feedbackRequest(title: title, includesAudio: false)
+                    UIPasteboard.general.string = summary.feedbackRequest(title: title, includesAudio: false,
+                                                                          phraseEndings: phraseEndings)
                     didCopy = true
                 } label: {
                     Label(didCopy ? "복사했어요" : "요약 복사", systemImage: didCopy ? "checkmark" : "doc.on.doc")

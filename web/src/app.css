@@ -19,6 +19,8 @@
   --record: #1d7a59;
   --inactive: #8e8e93;
   --warning: #c93400;
+  /* 문장 끝이 올라간 구절의 화살표 (iOS 시스템 청록과 같은 값) */
+  --ending-rise: #30b0c7;
   font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', system-ui, sans-serif;
 }
 
@@ -38,6 +40,7 @@
     --record: #61daaf;
     --inactive: #8e8e93;
     --warning: #ff9f0a;
+    --ending-rise: #40c8e0;
   }
 }
 

@@ -89,6 +89,7 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - 색에만 기대지 않는다: 목표 안·밖은 색과 함께 선 굵기(안 3.5pt, 밖 2pt)와 글자("· 목표 범위 안")로도 알린다. 그림(Canvas) 그래프에는 VoiceOver 설명(`accessibilityValue`)을 붙인다.
 - 큰 글자: 화면 아래 고정 영역은 xxxLarge까지, 그래프 안 글자는 xxLarge까지만 커진다. 고정 높이가 필요한 곳(넘기는 문장 카드 등)은 `@ScaledMetric`으로 높이도 같이 키운다. UIKit 글 상자(`WordWrappedText`)는 SwiftUI의 `dynamicTypeSize`를 읽어 기본 크기에서 한 번만 키운다.
 - 언어 구분은 색 대신 점 모양(원·네모·세모·마름모)으로 한다.
+- 문장 끝 종류(2026-10-26, 요약 카드의 구절 목록): 안정 회색(`inactive`), 올라감 청록(iOS `.teal`, 웹 `--ending-rise`), 내려감 연한 주황(주황 60%), 크게 내려감 주황(웹 `--warning`). 하강 폭 순서를 안정을 가운데 둔 두 갈래 색으로 보인다. 색은 화살표에만 칠하고 이름(안정·올라감·내려감·크게 내려감)을 같이 쓴다. 분홍·파랑·빨강은 쓰지 않는다.
 
 ## 높이 눈금 (2026-10-25, 반음)
 - 목소리 높이(Hz)를 그리는 그래프는 반음(로그) 눈금이다: [높이] 그래프·목표 슬라이더(Canvas, `PitchScale.position`), [기록] 그래프·두 녹음 비교 분포(Swift Charts, `.chartYScale/.chartXScale(domain:, type: .log)`). 같은 반음 흔들림이 낮은 목소리든 높은 목소리든 같은 길이로 보여야 한다 (원칙 3).
@@ -141,7 +142,7 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - 명령 (저장소 맨 위에서): 테스트 `npm --prefix web test`, 타입 검사 `npm --prefix web run check`(경고도 실패), 빌드 `npm --prefix web run build`, 개발 서버 `npm --prefix web run dev`(이 컴퓨터에서만)
 - 휴대폰으로 열어 보기: `npm --prefix web run dev:lan` — 같은 와이파이에서 여는 임시 HTTPS 개발 서버 (`@vitejs/plugin-basic-ssl`이 개발용 임시 인증서를 만든다, 앱에는 안 들어감). 휴대폰 브라우저는 https에서만 마이크를 켜 준다. 터미널의 ‘Network:’ 주소를 열고 인증서 경고를 넘긴다. 다 보면 Ctrl+C로 끈다
   - 개발 서버가 내줄 수 있는 파일은 `web/`과 iOS와 같이 쓰는 JSON 두 개(대본 `PracticeScripts.json`, 문장 끝 기준값 `PhraseEndingRules.json` — 2026-10-25 사용자 승인으로 더함)뿐이다 (`vite.config.ts`의 `server.fs.allow`). 저장소 맨 위의 `Validation/`(개인 녹음 자료)·`Signing.local.xcconfig`·Swift 코드는 403으로 막힌다 (2026-10-25 확인). 이 목록을 넓히지 않는다 (꼭 필요하면 파일 하나씩, 먼저 승인)
-- 분석 코드(`web/src/dsp/`)는 iOS 코드를 줄 단위로 옮긴 것이다. **iOS의 분석 코드(PitchDetector·FormantAnalyzer·PitchScale·GraphWindow·PitchHistory·VoiceMeters·PitchSummary·PhraseEndingAnalysis)를 고치면 웹도 같이 고치고**, 정답표를 다시 만든다 (문장 끝 분석의 기준값은 `VoicePractice/Models/PhraseEndingRules.json` 한 파일을 둘이 같이 읽으므로 값만 바꿀 때는 그 파일만 고친다):
+- 분석 코드(`web/src/dsp/`)는 iOS 코드를 줄 단위로 옮긴 것이다. **iOS의 분석 코드(PitchDetector·FormantAnalyzer·PitchScale·GraphWindow·PitchHistory·VoiceMeters·PitchSummary·PhraseEndingAnalysis)를 고치면 웹도 같이 고치고**, 정답표를 다시 만든다 (문장 끝 분석의 기준값은 `VoicePractice/Models/PhraseEndingRules.json` 한 파일을 둘이 같이 읽으므로 값만 바꿀 때는 그 파일만 고친다. 화면 글·요청문 단락은 `Models/PhraseEndingText.swift` ↔ `web/src/text/phraseEnding.ts` 두 벌이고, 두 테스트가 같은 문장을 기대한다):
   `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swiftc -O VoicePractice/Audio/PitchDetector.swift VoicePractice/Audio/FormantAnalyzer.swift VoicePracticeTests/SyntheticVowel.swift Tools/WebGolden/main.swift -o <임시 폴더>/web-golden` → `<임시 폴더>/web-golden web/test/golden/swift-golden.json`
 - `web/test/golden.test.ts`가 정답표와 비교한다. 목소리 있음/없음은 하나도 달라서는 안 되고, 숫자는 갈래마다 허용 오차 안이어야 한다 (2026-10-25: 높이 최대 3e-12 Hz, F1·F2 최대 0.002 Hz). 차이표는 `npx vitest run test/golden.test.ts --silent=false`로 본다.
 - 구절별 문장 끝 분석은 정답표 대신 입력·기대값 파일 하나(`VoicePracticeTests/PhraseEndingCases.json`)를 iOS(`PhraseEndingAnalysisTests`)와 웹(`web/test/phraseEnding.test.ts`)이 같이 읽어 확인한다 (기대값은 손으로 셈한 값, 허용 오차 1e-9). 경우를 더하거나 기준값을 바꾸면 `python3 -I Tools/PhraseEndingCases/make_cases.py`를 고쳐 다시 만들고 두 테스트를 모두 돌린다. Swift 테스트는 이 파일을 `#filePath` 옆에서 읽는다(시뮬레이터는 Mac의 파일을 읽을 수 있다).

@@ -75,6 +75,11 @@ struct RecordingTimeline {
         lastTake?.summary(target: target)
     }
 
+    /// 마지막 녹음의 구절별 문장 끝 분석 (그 묶음의 점으로). 녹음이 없으면 nil.
+    func lastTakePhraseEndings(target: ClosedRange<Double>?) -> PhraseEndingAnalysis? {
+        lastTake?.phraseEndings(target: target)
+    }
+
     /// 기록에 남긴 뒤 그 기록의 ID를 붙인다. 남기는 동안 새 녹음으로 바뀌었으면 붙이지 않는다.
     mutating func markSaved(_ recordID: PersistentIdentifier, takeID: UUID) {
         guard lastTake?.id == takeID else { return }

@@ -10,7 +10,9 @@
 | `VoicePractice/Models/PitchSummary.swift` | 녹음의 요약 수치(중앙값·범위·목표 범위 안 비율)와 AI에게 보낼 피드백 요청문 |
 | `VoicePractice/Models/PhraseEndingAnalysis.swift` | 구절별 문장 끝 분석: 무성음 250 ms로 구절을 나누고, 구절마다 끝 300 ms가 몇 반음 내려갔는지·끝 바닥·긁히는 소리 가능성, 녹음 전체 요약 (화면과 상관없는 계산만) |
 | `VoicePractice/Models/PhraseEndingRules.json` | 문장 끝 분석의 기준값(구절 나누기·끝 길이·하강 폭 경계·fry 기준). iOS와 웹이 이 파일 하나를 같이 읽는다. 값마다 뜻을 `notes`에 적었다 |
-| `VoicePractice/Views/RecordingSummaryView.swift` | 그래프 아래 요약 카드와 "기록에 남기기"(메모 창)·"AI에게 피드백 받기"·"요약 복사" 버튼, iOS 공유 창 |
+| `VoicePractice/Views/RecordingSummaryView.swift` | 그래프 아래 요약 카드와 "기록에 남기기"(메모 창)·"AI에게 피드백 받기"·"요약 복사" 버튼, iOS 공유 창. 숫자 아래에 문장 끝 칸 |
+| `VoicePractice/Views/PhraseEndingListView.swift` | 요약 카드 안의 문장 끝 칸: 요약 한 줄·숫자·안내 문구, 펼치면 구절 목록(화살표·종류·중앙값 → 끝 Hz·하강 반음), 종류별 색 |
+| `VoicePractice/Models/PhraseEndingText.swift` | 문장 끝 분석을 글로 바꾸기: 요약 한 줄, 숫자 줄, 안내 문구, AI 요청문 단락, 구절 한 줄 (웹 `text/phraseEnding.ts`와 같은 글) |
 | `VoicePractice/Models/PracticeRecord.swift` | 기록의 모양: 말하는 언어, 연습 한 번 모으기 규칙(30초·5초 기준), 저장하는 기록 4가지(연습 요약, 남긴 녹음, 기준 목소리 이력, 모음 이력) |
 | `VoicePractice/Models/PracticeArchive.swift` | 기록 저장소: 숫자는 SwiftData, 남긴 녹음은 m4a 파일(백업 제외). 저장·하나 지우기·모두 지우기를 한곳에서 하고, 저장에 실패하면 되돌린 뒤 오류를 알린다 |
 | `VoicePractice/Models/RecordedTake.swift` | 녹음 한 번의 묶음: 소리, 시작 시각·길이, 그 구간의 피치·포먼트 점, 남긴 기록의 ID. 요약·저장·공유·다시 듣기는 이것만 쓴다 |
@@ -117,7 +119,9 @@
 | `web/src/practice/takeRecorder.ts` | 최근 N초만 남기는 고리 모양 녹음 통 (iOS `TakeRecorder`) |
 | `web/src/practice/take.ts` | 녹음 묶음: 소리와 같은 구간의 점만 담고, 요약·F2·가로축·다시 듣기 기록을 낸다 (iOS `RecordedTake`) |
 | `web/src/practice/sharing.ts` | 파일로 저장(WAV 내려받기), AI에게 피드백 받기(브라우저 공유 창, 없으면 복사), 요약 복사 |
-| `web/src/components/SummaryCard.svelte` | 마지막 녹음 요약 카드: 중앙·범위·목표 범위 안 비율, 기록에 남기기(메모 창)·파일로 저장·공유·복사 버튼 |
+| `web/src/components/SummaryCard.svelte` | 마지막 녹음 요약 카드: 중앙·범위·목표 범위 안 비율, 문장 끝 칸, 기록에 남기기(메모 창)·파일로 저장·공유·복사 버튼 |
+| `web/src/components/PhraseEndingList.svelte` | 요약 카드 안의 문장 끝 칸 (iOS `PhraseEndingSection`) |
+| `web/src/text/phraseEnding.ts` | 문장 끝 분석을 글로 바꾸기 (iOS `PhraseEndingText.swift`와 같은 글) |
 | `web/src/graph/pitchGraph.ts` | 그래프 그리기(목표 띠·눈금·기준선·시작선·꺾은선·축 밖 점선·다시 듣기)와 그래프 높이 규칙. 꺾은선 나누기는 순수 함수라 테스트한다 |
 | `web/src/graph/descriptions.ts` | 그래프·막대를 말로 바꾼 설명(iOS와 같은 문장), 쉬어 가기 안내 문구 |
 | `web/src/model/practice.ts` | 들려줄 길이, 내 기준 목소리 재기·처음 목표 범위·먼 범위 판정, 목표 범위 슬라이더 규칙 |

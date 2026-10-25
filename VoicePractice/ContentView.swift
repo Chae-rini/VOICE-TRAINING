@@ -193,16 +193,19 @@ struct ContentView: View {
             }
 
             if let summary, let title = audio.lastTakeTitle {
+                let phraseEndings = audio.lastTakePhraseEndings(target: target)
                 RecordingSummaryView(
                     title: title, summary: summary, isSaved: lastTakeIsSaved, isSaving: audio.isSavingTake,
                     onSave: { memo in
                         Task { await audio.saveLastTake(memo: memo, language: language, target: target) }
                     },
                     onShare: { includesAudio in
-                        share(summary: summary, title: title, includesAudio: includesAudio)
+                        share(summary: summary, title: title, includesAudio: includesAudio, phraseEndings: phraseEndings)
                     },
                     isPreparingFile: isPreparingFile,
-                    onSaveFile: saveLastTakeToFiles
+                    onSaveFile: saveLastTakeToFiles,
+                    phraseEndings: phraseEndings,
+                    takeStart: audio.lastTakeStartTime ?? 0
                 )
             }
 
@@ -287,10 +290,10 @@ struct ContentView: View {
         }
     }
 
-    private func share(summary: PitchSummary, title: String, includesAudio: Bool) {
+    private func share(summary: PitchSummary, title: String, includesAudio: Bool, phraseEndings: PhraseEndingAnalysis?) {
         // 파일을 못 만들면 요청문만이라도 넘긴다.
         let file = includesAudio ? (try? audio.exportLastTake()) : nil
-        let request = summary.feedbackRequest(title: title, includesAudio: file != nil)
+        let request = summary.feedbackRequest(title: title, includesAudio: file != nil, phraseEndings: phraseEndings)
         if let file {
             sharePayload = SharePayload(items: [request, file])
         } else {

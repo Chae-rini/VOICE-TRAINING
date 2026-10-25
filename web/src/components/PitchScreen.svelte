@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte'
+  import { analyzePhraseEndings } from '../dsp/phraseEnding'
   import { graphHeight } from '../graph/pitchGraph'
   import { PRACTICE_LANGUAGES, type PracticeLanguage } from '../model/records'
   import { settings } from '../model/settings.svelte'
@@ -26,6 +27,10 @@
   /** 마지막 녹음의 요약. 녹음하는 동안에는 숨긴다 */
   const summary = $derived(
     session.lastTake === null || phase.kind === 'recording' ? null : takeSummary(session.lastTake, settings.target),
+  )
+  /** 마지막 녹음의 구절별 문장 끝 분석 (요약과 같은 목표 범위로). 요약 카드가 보일 때만 계산한다 */
+  const phraseEndings = $derived(
+    session.lastTake === null || summary === null ? null : analyzePhraseEndings(session.lastTake.readings, settings.target),
   )
 
   const caption = $derived.by(() => {
@@ -63,8 +68,8 @@
     <div class="scroll">
       <StorageNotice />
       <TargetRangeControls canMeasure={!session.isRunning} onMeasure={() => (navigation.baselineSheetOpen = true)} />
-      {#if session.lastTake !== null && summary !== null}
-        <SummaryCard take={session.lastTake} {summary} />
+      {#if session.lastTake !== null && summary !== null && phraseEndings !== null}
+        <SummaryCard take={session.lastTake} {summary} {phraseEndings} />
       {/if}
       <SentenceCards isPracticing={session.isRunning} />
       <!-- 말하는 언어는 문장 아래에 둔다. 기록에 함께 남아 나중에 언어별로 높이를 비교한다. 연습 중에는 바꾸지 않는다 -->
