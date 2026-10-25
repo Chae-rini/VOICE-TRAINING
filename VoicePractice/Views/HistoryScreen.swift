@@ -19,8 +19,16 @@ struct HistoryScreen: View {
     /// nil이면 모든 언어
     @State private var language: PracticeLanguage?
     @State private var isConfirmingDeleteAll = false
+    @State private var comparePair: ComparePair?
 
     private let calendar = Calendar.current
+
+    /// 두 녹음 비교 화면을 처음 열 때 고를 A·B
+    private struct ComparePair: Identifiable {
+        let id = UUID()
+        let a: SavedRecording
+        let b: SavedRecording
+    }
 
     private var target: ClosedRange<Double>? {
         guard let targetLower, let targetUpper else { return nil }
@@ -96,6 +104,17 @@ struct HistoryScreen: View {
                     Text("요약 카드의 ‘기록에 남기기’로 남긴 녹음이 여기에 모여요.")
                         .foregroundStyle(.secondary)
                 }
+                if recordings.count >= 2 {
+                    Button {
+                        // 지금 보이는 녹음(기간·언어)이 두 개 이상이면 그 안에서, 아니면 전체에서 처음과 최근을 고른다.
+                        let candidates = shownRecordings.count >= 2 ? shownRecordings : recordings
+                        if let pair = RecordingComparison.defaultPair(candidates, date: { $0.recordedAt }) {
+                            comparePair = ComparePair(a: pair.a, b: pair.b)
+                        }
+                    } label: {
+                        Label("두 녹음 나란히 비교", systemImage: "rectangle.split.2x1")
+                    }
+                }
                 ForEach(shownRecordings) { recording in
                     NavigationLink {
                         RecordingDetailView(recording: recording, archive: audio.archive,
@@ -152,6 +171,10 @@ struct HistoryScreen: View {
             } footer: {
                 Text("기록은 이 기기 안에만 있어요. 남긴 녹음의 소리는 iCloud 백업에도 들어가지 않아서, 기기를 바꾸면 옮겨지지 않아요.")
             }
+        }
+        .sheet(item: $comparePair) { pair in
+            RecordingCompareView(recordings: recordings, initialA: pair.a, initialB: pair.b,
+                                 archive: audio.archive, audio: audio)
         }
         .confirmationDialog("모든 기록을 지울까요?", isPresented: $isConfirmingDeleteAll, titleVisibility: .visible) {
             Button("모두 지우기", role: .destructive) {

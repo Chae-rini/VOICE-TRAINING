@@ -117,8 +117,13 @@ enum PracticeHistory {
 
     /// 그래프 세로축 [Hz]: 연습의 범위, 목표 범위, 기준이 모두 들어가게 잡고 앱의 분석 범위(70~400 Hz) 안으로 자른다.
     static func pitchDomain(_ points: [SessionPoint], target: ClosedRange<Double>?, baseline: Double?) -> ClosedRange<Double> {
+        pitchDomain(values: points.flatMap { [$0.low, $0.high] }, target: target, baseline: baseline)
+    }
+
+    /// 높이 [Hz]들이 모두 들어가는 축 범위 (두 녹음 비교 그래프도 쓴다). 규칙은 위와 같다.
+    static func pitchDomain(values: [Double], target: ClosedRange<Double>?, baseline: Double?) -> ClosedRange<Double> {
         let axis = PitchDetector.frequencyRange
-        var values = points.flatMap { [$0.low, $0.high] }
+        var values = values
         if let target {
             values += [target.lowerBound, target.upperBound]
         }
