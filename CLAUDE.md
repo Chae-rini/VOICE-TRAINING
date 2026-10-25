@@ -68,7 +68,9 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - 한 번에 한 단계씩만 진행한다.
 - 코드를 바꾼 뒤에는 xcodebuild로 시뮬레이터 대상 빌드를 돌려 컴파일 에러가 없는지 확인한다.
 - 프로젝트 설정 파일(.xcodeproj)을 직접 수정해야 하면, 먼저 사용자에게 Xcode에서 할 수 있는 방법을 안내한다.
-- 세션이 끝날 때 PROGRESS.md에 "완료한 것 / 다음 할 일 / 알려진 문제"를 갱신한다.
+- 작업 기록은 Docs/CHANGELOG.md에, PROGRESS.md는 짧게 유지한다 (세션마다 읽는 문서가 길면 맥락을 차지해 코드를 볼 여유가 줄어든다).
+  - 세션이 끝날 때: 한 일은 Docs/CHANGELOG.md 맨 아래에 날짜와 함께 더하고, PROGRESS.md는 "현재 상태(한 단락) / 다음 할 일 / 알려진 문제"만 고친다. 해결된 문제와 끝난 할 일은 PROGRESS.md에서 빼서 CHANGELOG로 옮긴다.
+  - 파일을 더하거나 역할이 바뀌면 Docs/FILES.md를, 아이폰에서 직접 확인할 것이 생기면 Docs/DEVICE_TEST.md를 고친다.
 
 ## 색 (2026-10-25, 아이콘의 네 색)
 화면은 색 이름 대신 역할 이름(`UllimColor`, `Views/UllimTheme.swift`)을 쓴다. 색 값은 `Assets.xcassets`의 색 세트에 있다.
