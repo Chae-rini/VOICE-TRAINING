@@ -92,7 +92,7 @@
 | `Docs/screenshots/` | README에 붙인 화면 캡처 (시뮬레이터, 합성음·가짜 기록) |
 | `Docs/WEB_PLAN.md` | 웹(PWA)·안드로이드(APK) 계획: 정한 것, 단계(W0~W5, A1·A2)와 상태, iOS와 다른 점 |
 | `web/package.json`, `web/package-lock.json` | 웹 버전이 쓰는 도구와 정확한 버전, 명령(`dev`·`build`·`test`·`check`) |
-| `web/vite.config.ts`, `web/tsconfig.json` | 웹 빌드·테스트 설정 (상대 경로로 빌드: GitHub Pages·APK 어디서나 열리게) |
+| `web/vite.config.ts`, `web/tsconfig.json` | 웹 빌드·테스트 설정 (상대 경로로 빌드: GitHub Pages·APK 어디서나 열리게). 개발 서버가 내줄 파일을 `web/`과 대본 JSON으로 좁히고, `dev:lan`일 때만 와이파이에 HTTPS로 연다 |
 | `web/index.html` | 웹 첫 페이지. 앱 자신의 파일 말고는 연결하지 못하게 막는 CSP (원칙 2) |
 | `web/src/main.ts`, `web/src/App.svelte`, `web/src/app.css` | 웹 화면 시작점(지금은 [높이] 화면 하나)과 공통 모양. 색은 iOS 색 세트와 같은 값(밝은·어두운 모드) |
 | `web/src/components/PitchScreen.svelte` | [높이] 화면 배치: 위에 고정된 높이·그래프, 스크롤되는 목표 범위·문장, 아래 고정 버튼(마이크 켜기·정지, 들려줄 길이). 처음 열 때 내 목소리 재기 |
