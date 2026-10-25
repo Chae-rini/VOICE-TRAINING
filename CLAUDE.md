@@ -129,5 +129,6 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - 시뮬레이터에서 글자 입력: 도구의 text 입력(붙여넣기)은 한글이 안 되고 영어도 들어가지 않을 때가 있다. 화면 자판의 키를 좌표로 직접 누르면 한글도 들어간다.
 - 녹음 수치는 녹음 묶음(`RecordedTake`) 안의 점으로만 만든다. 요약 카드·기록에 남기기·AI 공유·다시 듣기 모두. 화면 그래프용 기록(`RecordingTimeline.display`, 여유 2초 포함)과 재기용 기록(`measurement`)은 수치에 쓰지 않는다 (2026-10-25 버그 ①②).
 - `PracticeArchive`의 남기기·지우기는 `throws`다. 영구 저장에 성공한 뒤에만 화면에 완료를 표시하고, 실패하면 저장소가 바꾼 내용을 되돌린다(`rollback`). `try?`로 버리지 않는다. 테스트에서는 `simulatedSaveError`(Debug 전용)로 실패를 흉내 낸다.
+- 검증 루프(2026-10-25): 새 빌드 폴더로 Debug·Release 빌드(경고 0), Swift 6 엄격 모드 빌드(`SWIFT_VERSION=6 SWIFT_STRICT_CONCURRENCY=complete`, 오류·경고 0), 테스트 전체, 저장소를 새로 받아 `Signing.local.xcconfig` 없이 빌드, 합성 모음 포먼트 검증표(`Tools/FormantValidation`), 시뮬레이터 주요 흐름, 개인정보 검사. 앱은 Swift 5 모드라 일상 빌드에서는 Swift 6 동시성 오류가 안 보이므로 엄격 모드 빌드를 따로 돌린다. SwiftData `@Model`의 속성은 메인 액터 밖이라, 그 안에서 부르는 값 타입 생성자는 `nonisolated`로 둔다.
 - 테스트가 하나라도 실패하면 `xcodebuild test`가 시뮬레이터 진단을 모으느라 10분쯤 멈춰 있다가 끝날 수 있다. 실패 내용은 `xcrun xcresulttool get test-results tests --path <xcresult> --format json`으로 본다.
 - 저장된 기록을 지울 때는 `delete(model:)`(한꺼번에 지우기) 대신 하나씩 지운다. 한꺼번에 지우면 화면의 `@Query` 목록이 바로 따라 바뀌지 않는다는 보고가 있어서 피했다 (직접 재현하지는 않음).

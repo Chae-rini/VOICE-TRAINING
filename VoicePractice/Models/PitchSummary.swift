@@ -45,8 +45,10 @@ struct PitchSummary: Equatable {
     }
 
     /// 저장해 둔 숫자로 다시 만든다 (기록 화면·요청문용).
-    init(duration: TimeInterval, voicedSeconds: TimeInterval, median: Double, p10: Double, p90: Double,
-         target: ClosedRange<Double>?, inTargetFraction: Double?) {
+    /// 값을 담기만 하므로 메인 액터에 묶지 않는다. SwiftData 기록(@Model)의 속성은 메인 액터 밖이라서 그 안에서도 부를 수 있어야 한다
+    /// (Swift 6 엄격 모드에서 오류로 잡힘, 2026-10-25 검증 루프).
+    nonisolated init(duration: TimeInterval, voicedSeconds: TimeInterval, median: Double, p10: Double, p90: Double,
+                     target: ClosedRange<Double>?, inTargetFraction: Double?) {
         self.duration = duration
         self.voicedSeconds = voicedSeconds
         self.median = median
