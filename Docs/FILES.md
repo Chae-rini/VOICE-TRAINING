@@ -19,6 +19,7 @@
 | `VoicePractice/Models/SampleHistory.swift` | 개발용 가짜 기록 40일치 (시뮬레이터 확인용, Debug 빌드에서 `-seedSampleHistory YES`일 때만) |
 | `VoicePractice/Views/HistoryScreen.swift` | [기록] 탭 화면: 기간·언어 고르기, 모아 보기, 그래프, 남긴 녹음·연습 기록·내 목소리 재기 목록, 모든 기록 지우기 |
 | `VoicePractice/Views/HistoryChartView.swift` | [기록] 탭의 그래프 두 개 (연습마다 높이, 날마다 연습 시간). Swift Charts |
+| `VoicePractice/Views/PracticeSessionDetailView.swift` | 연습 기록 자세히: 연습 전체·녹음마다의 숫자, AI에게 보낼 요약 글(공유·복사) |
 | `VoicePractice/Views/RecordingDetailView.swift` | 남긴 녹음 자세히 보기: 수치, 언어·메모 고치기, 다시 듣고 곡선 보기, 지우기 |
 | `VoicePracticeTests/PracticeHistoryTests.swift` | [기록] 탭 계산 규칙을 확인하는 시험지 |
 | `VoicePractice/Models/RecordingComparison.swift` | 두 녹음 비교의 계산 규칙: 처음 짝(처음·최근), 높낮이 폭(반음), 중앙값 차이 문장, 높이 분포(반음 반 칸), 분포 그래프 축 |

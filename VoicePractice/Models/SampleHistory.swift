@@ -33,13 +33,25 @@ extension PracticeArchive {
     }
 
     private func addSample(at start: Date, minutes: Double, median: Double, takes: Int, language: PracticeLanguage) {
+        let target = TargetRangeStore.savedTarget(in: .standard)
         // 중앙값 ±20 Hz에 고르게 퍼진 높이 → 아래 10%·위 10%는 중앙값 ±16 Hz
         let voiced = (0..<100).map { median - 20 + 40 * Double($0) / 99 }
         let duration = minutes * 60
         guard let pitch = PitchSummary(voiced: voiced, voicedSeconds: duration * 0.4, duration: duration,
-                                       target: TargetRangeStore.savedTarget(in: .standard)) else { return }
+                                       target: target) else { return }
+        // 녹음마다: 1분씩, 녹음할수록 중앙값이 3 Hz씩 오른다
+        let takeSummaries: [PracticeSessionLog.Take] = (1...takes).compactMap { round in
+            let takeMedian = median - 4 + Double(round - 1) * 3
+            let takeVoiced = (0..<50).map { takeMedian - 15 + 30 * Double($0) / 49 }
+            guard let takePitch = PitchSummary(voiced: takeVoiced, voicedSeconds: 25, duration: 60, target: target) else {
+                return nil
+            }
+            return PracticeSessionLog.Take(round: round, endedAt: start.addingTimeInterval(Double(round) * 90),
+                                           pitch: takePitch)
+        }
         try? saveSession(PracticeSessionLog.Summary(startedAt: start, endedAt: start.addingTimeInterval(duration),
-                                                    takeCount: takes, language: language, pitch: pitch))
+                                                    takeCount: takes, language: language, pitch: pitch,
+                                                    takes: takeSummaries))
     }
 }
 #endif

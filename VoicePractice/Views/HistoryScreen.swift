@@ -169,17 +169,21 @@ struct HistoryScreen: View {
             if !shownSessions.isEmpty {
                 Section {
                     ForEach(shownSessions) { session in
-                        sessionRow(session)
-                            .swipeActions {
-                                Button("지우기", role: .destructive) {
-                                    delete { try audio.archive.delete(session) }
-                                }
+                        NavigationLink {
+                            PracticeSessionDetailView(session: session)
+                        } label: {
+                            sessionRow(session)
+                        }
+                        .swipeActions {
+                            Button("지우기", role: .destructive) {
+                                delete { try audio.archive.delete(session) }
                             }
+                        }
                     }
                 } header: {
                     Text("연습 기록")
                 } footer: {
-                    Text("정지할 때마다 숫자만 저절로 남아요 (소리는 남지 않아요). 밀어서 지울 수 있어요.")
+                    Text("정지할 때마다 숫자만 저절로 남아요 (소리는 남지 않아요). 누르면 녹음마다의 숫자를 보고 AI에게 보낼 수 있어요. 밀어서 지울 수 있어요.")
                 }
             }
 

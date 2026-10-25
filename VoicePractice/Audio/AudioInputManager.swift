@@ -647,8 +647,13 @@ final class AudioInputManager {
     private func keepTake() -> RecordedTake? {
         defer { recorder = nil }
         guard let recorder, let playback = recorder.makePlaybackBuffer() else { return nil }
-        return timeline.keepTake(buffer: playback.buffer, startTime: recorder.startTime ?? AudioClock.now,
-                                 playbackGain: playback.gain, language: sessionLog?.language)
+        let take = timeline.keepTake(buffer: playback.buffer, startTime: recorder.startTime ?? AudioClock.now,
+                                     playbackGain: playback.gain, language: sessionLog?.language)
+        // 연습 중이면 이 녹음의 요약(요약 카드와 같은 숫자: 묶음 안의 점)을 연습 기록에 쌓는다.
+        // 다음 녹음이 시작되면 요약 카드가 사라지므로, 나중에 [기록]에서 보고 보낼 수 있게 남겨 둔다.
+        sessionLog?.finishTake(readings: take.readings, duration: take.duration,
+                               target: TargetRangeStore.savedTarget(in: .standard), at: take.recordedAt)
+        return take
     }
 
     private func receive(_ readings: [PitchReading]) {

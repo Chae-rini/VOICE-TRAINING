@@ -10,7 +10,7 @@ final class PracticeArchive {
     static let shared = PracticeArchive()
 
     static let models: [any PersistentModel.Type] = [
-        PracticeSession.self, SavedRecording.self, BaselineRecord.self, VowelRecord.self,
+        PracticeSession.self, PracticeTake.self, SavedRecording.self, BaselineRecord.self, VowelRecord.self,
     ]
 
     let container: ModelContainer
@@ -43,9 +43,16 @@ final class PracticeArchive {
     // 남기기·지우기는 영구 저장까지 마쳐야 끝난다. 저장에 실패하면 바꾼 내용을 되돌리고 오류를 호출한 쪽에 던진다
     // (화면이 "남겼어요"를 보여 주지 않게).
 
-    /// 연습 한 번의 요약을 남긴다 (정지할 때 자동으로).
+    /// 연습 한 번의 요약을 녹음마다의 요약과 함께 남긴다 (정지할 때 자동으로).
     func saveSession(_ summary: PracticeSessionLog.Summary) throws {
-        context.insert(PracticeSession(summary))
+        let session = PracticeSession(summary)
+        context.insert(session)
+        // 둘 다 저장소에 넣은 뒤에 잇는다. 넣기 전에 잇는 방식은 SwiftData에서 문제가 있었다는 보고가 있어 피했다 (직접 재현하지는 않음).
+        for take in summary.takes {
+            let record = PracticeTake(take)
+            context.insert(record)
+            record.session = session
+        }
         try save()
     }
 
@@ -119,7 +126,12 @@ final class PracticeArchive {
         try? FileManager.default.removeItem(at: url)  // 기록은 이미 지워졌다. 파일이 남아도 화면에는 보이지 않는다
     }
 
+    /// 연습 기록 하나를 녹음마다의 요약과 함께 지운다.
+    /// 지우기 규칙(cascade)도 걸어 두었지만, 그것에만 기대지 않고 직접 지운다.
     func delete(_ session: PracticeSession) throws {
+        for take in session.takes {
+            context.delete(take)
+        }
         context.delete(session)
         try save()
     }
@@ -132,6 +144,7 @@ final class PracticeArchive {
     /// 모든 기록과 녹음 파일을 지운다. 지금 쓰는 기준 목소리·목표 범위·모음 지도(UserDefaults)는 그대로 둔다.
     /// 한꺼번에 지우는 `delete(model:)`은 화면의 목록(@Query)이 바로 따라 바뀌지 않는다는 보고가 있어 하나씩 지운다.
     func deleteAll() throws {
+        try deleteEach(PracticeTake.self)
         try deleteEach(PracticeSession.self)
         try deleteEach(SavedRecording.self)
         try deleteEach(BaselineRecord.self)

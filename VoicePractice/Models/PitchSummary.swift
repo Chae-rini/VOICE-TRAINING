@@ -44,6 +44,18 @@ struct PitchSummary: Equatable {
         }
     }
 
+    /// 저장해 둔 숫자로 다시 만든다 (기록 화면·요청문용).
+    init(duration: TimeInterval, voicedSeconds: TimeInterval, median: Double, p10: Double, p90: Double,
+         target: ClosedRange<Double>?, inTargetFraction: Double?) {
+        self.duration = duration
+        self.voicedSeconds = voicedSeconds
+        self.median = median
+        self.p10 = p10
+        self.p90 = p90
+        self.target = target
+        self.inTargetFraction = inTargetFraction
+    }
+
     /// 정렬된 값에서 `fraction`(0~1) 위치의 값. 사이에 있으면 양쪽 값을 직선으로 나눠 갖는다.
     static func percentile(_ sorted: [Double], _ fraction: Double) -> Double {
         guard sorted.count > 1 else { return sorted.first ?? .nan }
@@ -69,13 +81,6 @@ struct PitchSummary: Equatable {
     /// 녹음 파일 없이 글만 보낼 때는 음색을 짐작하지 말고 수치만 해석해 달라고 쓴다.
     /// 높이기·낮추기 어느 방향도 전제하지 않고, 사용자가 정한 목표 범위를 기준으로 봐 달라고 쓴다.
     func feedbackRequest(title: String, includesAudio: Bool) -> String {
-        let targetLine = target.map { target in
-            let percent = Int(((inTargetFraction ?? 0) * 100).rounded())
-            return "\(Int(target.lowerBound))~\(Int(target.upperBound)) Hz (목표 범위 안 비율 \(percent)%)"
-        } ?? "아직 정하지 않음"
-        let direction = target == nil
-            ? "목소리를 높이거나 낮추는 방향은 가정하지 말아 주세요."
-            : "목소리를 높이거나 낮추는 방향은 가정하지 말고, 위의 내 목표 범위를 기준으로 봐 주세요."
         let request = includesAudio
             ? """
             떨림, 허스키함, 공명(밝고 가벼운 쪽인지, 어둡고 무게감 있는 쪽인지), 자연스러운 억양, 문장 끝 안정성 관점에서 피드백 부탁해요.
@@ -83,22 +88,44 @@ struct PitchSummary: Equatable {
             """
             : """
             녹음 파일은 보내지 않았어요. 위 수치를 목표 범위와 비교해 해석하고, 다음 연습에서 해 볼 만한 점을 알려 주세요.
-            떨림·허스키함·공명 같은 음색은 수치만으로는 알 수 없으니 짐작하지 말아 주세요.
+            \(Self.timbreCaution)
             """
         return """
         [울림 · 보이스 트레이닝 녹음 피드백 요청]
         녹음: \(title) (\(Self.durationLabel(duration)))
 
-        아래 수치는 보이스 트레이닝 앱 ‘울림’이 기기 안에서 직접 잰 값이에요. (YIN 피치 검출, 70~400 Hz)
+        \(Self.measurementNote)
         - 목소리가 잡힌 시간: \(String(format: "%.1f", voicedSeconds))초
         - 피치 중앙값: \(Int(median.rounded())) Hz
         - 피치 범위(아래 10%~위 10%): \(Int(p10.rounded()))~\(Int(p90.rounded())) Hz
-        - 내 목표 범위: \(targetLine)
+        - 내 목표 범위: \(targetDescription)
 
         \(request)
-        \(direction)
+        \(directionLine)
+        \(Self.closingLines)
+        """
+    }
+
+    // 녹음 하나의 요청문과 연습 기록의 요청문(PracticeSessionLog.Summary)이 함께 쓰는 문장들
+
+    static let measurementNote = "아래 수치는 보이스 트레이닝 앱 ‘울림’이 기기 안에서 직접 잰 값이에요. (YIN 피치 검출, 70~400 Hz)"
+    static let timbreCaution = "떨림·허스키함·공명 같은 음색은 수치만으로는 알 수 없으니 짐작하지 말아 주세요."
+    static let closingLines = """
         성대에 무리가 가지 않는 방향으로 알려 주세요.
         수치는 자동 측정이라 오차가 있을 수 있어요.
         """
+
+    /// 예: "180~220 Hz (목표 범위 안 비율 72%)". 목표 범위가 없으면 "아직 정하지 않음".
+    var targetDescription: String {
+        target.map { target in
+            let percent = Int(((inTargetFraction ?? 0) * 100).rounded())
+            return "\(Int(target.lowerBound))~\(Int(target.upperBound)) Hz (목표 범위 안 비율 \(percent)%)"
+        } ?? "아직 정하지 않음"
+    }
+
+    var directionLine: String {
+        target == nil
+            ? "목소리를 높이거나 낮추는 방향은 가정하지 말아 주세요."
+            : "목소리를 높이거나 낮추는 방향은 가정하지 말고, 위의 내 목표 범위를 기준으로 봐 주세요."
     }
 }
