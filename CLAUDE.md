@@ -144,6 +144,7 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - 분석 코드(`web/src/dsp/`)는 iOS 코드를 줄 단위로 옮긴 것이다. **iOS의 분석 코드(PitchDetector·FormantAnalyzer·PitchScale·GraphWindow·PitchHistory·VoiceMeters·PitchSummary·PhraseEndingAnalysis)를 고치면 웹도 같이 고치고**, 정답표를 다시 만든다 (문장 끝 분석의 기준값은 `VoicePractice/Models/PhraseEndingRules.json` 한 파일을 둘이 같이 읽으므로 값만 바꿀 때는 그 파일만 고친다):
   `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swiftc -O VoicePractice/Audio/PitchDetector.swift VoicePractice/Audio/FormantAnalyzer.swift VoicePracticeTests/SyntheticVowel.swift Tools/WebGolden/main.swift -o <임시 폴더>/web-golden` → `<임시 폴더>/web-golden web/test/golden/swift-golden.json`
 - `web/test/golden.test.ts`가 정답표와 비교한다. 목소리 있음/없음은 하나도 달라서는 안 되고, 숫자는 갈래마다 허용 오차 안이어야 한다 (2026-10-25: 높이 최대 3e-12 Hz, F1·F2 최대 0.002 Hz). 차이표는 `npx vitest run test/golden.test.ts --silent=false`로 본다.
+- 구절별 문장 끝 분석은 정답표 대신 입력·기대값 파일 하나(`VoicePracticeTests/PhraseEndingCases.json`)를 iOS(`PhraseEndingAnalysisTests`)와 웹(`web/test/phraseEnding.test.ts`)이 같이 읽어 확인한다 (기대값은 손으로 셈한 값, 허용 오차 1e-9). 경우를 더하거나 기준값을 바꾸면 `python3 -I Tools/PhraseEndingCases/make_cases.py`를 고쳐 다시 만들고 두 테스트를 모두 돌린다. Swift 테스트는 이 파일을 `#filePath` 옆에서 읽는다(시뮬레이터는 Mac의 파일을 읽을 수 있다).
 - iOS의 vDSP 계산은 반복문으로 옮겼다. Hamming 창은 iOS와 같은 `0.54 − 0.46·cos(2πn/N)`(N으로 나눔), 표본 줄이기 결과 길이는 `⌊(N − 탭 수)/D⌋ + 1` (정답표로 확인).
 - 패키지는 정확한 버전으로 고정하고(`--save-exact`), 나온 지 2주가 지난 버전을 쓴다. TypeScript는 6.x (svelte-check가 7을 아직 지원하지 않음).
 - 이 Mac의 Node는 25(홀수, 장기 지원판 아님)다. Vitest 5가 지원 목록에 22·24·26만 적어 설치 때 경고가 나지만, 테스트·빌드는 돈다 (2026-10-25). 문제가 생기면 Node 24 LTS를 설치한다(승인 받기).

@@ -65,6 +65,8 @@
 | `VoicePracticeTests/AudioFileExportTests.swift` | 파일 이름·확장자(.m4a), 마지막 녹음 m4a 만들기·다시 재기·임시 파일 정리, 그래프 높이를 확인하는 시험지 |
 | `VoicePractice/Models/VoiceMeters.swift` | [높이] 탭 음량 막대(dBFS, 0.3초 평활, 큰 소리 3초 지속 판정)와 공명 밝기 막대(최근 2.5초 F2 중앙값, 기준 대비 위치) 계산 |
 | `VoicePracticeTests/VoiceMetersTests.swift` | 음량·평활·큰 소리 판정, F2 이동 중앙값, 기준 대비 위치, F2 저장을 확인하는 시험지 |
+| `VoicePracticeTests/PhraseEndingAnalysisTests.swift` | 구절별 문장 끝 분석의 시험지: 기준값 파일, 종류 경계, fry 연속 기준 환산, 합성 피치 9가지 (웹 테스트와 같은 입력 파일) |
+| `VoicePracticeTests/PhraseEndingCases.json` | 문장 끝 분석의 합성 피치 입력과 손으로 셈한 기대값. iOS·웹 테스트가 같이 읽는다. `Tools/PhraseEndingCases/make_cases.py`가 만들므로 손으로 고치지 않는다 |
 | `VoicePractice/Models/GraphWindow.swift` | 피치 그래프 가로축 계산: 보이는 시간 구간(오른쪽 끝 = 지금), 시간 눈금 간격·글자, 시작선 |
 | `VoicePracticeTests/GraphWindowTests.swift` | 그래프 구간·시간 눈금·시작선·점 묶기를 확인하는 시험지 |
 | `VoicePractice/Models/PitchScale.swift` | 반음 눈금 계산: 두 높이의 반음 거리, 반음만큼 옮기기, 그래프 위치(로그 눈금), [높이] 세로축 범위(목표 ±50 Hz)와 축 밖 판정, 눈금 숫자 고르기 |
@@ -80,6 +82,7 @@
 | `Tools/PitchValidation/main.swift` | 앱의 피치 계산기를 녹음 파일에 돌려 Praat 결과와 비교하는 검사 도구. 앱에는 들어가지 않는다 |
 | `Tools/PitchValidation/plot.py` | 검사 결과를 그림으로 그리는 스크립트 |
 | `Tools/WebGolden/main.swift` | 앱의 피치·포먼트 계산기에 합성 신호를 넣어 웹 버전이 비교할 정답표(`web/test/golden/swift-golden.json`)를 만드는 도구. 앱에는 들어가지 않는다 |
+| `Tools/PhraseEndingCases/make_cases.py` | 문장 끝 분석의 테스트 입력 파일(`VoicePracticeTests/PhraseEndingCases.json`)을 만드는 스크립트. 경우마다 기대값을 어떻게 셈했는지 주석에 있다 |
 | `Validation/YIN_vs_Praat.md`, `Validation/figures/` | 검증 보고서와 그림. **본인 피치 자료가 들어 있어 GitHub에 올리지 않는다** (`.gitignore`) |
 | `Docs/script_samples.md` | 대본 샘플 10개 (확인용) |
 | `VoicePractice.xcodeproj` | Xcode가 여는 프로젝트 파일. 어떤 파일을 어떻게 빌드할지 적혀 있다 |
@@ -162,3 +165,4 @@
 | `web/test/*.test.ts` | iOS 테스트를 옮긴 웹 시험지 + `golden.test.ts`(iOS 정답표와 숫자 비교), `streamAnalyzer.test.ts`(조각 분석 = 파일 분석), `processing.test.ts`(자동 처리 안내), `sentences.test.ts`(문장 데이터가 iOS와 같은지, 조사·모음·자동 생성·대본), `practice.test.ts`(들려줄 길이·기준·목표 범위·설정 저장), `graph.test.ts`(그래프 크기·꺾은선 나누기·설명 문장), `loop.test.ts`(연습 순서·녹음 통·녹음 묶음·WAV·내보내기), `vowelMap.test.ts`(모음 지도 규칙·내 모음 지도·저장·지도 글자), `storage.test.ts`(기록 폴더 파일 모양·합치기·열기·옮기기·기록 파일 zip), `records.test.ts`(연습 한 번의 기록·기록 모양·기록 합치기·녹음 파일 이름·말하는 언어), `history.test.ts`([기록] 계산·연습 기록 요청문·그래프 자리·가짜 기록), `comparison.test.ts`(두 녹음 비교 계산) |
 | `web/test/signals.ts` | 웹 테스트용 합성 신호 (iOS 테스트·`Tools/WebGolden`과 같은 식) |
 | `web/test/golden/swift-golden.json` | `Tools/WebGolden`이 만든 정답표. 손으로 고치지 않는다 |
+| `web/test/phraseEnding.test.ts` | 구절별 문장 끝 분석의 시험지 (iOS `PhraseEndingAnalysisTests`와 같은 입력·기대값 파일을 읽는다) |
