@@ -176,6 +176,17 @@ final class SavedRecording {
     var language: PracticeLanguage {
         PracticeLanguage(rawValue: languageCode) ?? .other
     }
+
+    /// 화면에 보일 이름: 불러온 파일이면 파일 이름, 앱에서 녹음했으면 "10월 25일 오후 8:12 녹음"
+    var displayTitle: String {
+        title.isEmpty ? "\(recordedAt.formatted(.dateTime.month().day().hour().minute())) 녹음" : title
+    }
+
+    /// 남길 때의 목표 범위. 정하지 않았으면 nil
+    var target: ClosedRange<Double>? {
+        guard let targetLowerHz, let targetUpperHz else { return nil }
+        return targetLowerHz...targetUpperHz
+    }
 }
 
 /// ‘내 목소리 재기’를 저장할 때마다 하나씩 쌓인다. 지금 쓰는 기준은 그대로 UserDefaults(TargetRangeStore)에 있다.

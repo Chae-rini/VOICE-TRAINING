@@ -160,6 +160,32 @@ struct PracticeArchiveTests {
         #expect(try count(SavedRecording.self, in: archive) == 0)
     }
 
+    @Test("연습 기록과 기준 이력은 하나씩 지울 수 있다")
+    func deletesOne() throws {
+        let (archive, _) = makeArchive()
+        archive.saveSession(try sessionSummary())
+        archive.saveBaseline(VoiceBaseline(median: 150, low: 130, high: 175))
+        archive.saveBaseline(VoiceBaseline(median: 160, low: 140, high: 185))
+
+        archive.delete(try #require(try archive.context.fetch(FetchDescriptor<PracticeSession>()).first))
+        archive.delete(try #require(try archive.context.fetch(FetchDescriptor<BaselineRecord>()).first))
+        #expect(try count(PracticeSession.self, in: archive) == 0)
+        #expect(try count(BaselineRecord.self, in: archive) == 1)
+    }
+
+    @Test("남긴 녹음의 화면 이름: 불러온 파일은 파일 이름, 앱에서 녹음한 것은 날짜")
+    func displayTitle() throws {
+        let summary = try #require(PitchSummary(voiced: [150, 160, 170], voicedSeconds: 3, duration: 5, target: 140...180))
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        let imported = SavedRecording(summary: summary, title: "음성 메모 12", memo: "", fileName: "a.m4a",
+                                      language: .korean, recordedAt: date)
+        let live = SavedRecording(summary: summary, title: "", memo: "", fileName: "b.m4a", language: .korean, recordedAt: date)
+        #expect(imported.displayTitle == "음성 메모 12")
+        #expect(live.displayTitle.hasSuffix(" 녹음"))
+        #expect(live.displayTitle != " 녹음")
+        #expect(live.target == 140...180)
+    }
+
     @Test("모든 기록 지우기: 숫자 기록과 녹음 파일이 모두 사라진다")
     func deletesAll() async throws {
         let (archive, directory) = makeArchive()

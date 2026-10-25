@@ -182,9 +182,10 @@ final class AudioInputManager {
     }
 
     /// 녹음 파일(음성 메모 등)을 불러와 피치를 미리 계산한 뒤, 곧바로 재생하며 곡선을 보여준다.
-    /// 파일은 기기 안에서 읽기만 한다.
-    func importRecording(from url: URL) async {
-        guard !isRunning, !isAnalyzingFile else { return }
+    /// 파일은 기기 안에서 읽기만 한다. `title`을 주지 않으면 파일 이름을 쓴다. 불러왔으면 true.
+    @discardableResult
+    func importRecording(from url: URL, title: String? = nil) async -> Bool {
+        guard !isRunning, !isAnalyzingFile else { return false }
         errorMessage = nil
         infoMessage = nil
         restMessage = nil
@@ -196,16 +197,16 @@ final class AudioInputManager {
             analysis = try await analyzeFile(at: url)
         } catch {
             errorMessage = "이 파일을 읽지 못했어요. 음성 메모에서 ‘파일에 저장’한 녹음 파일인지 확인해 주세요."
-            return
+            return false
         }
         guard !isRunning,
               let playback = TakeRecorder.makePlaybackBuffer(samples: analysis.samples, sampleRate: analysis.sampleRate) else {
-            return
+            return false
         }
 
         history = PitchHistory(retention: analysis.duration + 2)
         history.append(contentsOf: analysis.readings)
-        let title = url.deletingPathExtension().lastPathComponent
+        let title = title ?? url.deletingPathExtension().lastPathComponent
         lastTake = RecordedTake(buffer: playback.buffer, startTime: 0, playbackGain: playback.gain,
                                 archiveTitle: title, language: nil)
         hasLastTake = true
@@ -215,6 +216,14 @@ final class AudioInputManager {
             infoMessage = "5분이 넘는 녹음이라 앞 5분만 불러왔어요."
         }
         replayLastTake()
+        return true
+    }
+
+    /// [기록] 탭에서 남긴 녹음을 다시 열어 재생하며 곡선을 보여 준다. 이미 기록에 있으므로 ‘기록에 남겼어요’로 표시한다.
+    func openSavedRecording(_ recording: SavedRecording) async {
+        if await importRecording(from: archive.fileURL(for: recording), title: recording.displayTitle) {
+            lastTakeIsSaved = true
+        }
     }
 
     /// 녹음 파일을 읽어 피치를 미리 계산한다. 시간이 걸리므로 화면이 멈추지 않게 백그라운드에서 한다.

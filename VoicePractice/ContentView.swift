@@ -1,3 +1,4 @@
+import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -16,6 +17,13 @@ struct ContentView: View {
     @State private var importPurpose = ImportPurpose.recording
     @State private var sharePayload: SharePayload?
     @State private var isMeasuringBaseline = false
+    @State private var tab = AppTab.pitch
+
+    private enum AppTab: Hashable {
+        case pitch
+        case vowel
+        case history
+    }
 
     private enum ImportPurpose {
         /// 녹음을 불러와 재생하며 보기
@@ -35,16 +43,25 @@ struct ContentView: View {
             if audio.permission == .denied {
                 PermissionDeniedView()
             } else {
-                // 아래 탭: [높이] 피치 연습, [모음] 모음 지도. 녹음·듣기 조작은 두 탭이 같은 것을 쓴다.
-                TabView {
+                // 아래 탭: [높이] 피치 연습, [모음] 모음 지도, [기록] 날짜별 기록. 녹음·듣기 조작은 [높이]·[모음]이 같은 것을 쓴다.
+                TabView(selection: $tab) {
                     practiceScreen
                         .tabItem { Label("높이", systemImage: "waveform.path") }
+                        .tag(AppTab.pitch)
                     VowelMapScreen(audio: audio, caption: vowelCaption) { vowel in
                         importPurpose = .vowel(vowel)
                         isImporting = true
                     }
                     .safeAreaInset(edge: .bottom) { controls }
                         .tabItem { Label("모음", systemImage: "mouth") }
+                        .tag(AppTab.vowel)
+                    HistoryScreen(audio: audio) { recording in
+                        // 남긴 녹음은 [높이] 탭에서 재생하며 곡선을 다시 그린다.
+                        tab = .pitch
+                        Task { await audio.openSavedRecording(recording) }
+                    }
+                    .tabItem { Label("기록", systemImage: "calendar") }
+                    .tag(AppTab.history)
                 }
             }
         }
@@ -74,6 +91,9 @@ struct ContentView: View {
         // 음성 메모 등의 공유 창에서 이 앱을 고르면, iOS가 파일을 앱 안에 복사해 넘겨준다.
         .onOpenURL { url in
             guard url.isFileURL else { return }
+            if tab == .history {
+                tab = .pitch  // 곡선이 보이는 탭에서 재생한다
+            }
             Task { await audio.openSharedRecording(url) }
         }
         .sheet(item: $sharePayload) { payload in
@@ -207,4 +227,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
+        .modelContainer(PracticeArchive.shared.container)
 }

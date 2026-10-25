@@ -1,0 +1,162 @@
+import Foundation
+
+/// [기록] 탭에서 보는 기간.
+enum HistoryPeriod: String, CaseIterable, Identifiable {
+    case week
+    case month
+    case all
+
+    static let storageKey = "historyPeriod"
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .week: "7일"
+        case .month: "30일"
+        case .all: "전체"
+        }
+    }
+
+    /// 이 기간의 첫날 0시. 오늘도 하루로 센다 (7일 = 오늘과 그 앞 6일). 전체면 nil.
+    func start(now: Date, calendar: Calendar) -> Date? {
+        let today = calendar.startOfDay(for: now)
+        switch self {
+        case .week: return calendar.date(byAdding: .day, value: -6, to: today)
+        case .month: return calendar.date(byAdding: .day, value: -29, to: today)
+        case .all: return nil
+        }
+    }
+
+    func contains(_ date: Date, now: Date, calendar: Calendar) -> Bool {
+        guard let start = start(now: now, calendar: calendar) else { return true }
+        return date >= start
+    }
+}
+
+/// 그래프에 찍을 연습 한 번. 저장된 기록(PracticeSession)에서 필요한 값만 꺼낸 것이라 테스트에서 바로 만들 수 있다.
+struct SessionPoint: Identifiable, Equatable {
+    let startedAt: Date
+    /// [s] 시작~정지 시간
+    let practiceSeconds: TimeInterval
+    /// [Hz] 중앙값, 아래 10%, 위 10%
+    let median: Double
+    let low: Double
+    let high: Double
+    let language: PracticeLanguage
+
+    var id: Date { startedAt }
+}
+
+extension SessionPoint {
+    init(_ session: PracticeSession) {
+        self.init(startedAt: session.startedAt, practiceSeconds: session.practiceSeconds,
+                  median: session.medianHz, low: session.lowHz, high: session.highHz, language: session.language)
+    }
+}
+
+/// 하루 동안 연습한 시간 (막대그래프용)
+struct DailyPractice: Identifiable, Equatable {
+    /// 그날 0시
+    let day: Date
+    let minutes: Double
+
+    var id: Date { day }
+}
+
+/// [기록] 탭의 계산 규칙. 점수·향상률·연속 기록(스트릭)은 만들지 않고, 있는 숫자를 모으기만 한다.
+enum PracticeHistory {
+    struct Totals: Equatable {
+        let sessionCount: Int
+        /// 연습한 날 수 (연속 여부는 따지지 않음)
+        let dayCount: Int
+        /// [s]
+        let practiceSeconds: TimeInterval
+    }
+
+    /// 기간과 언어(nil이면 모두)에 맞는 연습만 남긴다.
+    static func filter(_ points: [SessionPoint], period: HistoryPeriod, language: PracticeLanguage?,
+                       now: Date, calendar: Calendar) -> [SessionPoint] {
+        points.filter { point in
+            period.contains(point.startedAt, now: now, calendar: calendar)
+                && (language == nil || point.language == language)
+        }
+    }
+
+    /// 날마다 연습한 시간을 더한다. 연습을 시작한 날로 센다 (자정을 넘긴 연습도 시작한 날).
+    static func dailyPractice(_ points: [SessionPoint], calendar: Calendar) -> [DailyPractice] {
+        let byDay = Dictionary(grouping: points) { calendar.startOfDay(for: $0.startedAt) }
+        return byDay
+            .map { day, points in DailyPractice(day: day, minutes: points.map(\.practiceSeconds).reduce(0, +) / 60) }
+            .sorted { $0.day < $1.day }
+    }
+
+    static func totals(_ points: [SessionPoint], calendar: Calendar) -> Totals {
+        Totals(
+            sessionCount: points.count,
+            dayCount: Set(points.map { calendar.startOfDay(for: $0.startedAt) }).count,
+            practiceSeconds: points.map(\.practiceSeconds).reduce(0, +)
+        )
+    }
+
+    /// 그래프 가로축: 기간 첫날 0시 ~ 내일 0시. 전체면 가장 이른 연습한 날부터 (연습이 없으면 최근 7일).
+    static func dateDomain(_ points: [SessionPoint], period: HistoryPeriod, now: Date, calendar: Calendar) -> ClosedRange<Date> {
+        let today = calendar.startOfDay(for: now)
+        let end = calendar.date(byAdding: .day, value: 1, to: today) ?? now
+        let start = period.start(now: now, calendar: calendar)
+            ?? points.map(\.startedAt).min().map { calendar.startOfDay(for: $0) }
+            ?? HistoryPeriod.week.start(now: now, calendar: calendar)
+            ?? today
+        return start...end
+    }
+
+    /// [Hz] 이보다 좁게는 보여 주지 않는다 (작은 차이가 크게 부풀어 보이지 않게)
+    static let minimumPitchSpan = 60.0
+    /// [Hz] 위아래 여유
+    static let pitchPadding = 15.0
+
+    /// 그래프 세로축 [Hz]: 연습의 범위, 목표 범위, 기준이 모두 들어가게 잡고 앱의 분석 범위(70~400 Hz) 안으로 자른다.
+    static func pitchDomain(_ points: [SessionPoint], target: ClosedRange<Double>?, baseline: Double?) -> ClosedRange<Double> {
+        let axis = PitchDetector.frequencyRange
+        var values = points.flatMap { [$0.low, $0.high] }
+        if let target {
+            values += [target.lowerBound, target.upperBound]
+        }
+        if let baseline {
+            values.append(baseline)
+        }
+        guard let lowest = values.min(), let highest = values.max() else { return axis }
+
+        var lower = lowest - pitchPadding
+        var upper = highest + pitchPadding
+        if upper - lower < minimumPitchSpan {
+            let center = (lower + upper) / 2
+            lower = center - minimumPitchSpan / 2
+            upper = center + minimumPitchSpan / 2
+        }
+        // 범위 밖으로 나가면 안쪽으로 밀어 넣는다 (가능한 한 폭은 유지).
+        if lower < axis.lowerBound {
+            upper = min(upper + (axis.lowerBound - lower), axis.upperBound)
+            lower = axis.lowerBound
+        }
+        if upper > axis.upperBound {
+            lower = max(lower - (upper - axis.upperBound), axis.lowerBound)
+            upper = axis.upperBound
+        }
+        return lower...upper
+    }
+
+    /// 예: 45초 → "45초", 1500초 → "25분", 11400초 → "3시간 10분". 1분이 넘으면 초는 버린다.
+    static func totalLabel(_ seconds: TimeInterval) -> String {
+        let total = Int(seconds.rounded())
+        if total < 60 {
+            return "\(total)초"
+        }
+        let hours = total / 3600
+        let minutes = total % 3600 / 60
+        if hours == 0 {
+            return "\(minutes)분"
+        }
+        return minutes == 0 ? "\(hours)시간" : "\(hours)시간 \(minutes)분"
+    }
+}

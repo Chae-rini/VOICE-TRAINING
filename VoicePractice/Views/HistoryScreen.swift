@@ -1,0 +1,254 @@
+import SwiftData
+import SwiftUI
+
+/// [기록] 탭: 기간·언어를 골라 연습의 흐름(그래프)을 보고, 남긴 녹음·연습 기록·내 목소리 재기 이력을 살펴본다.
+/// 모든 기록은 이 기기 안에만 있다. 점수·향상률·연속 기록은 보여 주지 않는다.
+struct HistoryScreen: View {
+    let audio: AudioInputManager
+    /// 남긴 녹음을 [높이] 탭에서 재생한다.
+    let onPlay: (SavedRecording) -> Void
+
+    @Query(sort: \PracticeSession.startedAt) private var sessions: [PracticeSession]
+    @Query(sort: \SavedRecording.recordedAt, order: .reverse) private var recordings: [SavedRecording]
+    @Query(sort: \BaselineRecord.measuredAt, order: .reverse) private var baselines: [BaselineRecord]
+
+    @AppStorage(HistoryPeriod.storageKey) private var period = HistoryPeriod.month
+    @AppStorage(TargetRangeStore.lowerKey) private var targetLower: Double?
+    @AppStorage(TargetRangeStore.upperKey) private var targetUpper: Double?
+    @AppStorage(TargetRangeStore.baselineMedianKey) private var baselineMedian: Double?
+    /// nil이면 모든 언어
+    @State private var language: PracticeLanguage?
+    @State private var isConfirmingDeleteAll = false
+
+    private let calendar = Calendar.current
+
+    private var target: ClosedRange<Double>? {
+        guard let targetLower, let targetUpper else { return nil }
+        return min(targetLower, targetUpper)...max(targetLower, targetUpper)
+    }
+
+    private func isShown(_ date: Date, _ recordLanguage: PracticeLanguage? = nil) -> Bool {
+        period.contains(date, now: .now, calendar: calendar)
+            && (language == nil || recordLanguage == nil || recordLanguage == language)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if sessions.isEmpty && recordings.isEmpty && baselines.isEmpty {
+                    ContentUnavailableView {
+                        Label("아직 기록이 없어요", systemImage: "calendar")
+                    } description: {
+                        Text("‘반복 루프 재생’으로 30초 넘게 연습하면 연습 기록이 저절로 남아요. 요약 카드의 ‘기록에 남기기’를 누르면 녹음도 여기에 모여요.")
+                    }
+                } else {
+                    historyList
+                }
+            }
+            .navigationTitle("기록")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+    }
+
+    private var historyList: some View {
+        let points = PracticeHistory.filter(sessions.map { SessionPoint($0) }, period: period, language: language,
+                                            now: .now, calendar: calendar)
+        let shownRecordings = recordings.filter { isShown($0.recordedAt, $0.language) }
+        let shownSessions = sessions.reversed().filter { isShown($0.startedAt, $0.language) }
+        let shownBaselines = baselines.filter { isShown($0.measuredAt) }
+
+        return List {
+            Section {
+                Picker("기간", selection: $period) {
+                    ForEach(HistoryPeriod.allCases) { period in
+                        Text(period.label).tag(period)
+                    }
+                }
+                .pickerStyle(.segmented)
+                Picker("말한 언어", selection: $language) {
+                    Text("모든 언어").tag(PracticeLanguage?.none)
+                    ForEach(PracticeLanguage.allCases) { language in
+                        Text(language.label).tag(PracticeLanguage?.some(language))
+                    }
+                }
+            }
+
+            Section {
+                totalsRow(PracticeHistory.totals(points, calendar: calendar))
+                if points.isEmpty {
+                    Text("이 기간에 남은 연습 기록이 없어요.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    HistoryChartView(
+                        points: points,
+                        daily: PracticeHistory.dailyPractice(points, calendar: calendar),
+                        dateDomain: PracticeHistory.dateDomain(points, period: period, now: .now, calendar: calendar),
+                        pitchDomain: PracticeHistory.pitchDomain(points, target: target, baseline: baselineMedian),
+                        target: target,
+                        baseline: baselineMedian
+                    )
+                    .padding(.vertical, 6)
+                }
+            }
+
+            Section {
+                if shownRecordings.isEmpty {
+                    Text("요약 카드의 ‘기록에 남기기’로 남긴 녹음이 여기에 모여요.")
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(shownRecordings) { recording in
+                    NavigationLink {
+                        RecordingDetailView(recording: recording, archive: audio.archive,
+                                            canPlay: !audio.isRunning && !audio.isAnalyzingFile) {
+                            onPlay(recording)
+                        }
+                    } label: {
+                        recordingRow(recording)
+                    }
+                    .swipeActions {
+                        Button("지우기", role: .destructive) {
+                            audio.archive.delete(recording)
+                        }
+                    }
+                }
+            } header: {
+                Text("남긴 녹음")
+            }
+
+            if !shownSessions.isEmpty {
+                Section {
+                    ForEach(shownSessions) { session in
+                        sessionRow(session)
+                            .swipeActions {
+                                Button("지우기", role: .destructive) {
+                                    audio.archive.delete(session)
+                                }
+                            }
+                    }
+                } header: {
+                    Text("연습 기록")
+                } footer: {
+                    Text("정지할 때마다 숫자만 저절로 남아요 (소리는 남지 않아요). 밀어서 지울 수 있어요.")
+                }
+            }
+
+            if !shownBaselines.isEmpty {
+                Section("내 목소리 재기") {
+                    ForEach(shownBaselines) { baseline in
+                        baselineRow(baseline)
+                            .swipeActions {
+                                Button("지우기", role: .destructive) {
+                                    audio.archive.delete(baseline)
+                                }
+                            }
+                    }
+                }
+            }
+
+            Section {
+                Button("모든 기록 지우기", role: .destructive) {
+                    isConfirmingDeleteAll = true
+                }
+            } footer: {
+                Text("기록은 이 기기 안에만 있어요. 남긴 녹음의 소리는 iCloud 백업에도 들어가지 않아서, 기기를 바꾸면 옮겨지지 않아요.")
+            }
+        }
+        .confirmationDialog("모든 기록을 지울까요?", isPresented: $isConfirmingDeleteAll, titleVisibility: .visible) {
+            Button("모두 지우기", role: .destructive) {
+                try? audio.archive.deleteAll()
+            }
+        } message: {
+            Text("연습 기록, 남긴 녹음과 메모, 내 목소리·모음 재기 이력이 모두 지워져요. 지금 쓰는 기준 목소리·목표 범위·모음 지도는 그대로예요. 되돌릴 수 없어요.")
+        }
+    }
+
+    // MARK: - 줄
+
+    private func totalsRow(_ totals: PracticeHistory.Totals) -> some View {
+        HStack(spacing: 0) {
+            stat("연습", "\(totals.sessionCount)번")
+            stat("연습한 날", "\(totals.dayCount)일")
+            stat("모두", PracticeHistory.totalLabel(totals.practiceSeconds))
+        }
+    }
+
+    private func stat(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.subheadline.weight(.medium))
+                .monospacedDigit()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func recordingRow(_ recording: SavedRecording) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Text(recording.displayTitle)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                Spacer()
+                Text(PitchSummary.durationLabel(recording.durationSeconds))
+                    .font(.footnote)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+            }
+            HStack {
+                Text("중앙 \(Int(recording.medianHz.rounded())) Hz · \(Int(recording.lowHz.rounded()))–\(Int(recording.highHz.rounded())) Hz")
+                    .font(.footnote)
+                    .monospacedDigit()
+                Spacer()
+                languageTag(recording.language)
+            }
+            if !recording.memo.isEmpty {
+                Text(recording.memo)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+        }
+    }
+
+    private func sessionRow(_ session: PracticeSession) -> some View {
+        HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(session.startedAt.formatted(.dateTime.month().day().weekday().hour().minute()))
+                    .font(.subheadline)
+                Text("연습 \(PracticeHistory.totalLabel(session.practiceSeconds)) · 녹음 \(session.takeCount)번")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text("중앙 \(Int(session.medianHz.rounded())) Hz")
+                    .font(.subheadline)
+                    .monospacedDigit()
+                languageTag(session.language)
+            }
+        }
+    }
+
+    private func baselineRow(_ baseline: BaselineRecord) -> some View {
+        HStack {
+            Text(baseline.measuredAt.formatted(.dateTime.month().day().weekday()))
+                .font(.subheadline)
+            Spacer()
+            Text("중앙 \(Int(baseline.medianHz.rounded())) Hz · \(Int(baseline.lowHz.rounded()))–\(Int(baseline.highHz.rounded())) Hz")
+                .font(.footnote)
+                .monospacedDigit()
+                .foregroundStyle(Color.indigo)
+        }
+    }
+
+    private func languageTag(_ language: PracticeLanguage) -> some View {
+        Text(language.label)
+            .font(.caption2.weight(.medium))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .foregroundStyle(language.color)
+            .background(language.color.opacity(0.12), in: Capsule())
+    }
+}

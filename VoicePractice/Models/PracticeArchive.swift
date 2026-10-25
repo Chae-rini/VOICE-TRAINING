@@ -91,12 +91,23 @@ final class PracticeArchive {
         save()
     }
 
+    func delete(_ session: PracticeSession) {
+        context.delete(session)
+        save()
+    }
+
+    func delete(_ baseline: BaselineRecord) {
+        context.delete(baseline)
+        save()
+    }
+
     /// 모든 기록과 녹음 파일을 지운다. 지금 쓰는 기준 목소리·목표 범위·모음 지도(UserDefaults)는 그대로 둔다.
+    /// 한꺼번에 지우는 `delete(model:)`은 화면의 목록(@Query)이 바로 따라 바뀌지 않는다는 보고가 있어 하나씩 지운다.
     func deleteAll() throws {
-        try context.delete(model: PracticeSession.self)
-        try context.delete(model: SavedRecording.self)
-        try context.delete(model: BaselineRecord.self)
-        try context.delete(model: VowelRecord.self)
+        try deleteEach(PracticeSession.self)
+        try deleteEach(SavedRecording.self)
+        try deleteEach(BaselineRecord.self)
+        try deleteEach(VowelRecord.self)
         try context.save()
         if FileManager.default.fileExists(atPath: recordingsDirectory.path) {
             try FileManager.default.removeItem(at: recordingsDirectory)
@@ -105,8 +116,15 @@ final class PracticeArchive {
 
     // MARK: - 내부
 
+    private func deleteEach<T: PersistentModel>(_ type: T.Type) throws {
+        for record in try context.fetch(FetchDescriptor<T>()) {
+            context.delete(record)
+        }
+    }
+
     /// 메인 저장소(mainContext)는 때가 되면 스스로도 저장하지만, 앱이 곧 꺼질 수 있으니 바로 저장한다.
-    private func save() {
+    /// 화면에서 메모 등을 고친 뒤에도 부른다.
+    func save() {
         try? context.save()
     }
 
