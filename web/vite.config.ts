@@ -14,9 +14,9 @@ export default defineConfig(({ mode }) => {
     server: {
       host: lan ? true : 'localhost',
       fs: {
-        // 개발 서버가 내줄 수 있는 파일을 web/ 폴더와 대본 파일 하나로 좁힌다.
+        // 개발 서버가 내줄 수 있는 파일을 web/ 폴더와 iOS와 같이 쓰는 JSON 파일 두 개(대본, 문장 끝 기준값)로 좁힌다.
         // 저장소 맨 위에는 개인 녹음 자료(Validation/)와 서명 설정이 있어서, 와이파이로 열어 둘 때 새지 않게 한다.
-        allow: ['.', '../VoicePractice/Models/PracticeScripts.json'],
+        allow: ['.', '../VoicePractice/Models/PracticeScripts.json', '../VoicePractice/Models/PhraseEndingRules.json'],
       },
     },
     test: {

@@ -8,6 +8,8 @@
 | `VoicePractice/Audio/TakeRecorder.swift` | 녹음 중 들어온 소리 중 최근 N초만 메모리에 남기는 고리 모양 통 (다시 듣기용) |
 | `VoicePractice/Audio/AudioFileAnalyzer.swift` | 녹음 파일(음성 메모 등)을 읽어 피치를 미리 계산하고, 공유용 WAV·기록용 m4a 파일을 만드는 도구 |
 | `VoicePractice/Models/PitchSummary.swift` | 녹음의 요약 수치(중앙값·범위·목표 범위 안 비율)와 AI에게 보낼 피드백 요청문 |
+| `VoicePractice/Models/PhraseEndingAnalysis.swift` | 구절별 문장 끝 분석: 무성음 250 ms로 구절을 나누고, 구절마다 끝 300 ms가 몇 반음 내려갔는지·끝 바닥·긁히는 소리 가능성, 녹음 전체 요약 (화면과 상관없는 계산만) |
+| `VoicePractice/Models/PhraseEndingRules.json` | 문장 끝 분석의 기준값(구절 나누기·끝 길이·하강 폭 경계·fry 기준). iOS와 웹이 이 파일 하나를 같이 읽는다. 값마다 뜻을 `notes`에 적었다 |
 | `VoicePractice/Views/RecordingSummaryView.swift` | 그래프 아래 요약 카드와 "기록에 남기기"(메모 창)·"AI에게 피드백 받기"·"요약 복사" 버튼, iOS 공유 창 |
 | `VoicePractice/Models/PracticeRecord.swift` | 기록의 모양: 말하는 언어, 연습 한 번 모으기 규칙(30초·5초 기준), 저장하는 기록 4가지(연습 요약, 남긴 녹음, 기준 목소리 이력, 모음 이력) |
 | `VoicePractice/Models/PracticeArchive.swift` | 기록 저장소: 숫자는 SwiftData, 남긴 녹음은 m4a 파일(백업 제외). 저장·하나 지우기·모두 지우기를 한곳에서 하고, 저장에 실패하면 되돌린 뒤 오류를 알린다 |
@@ -148,6 +150,7 @@
 | `web/src/dsp/pitchHistory.ts` | 피치 점 기록, 끊김·픽셀 열 묶기, 그래프 시계(녹음 중·멈춤·다시 듣기) |
 | `web/src/dsp/voiceMeters.ts`, `web/src/dsp/vowelSpace.ts` | 음량(dBFS) 막대, 공명 밝기(F2) 막대, 모음 지도 규칙(F1·F2 범위·눈금·지금 점·위치, F1 불확실) |
 | `web/src/dsp/pitchSummary.ts` | 요약 수치(중앙값·10%·90%·목표 안 비율)와 AI 피드백 요청문 |
+| `web/src/dsp/phraseEnding.ts` | 구절별 문장 끝 분석 (iOS `PhraseEndingAnalysis.swift`를 줄 단위로 옮김, 기준값은 iOS의 `PhraseEndingRules.json`을 그대로 읽는다) |
 | `web/src/dsp/analysis.ts` | 소리 전체를 연습과 같은 방식으로 분석, 다시 듣기 배율, 녹음 묶음에 넣을 점 고르기 |
 | `web/src/dsp/streamAnalyzer.ts` | 마이크에서 조각조각 들어오는 소리를 창(2048샘플, 절반씩 밀기)으로 분석 (iOS `PitchTapProcessor`). 조각 크기와 상관없이 파일 분석과 같은 점 |
 | `web/src/audio/micInput.ts` | 소리 장치(`AudioEngine`): 소리 시계 하나로 마이크 켜기·녹음 시작·멈추고 소리 받기·다시 듣기 재생·녹음 파일 읽고 분석. 못 켠 까닭별 안내, 개발용 테스트 음·테스트 모음(배음 크기를 공명 모양으로), 개발 서버의 `?mute` |
