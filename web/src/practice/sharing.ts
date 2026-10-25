@@ -14,7 +14,11 @@ export function takeWavFile(take: RecordedTake): File {
 
 /** WAV 파일을 이 기기에 내려받는다 (브라우저에 따라 저장할 곳을 묻거나 다운로드 폴더에 둔다). */
 export function downloadTake(take: RecordedTake): void {
-  const file = takeWavFile(take)
+  downloadFile(takeWavFile(take))
+}
+
+/** 파일을 이 기기에 내려받는다 (녹음 WAV, 기록 파일 zip) */
+export function downloadFile(file: File): void {
   const url = URL.createObjectURL(file)
   const link = document.createElement('a')
   link.href = url
@@ -36,6 +40,19 @@ export async function copyText(text: string): Promise<boolean> {
 }
 
 export type ShareResult = 'shared' | 'cancelled' | 'copied' | 'failed'
+
+/** 글(연습 기록 요약 등)을 브라우저 공유 창에 넘긴다. 공유 창이 없으면 복사한다 */
+export async function shareText(text: string): Promise<ShareResult> {
+  if (typeof navigator.share === 'function') {
+    try {
+      await navigator.share({ text })
+      return 'shared'
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') return 'cancelled'
+    }
+  }
+  return (await copyText(text)) ? 'copied' : 'failed'
+}
 
 /**
  * 피드백 요청문(원하면 녹음 파일도)을 브라우저 공유 창에 넘긴다. 받을 앱은 사용자가 고른다.

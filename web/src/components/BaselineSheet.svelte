@@ -2,8 +2,10 @@
   import { onMount } from 'svelte'
   import type { InputSource } from '../audio/micInput'
   import { Baseline, TargetRange, type VoiceBaseline } from '../model/practice'
+  import { newRecordId } from '../model/records'
   import { settings } from '../model/settings.svelte'
   import { session } from '../practice/session.svelte'
+  import { store } from '../storage/recordStore.svelte'
 
   /**
    * "내 목소리 재기": 연습 문장을 편하게 읽는 10초로 기준 목소리를 잰다 (iOS `BaselineMeasureView`).
@@ -19,7 +21,9 @@
   let frequency: number | null = $state(null)
   let animationFrame = 0
 
-  const isMeasuring = $derived(session.phase.kind === 'measuring' || (session.busy === 'starting' && open))
+  const isMeasuring = $derived(
+    (session.phase.kind === 'measuring' && session.measuringVowel === null) || (session.busy === 'starting' && open),
+  )
   const isAnalyzing = $derived(session.busy === 'analyzing')
   let fileInput: HTMLInputElement
 
@@ -59,6 +63,8 @@
   }
 
   function save(baseline: VoiceBaseline) {
+    // 지금 쓰는 기준은 설정 파일에, 잴 때마다의 이력은 기록 파일에 하나씩 쌓는다
+    void store.addRecord('baselineHistory', { id: newRecordId(), measuredAt: new Date().toISOString(), ...baseline })
     settings.setBaseline(baseline, applyToTarget)
     void session.cancelMeasuring()
     onClose()

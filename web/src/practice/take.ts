@@ -4,6 +4,7 @@ import { PitchHistory, type PitchReading } from '../dsp/pitchHistory'
 import { PitchSummary } from '../dsp/pitchSummary'
 import type { Range } from '../dsp/range'
 import { ResonanceMeter } from '../dsp/voiceMeters'
+import type { PracticeLanguage } from '../model/records'
 
 /**
  * 녹음 한 번의 묶음: 원래 소리, 시작 시각과 길이, 그 구간의 피치·포먼트 점 (iOS `RecordedTake`).
@@ -23,6 +24,10 @@ export interface RecordedTake {
   readonly recordedAt: Date
   /** 화면에 보일 이름 ("방금 녹음" 또는 불러온 파일 이름) */
   readonly title: string
+  /** 기록에 남길 이름: 불러온 파일이면 파일 이름, 앱에서 녹음했으면 빈 글자 */
+  readonly archiveTitle: string
+  /** 연습 중 녹음이면 그 연습의 말하는 언어. 불러온 파일은 null (남길 때 지금 고른 언어) */
+  readonly language: PracticeLanguage | null
   /** 이 소리 구간(첫 샘플~마지막 샘플)의 점 */
   readonly readings: readonly PitchReading[]
   /** [s] 그래프 가로축 길이. 연습 녹음은 녹음할 때의 들려줄 길이, 불러온 파일은 0 (파일 길이만큼) */

@@ -94,23 +94,51 @@
 | `web/package.json`, `web/package-lock.json` | 웹 버전이 쓰는 도구와 정확한 버전, 명령(`dev`·`build`·`test`·`check`) |
 | `web/vite.config.ts`, `web/tsconfig.json` | 웹 빌드·테스트 설정 (상대 경로로 빌드: GitHub Pages·APK 어디서나 열리게). 개발 서버가 내줄 파일을 `web/`과 대본 JSON으로 좁히고, `dev:lan`일 때만 와이파이에 HTTPS로 연다 |
 | `web/index.html` | 웹 첫 페이지. 앱 자신의 파일 말고는 연결하지 못하게 막는 CSP (원칙 2) |
-| `web/src/main.ts`, `web/src/App.svelte`, `web/src/app.css` | 웹 화면 시작점(지금은 [높이] 화면 하나)과 공통 모양. 색은 iOS 색 세트와 같은 값(밝은·어두운 모드) |
-| `web/src/components/PitchScreen.svelte` | [높이] 화면 배치: 위에 고정된 높이·그래프, 스크롤되는 목표 범위·문장, 아래 고정 버튼(마이크 켜기·정지, 들려줄 길이). 처음 열 때 내 목소리 재기 |
+| `web/src/main.ts`, `web/src/App.svelte`, `web/src/app.css` | 웹 화면 시작점과 공통 모양. App은 화면 셋([높이]·[모음]·[기록])을 숨기기만 하며 바꾸고(문장 위치·스크롤 유지), 그 아래 연습 조작과 탭 막대. 색은 iOS 색 세트와 같은 값(밝은·어두운 모드) |
+| `web/src/components/TabBar.svelte`, `navigation.svelte.ts` | 아래 탭 막대(높이·모음·기록)와 화면끼리 함께 보는 상태(지금 탭, 내 목소리 재기 창이 열렸는지) |
+| `web/src/components/PracticeControls.svelte` | 화면 아래 연습 조작: 단계 표시·남은 시간, 반복 루프 재생·지금 들어보기·건너뛰기·정지, 녹음 불러오기, 마지막 녹음 듣기, 들려줄 길이. [높이]·[모음]이 함께 쓴다 |
+| `web/src/components/PitchScreen.svelte` | [높이] 화면 배치: 위에 고정된 높이·그래프, 스크롤되는 목표 범위·요약·문장. 처음 열 때 내 목소리 재기 |
+| `web/src/components/VowelScreen.svelte` | [모음] 화면: 모음 지도, 내 모음 지도(모음 고르기, 3초 재기, 파일로 재기, 잰 결과 안내), 보는 법 |
+| `web/src/components/VowelChart.svelte` | 모음 지도 위의 F1·F2 숫자와 고른 모음과의 차이, 지도(캔버스). 재는 동안은 재는 소리, 다시 들을 때는 재생 위치를 따라간다 |
+| `web/src/graph/vowelChart.ts` | 모음 지도 그리기(눈금·방향 안내·내 모음 원과 흔들림 십자·꼬리·지금 점), 차이 글자, 화면 읽기 설명 |
+| `web/src/model/vowelMap.ts` | 내 모음 지도: 모음 하나 재기(중앙값·25~75% 흔들림·F1 불확실), 저장한 값 읽기(망가진 항목은 빼고) |
 | `web/src/components/LivePanel.svelte` | 지금 높이 숫자, 그래프(캔버스), 음량·공명 막대. 화면을 그릴 때마다 최근 점으로 고친다. 화면 읽기 프로그램용 설명 |
 | `web/src/components/TargetRangeControls.svelte` | 목표 범위 한 줄·슬라이더(반음 눈금, 5 Hz 단위)·기준에서 먼 범위 안내·내 목소리 재기 버튼 |
 | `web/src/components/BaselineSheet.svelte` | 내 목소리 재기 창: 10초 재기, 결과(중앙·범위·F2), 목표 범위를 기준에 맞추기, 저장 |
 | `web/src/components/SentenceCards.svelte`, `ScriptReader.svelte` | 문장 카드(내 문장·자동 생성, 밀어서 넘기기)와 대본 읽기(종류·길이 거르기, 다른 대본, 들려줄 길이 맞추기) |
 | `web/src/components/DurationControl.svelte` | ‘들려줄 길이’ 버튼과 조정 창 (10초~3분) |
-| `web/src/practice/session.svelte.ts` | 연습 흐름: 반복 루프(녹음 → 지금 들어보기 → 숨 고르기 → 다시 녹음), 마지막 녹음 다시 듣기, 파일 불러오기, 내 목소리 재기(마이크·파일), 그래프 시계, 15분 쉬어 가기 |
+| `web/src/practice/session.svelte.ts` | 연습 흐름: 반복 루프(녹음 → 지금 들어보기 → 숨 고르기 → 다시 녹음), 마지막 녹음 다시 듣기, 파일 불러오기, 내 목소리 재기·모음 재기(마이크·파일), 그래프 시계, 15분 쉬어 가기, 정지할 때 연습 기록 남기기, ‘기록에 남기기’ |
 | `web/src/practice/loop.ts` | 연습 순서표(지금 어느 단계인지, iOS `PracticeLoop`) |
 | `web/src/practice/takeRecorder.ts` | 최근 N초만 남기는 고리 모양 녹음 통 (iOS `TakeRecorder`) |
 | `web/src/practice/take.ts` | 녹음 묶음: 소리와 같은 구간의 점만 담고, 요약·F2·가로축·다시 듣기 기록을 낸다 (iOS `RecordedTake`) |
 | `web/src/practice/sharing.ts` | 파일로 저장(WAV 내려받기), AI에게 피드백 받기(브라우저 공유 창, 없으면 복사), 요약 복사 |
-| `web/src/components/SummaryCard.svelte` | 마지막 녹음 요약 카드: 중앙·범위·목표 범위 안 비율과 저장·공유·복사 버튼 |
+| `web/src/components/SummaryCard.svelte` | 마지막 녹음 요약 카드: 중앙·범위·목표 범위 안 비율, 기록에 남기기(메모 창)·파일로 저장·공유·복사 버튼 |
 | `web/src/graph/pitchGraph.ts` | 그래프 그리기(목표 띠·눈금·기준선·시작선·꺾은선·축 밖 점선·다시 듣기)와 그래프 높이 규칙. 꺾은선 나누기는 순수 함수라 테스트한다 |
 | `web/src/graph/descriptions.ts` | 그래프·막대를 말로 바꾼 설명(iOS와 같은 문장), 쉬어 가기 안내 문구 |
 | `web/src/model/practice.ts` | 들려줄 길이, 내 기준 목소리 재기·처음 목표 범위·먼 범위 판정, 목표 범위 슬라이더 규칙 |
-| `web/src/model/settingsStorage.ts`, `settings.svelte.ts` | 설정을 이 브라우저(localStorage, `ullim.` 키)에 저장하고 읽기. 저장을 막은 브라우저에서도 기본값으로 동작 |
+| `web/src/model/settingsStorage.ts`, `settings.svelte.ts` | 화면 설정(들려줄 길이·문장 종류·대본 거르기·고른 모음)은 이 브라우저(localStorage, `ullim.` 키)에. 내 기준 값(목표 범위·기준·모음 지도)은 화면이 함께 보고 바뀌면 기록 폴더에 알린다. W5까지 브라우저에 있던 내 기준 값을 읽고(옮기기용) 지우기 |
+| `web/src/model/records.ts` | `울림-기록.json`에 남는 기록의 모양(연습 기록·녹음마다 요약·남긴 녹음·기준 이력·모음 이력)과 확인, 말하는 언어 |
+| `web/src/practice/sessionLog.ts` | 연습 한 번의 기록: 녹음마다 요약을 쌓고, 정지하면 30초·목소리 5초 이상일 때 연습 기록 하나로 (iOS `PracticeSessionLog`). 연습 기록의 AI 요청문·녹음 한 줄 |
+| `web/src/model/voiceSettings.ts` | 내 기준 값의 모양, 기준을 재면 목표 범위 정하기, 기록 폴더를 열 때 폴더 값과 화면 값 합치기 |
+| `web/src/storage/recordStore.svelte.ts` | 내 기록이 남는 곳: 기록 폴더 고르기·다시 연결·바꾸기·끊기, 바뀐 값을 폴더에 쓰기(0.4초 모아서), 기록 더하기(녹음 소리 먼저, 폴더가 없으면 화면에 담아 두었다가 옮김), 기록 파일(zip) 저장·불러오기, 사파리처럼 폴더를 못 고르는 브라우저(개발 서버에서 `?nofolder`로 흉내) |
+| `web/src/storage/archive.ts` | 기록 폴더의 파일 모양(`울림-설정.json`·`울림-기록.json`, 판 번호), 읽지 못한 까닭과 안내 문구, 기록 더하기·합치기(id로), 남긴 녹음 파일 이름 |
+| `web/src/storage/openFolder.ts` | 기록 폴더 열기(읽기·합치기·빈 폴더면 만들기, 읽지 못하면 아무것도 쓰지 않음), 기록 옮겨 쓰기 |
+| `web/src/storage/recordFolder.ts` | 기록 폴더 하나의 읽기·쓰기·지우기·목록: 내가 고른 폴더(파일 시스템 접근 API), 메모리 폴더(사파리·테스트) |
+| `web/src/storage/recordZip.ts` | 기록 파일(zip, fflate): 묶기, 풀기(울림 파일만, 폴더째 압축·맥 한글 이름·크기 제한) |
+| `web/src/storage/handleStore.ts` | 고른 기록 폴더의 연결 정보를 이 브라우저(IndexedDB)에 기억 |
+| `web/src/storage/fileSystemAccess.d.ts` | TypeScript 기본 타입에 아직 없는 폴더 고르기·허락 묻기 타입 |
+| `web/src/components/HistoryScreen.svelte` | [기록] 화면: 기간·언어 거르기, 모아 보기, 그래프, 남긴 녹음·연습 기록·내 목소리 재기 목록, 모두 지우기, 저장 위치(필요할 때는 맨 위). 누르면 자세히 화면으로 바뀐다(돌아오면 스크롤 그대로) |
+| `web/src/components/HistoryCharts.svelte`, `LanguageTag.svelte` | [기록] 그래프 두 개(연습마다 높이: 반음 눈금·목표 띠·기준 점선·언어별 점 모양 / 날마다 연습 시간 막대, SVG)와 언어 표시 |
+| `web/src/components/RecordingDetail.svelte`, `SessionDetail.svelte` | 남긴 녹음 자세히(메모·언어 고치기, [높이]에서 다시 듣기, 파일로 저장, 지우기)와 연습 기록 자세히(녹음마다 숫자, AI에게 피드백 받기·요약 복사, 지우기) |
+| `web/src/components/StorageCard.svelte` | ‘내 기록 저장 위치’ 카드 |
+| `web/src/components/CompareScreen.svelte`, `CompareChart.svelte` | 두 녹음 비교: A·B 고르기(메모 붙임)·바꾸기, 나란히 보기(높낮이 폭 포함)·중앙값 차이 한 문장, 높이 분포(반음 반 칸, SVG), 하나씩·A → B 이어 듣기 |
+| `web/src/model/comparison.ts` | 두 녹음 비교의 계산: 처음 짝, 높낮이 폭(반음), 중앙값 차이 글(판정 없음), 반음 반 칸 분포(440 Hz 기준), 분포 가로축 (iOS `RecordingComparison`) |
+| `web/src/practice/comparePlayer.svelte.ts` | 두 녹음 비교의 재생기: 남긴 녹음을 읽어 분석하고(늦게 끝난 예전 읽기는 버림), 가장 큰 소리를 맞춰 하나씩·A → 0.7초 → B로 들려준다 |
+| `web/src/model/history.ts` | [기록]의 계산: 기간(7일·30일·전체), 거르기, 날마다 연습 시간, 모아 보기, 가로·세로축(반음 여유·최소 폭), 시간 표시 (iOS `PracticeHistory`) |
+| `web/src/graph/historyChart.ts` | [기록] 그래프 자리: 날짜 위치·날짜 눈금·분 눈금·언어별 점 모양 |
+| `web/src/model/sampleHistory.ts` | 개발용 가짜 기록 40일치 (개발 서버 `?seed`, 배포 빌드에는 없음) |
+| `web/src/text/dates.ts` | 날짜·시각 글자 (10월 25일 (일) 오후 8:12 등) |
+| `web/src/components/StorageNotice.svelte` | [높이]·[모음] 위의 한 줄 안내(다시 연결, 폴더 고르기, 파일로 저장, 불러오기 안내) |
 | `web/src/text/korean.ts`, `sentenceGenerator.ts` | 조사 고르기(을/를 등), 단모음 세기, 자동 생성 문장 (iOS와 같은 규칙) |
 | `web/src/data/sentences.ts`, `scripts.ts` | 직접 쓴 문장·패턴·단어(iOS 파일과 같은지 테스트), 대본은 iOS의 `PracticeScripts.json`을 그대로 읽는다 |
 | `web/src/dsp/pitchDetector.ts` | YIN 피치 검출 (iOS `PitchDetector.swift`를 그대로 옮김) |
@@ -118,16 +146,16 @@
 | `web/src/dsp/pitchScale.ts`, `web/src/dsp/range.ts` | 반음 눈금, 세로축 범위(목표 ±50 Hz), 축 밖 판정, 눈금 숫자 |
 | `web/src/dsp/graphWindow.ts` | 가로축 구간(오른쪽 끝 = 지금), 시작·n번째 선, 시간 눈금 |
 | `web/src/dsp/pitchHistory.ts` | 피치 점 기록, 끊김·픽셀 열 묶기, 그래프 시계(녹음 중·멈춤·다시 듣기) |
-| `web/src/dsp/voiceMeters.ts`, `web/src/dsp/vowelSpace.ts` | 음량(dBFS) 막대, 공명 밝기(F2) 막대, F1 불확실 규칙 |
+| `web/src/dsp/voiceMeters.ts`, `web/src/dsp/vowelSpace.ts` | 음량(dBFS) 막대, 공명 밝기(F2) 막대, 모음 지도 규칙(F1·F2 범위·눈금·지금 점·위치, F1 불확실) |
 | `web/src/dsp/pitchSummary.ts` | 요약 수치(중앙값·10%·90%·목표 안 비율)와 AI 피드백 요청문 |
 | `web/src/dsp/analysis.ts` | 소리 전체를 연습과 같은 방식으로 분석, 다시 듣기 배율, 녹음 묶음에 넣을 점 고르기 |
 | `web/src/dsp/streamAnalyzer.ts` | 마이크에서 조각조각 들어오는 소리를 창(2048샘플, 절반씩 밀기)으로 분석 (iOS `PitchTapProcessor`). 조각 크기와 상관없이 파일 분석과 같은 점 |
-| `web/src/audio/micInput.ts` | 소리 장치(`AudioEngine`): 소리 시계 하나로 마이크 켜기·녹음 시작·멈추고 소리 받기·다시 듣기 재생·녹음 파일 읽고 분석. 못 켠 까닭별 안내, 개발용 테스트 음, 개발 서버의 `?mute` |
+| `web/src/audio/micInput.ts` | 소리 장치(`AudioEngine`): 소리 시계 하나로 마이크 켜기·녹음 시작·멈추고 소리 받기·다시 듣기 재생·녹음 파일 읽고 분석. 못 켠 까닭별 안내, 개발용 테스트 음·테스트 모음(배음 크기를 공명 모양으로), 개발 서버의 `?mute` |
 | `web/src/audio/captureProcessor.ts`, `worklet-globals.d.ts` | 소리 받기(오디오 스레드): 128샘플씩 받아 1024샘플로 모아 분석 스레드로 바로 보낸다 |
 | `web/src/audio/analysisWorker.ts` | 분석 스레드: 녹음 중에는 조각을 분석해 점을 보내고 최근 N초를 녹음 통에 남긴다(듣는 동안은 버림). 불러온 녹음 전체 분석 |
 | `web/src/audio/wav.ts` | WAV 만들기(16비트 모노), 저장 파일 이름(Ullim-날짜-시각.wav), 여러 채널 합치기·5분 자르기 |
 | `web/src/audio/messages.ts` | 소리 받기·분석 스레드·화면이 주고받는 메시지 모양 |
 | `web/src/audio/processing.ts` | 브라우저의 자동 음량 조절·잡음 제거·에코 제거를 끄는 조건, 실제로 꺼졌는지 읽어 안내하기 |
-| `web/test/*.test.ts` | iOS 테스트를 옮긴 웹 시험지 + `golden.test.ts`(iOS 정답표와 숫자 비교), `streamAnalyzer.test.ts`(조각 분석 = 파일 분석), `processing.test.ts`(자동 처리 안내), `sentences.test.ts`(문장 데이터가 iOS와 같은지, 조사·모음·자동 생성·대본), `practice.test.ts`(들려줄 길이·기준·목표 범위·설정 저장), `graph.test.ts`(그래프 크기·꺾은선 나누기·설명 문장), `loop.test.ts`(연습 순서·녹음 통·녹음 묶음·WAV·내보내기) |
+| `web/test/*.test.ts` | iOS 테스트를 옮긴 웹 시험지 + `golden.test.ts`(iOS 정답표와 숫자 비교), `streamAnalyzer.test.ts`(조각 분석 = 파일 분석), `processing.test.ts`(자동 처리 안내), `sentences.test.ts`(문장 데이터가 iOS와 같은지, 조사·모음·자동 생성·대본), `practice.test.ts`(들려줄 길이·기준·목표 범위·설정 저장), `graph.test.ts`(그래프 크기·꺾은선 나누기·설명 문장), `loop.test.ts`(연습 순서·녹음 통·녹음 묶음·WAV·내보내기), `vowelMap.test.ts`(모음 지도 규칙·내 모음 지도·저장·지도 글자), `storage.test.ts`(기록 폴더 파일 모양·합치기·열기·옮기기·기록 파일 zip), `records.test.ts`(연습 한 번의 기록·기록 모양·기록 합치기·녹음 파일 이름·말하는 언어), `history.test.ts`([기록] 계산·연습 기록 요청문·그래프 자리·가짜 기록), `comparison.test.ts`(두 녹음 비교 계산) |
 | `web/test/signals.ts` | 웹 테스트용 합성 신호 (iOS 테스트·`Tools/WebGolden`과 같은 식) |
 | `web/test/golden/swift-golden.json` | `Tools/WebGolden`이 만든 정답표. 손으로 고치지 않는다 |

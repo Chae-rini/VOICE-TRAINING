@@ -1,17 +1,35 @@
 import { audio, MicError, type InputSource } from '../audio/micInput'
 import type { ProcessingItem } from '../audio/processing'
-import { peakMagnitude } from '../audio/wav'
+import { encodeWav, peakMagnitude } from '../audio/wav'
 import { playbackGain } from '../dsp/analysis'
 import { GraphWindow } from '../dsp/graphWindow'
 import { PitchHistory, type GraphClock, type PitchReading } from '../dsp/pitchHistory'
+import { PitchSummary } from '../dsp/pitchSummary'
 import { REST_REMINDER_SECONDS, restMessage } from '../graph/descriptions'
 import { Baseline, type BaselineMeasurement } from '../model/practice'
+import { newRecordId, pitchNumbers, recordingDisplayTitle, type RecordingRecord } from '../model/records'
+import { settings } from '../model/settings.svelte'
+import { VowelMaps, type VowelEntry } from '../model/vowelMap'
+import { store, type AddResult } from '../storage/recordStore.svelte'
+import type { KoreanVowel } from '../text/korean'
 import { COUNTDOWN_SECONDS, PracticeLoop, type LoopPhase } from './loop'
-import { makeTake, takeDuration, takeEndTime, takeGraphWindow, takeHistory, type RecordedTake } from './take'
+import { PracticeSessionLog, sessionRecord } from './sessionLog'
+import {
+  makeTake,
+  takeDuration,
+  takeEndTime,
+  takeF2Median,
+  takeGraphWindow,
+  takeHistory,
+  takeSummary,
+  type RecordedTake,
+} from './take'
 
 /**
  * [높이] 화면의 연습 흐름 (iOS `AudioInputManager`): 반복 루프(녹음 → 지금 들어보기 → 숨 고르기 → 다시 녹음),
- * 마지막 녹음 다시 듣기, 녹음 파일 불러오기, 내 목소리 재기. 단계 순서는 `PracticeLoop`가 정한다.
+ * 마지막 녹음 다시 듣기, 녹음 파일 불러오기, 내 목소리 재기, 내 모음 지도 재기, 연습 기록 남기기·‘기록에 남기기’.
+ * 단계 순서는 `PracticeLoop`가 정한다.
+ * [높이]·[모음] 화면이 이 흐름 하나를 함께 쓴다.
  */
 class PracticeSession {
   /** 지금 단계 (화면이 보는 사본. 실제 순서는 #loop) */
@@ -35,6 +53,15 @@ class PracticeSession {
 
   // 내 목소리 재기
   measurement: BaselineMeasurement | null = $state(null)
+  // 내 모음 지도: 지금 재고 있는 모음과, 다 잰 결과 (entry가 null이면 목소리가 너무 짧게 잡혀 저장하지 않음)
+  measuringVowel: KoreanVowel | null = $state(null)
+  vowelResult: { readonly vowel: KoreanVowel; readonly entry: VowelEntry | null } | null = $state.raw(null)
+  /** [s] 지금 재기의 녹음 길이 (기준 목소리 10초, 모음 3초) */
+  measuringSeconds = $state(Baseline.recordingSeconds)
+
+  // ‘기록에 남기기’: 남기는 중인지, 마지막으로 남긴 녹음 묶음과 그 기록
+  savingTake = $state(false)
+  #savedTake: { readonly takeId: number; readonly recordId: string } | null = $state(null)
 
   /** 그래프에 그릴 점 (화면이 초당 수십 번 읽으므로 반응형으로 두지 않는다) */
   history = new PitchHistory()
@@ -42,6 +69,8 @@ class PracticeSession {
   measuringHistory = new PitchHistory(Baseline.recordingSeconds + 2)
 
   #loop = new PracticeLoop()
+  /** 연습 한 번의 기록 (‘반복 루프 재생’부터 정지까지). 재기·다시 듣기 중에는 없다 */
+  #log: PracticeSessionLog | null = null
   /** [s] 들려줄 길이 = 녹음 통에 남길 길이 = 그래프 가로축 */
   #keepSeconds = 60
   #measureReadings: PitchReading[] = []
@@ -84,6 +113,7 @@ class PracticeSession {
       this.busy = null
     }
     this.#keepSeconds = keepSeconds
+    this.#log = new PracticeSessionLog(new Date(), settings.practiceLanguage)
     this.#loop.start()
     this.#syncPhase()
     this.#startRestReminders()
@@ -134,12 +164,66 @@ class PracticeSession {
     this.#syncPhase()
     try {
       if (phase === 'recording') await this.#keepTake()
-      if (phase === 'measuring') this.measurement = null
+      if (phase === 'measuring') {
+        this.measurement = null
+        this.measuringVowel = null
+      }
       this.clock = this.#lastTakeClock()
       audio.closeMic()
       await audio.rest()
+      await this.#finishSession()
     } finally {
       this.busy = null
+    }
+  }
+
+  /** 연습 한 번을 마치며 요약(숫자만)을 기록에 남긴다. 30초 넘게 연습하고 목소리가 5초 넘게 잡혔을 때만 */
+  async #finishSession(): Promise<void> {
+    const log = this.#log
+    this.#log = null
+    // 목표 범위는 연습 중에도 옮길 수 있으므로, 정지한 때의 값과 비교한다.
+    const summary = log?.finish(new Date(), settings.target) ?? null
+    if (summary === null) return
+    const result = await store.addRecord('sessions', sessionRecord(summary))
+    const length = PitchSummary.durationLabel(summary.pitch.duration)
+    this.infoMessage =
+      result === 'saved' ? `연습 기록을 남겼어요 · ${length}` : `연습 기록을 담았어요 · ${length} · 파일로 저장 전`
+  }
+
+  /** 마지막 녹음을 남겼는지 (남긴 기록을 [기록]에서 지우면 다시 남길 수 있다) */
+  get isLastTakeSaved(): boolean {
+    const saved = this.#savedTake
+    return saved !== null && saved.takeId === this.lastTake?.id && store.hasRecording(saved.recordId)
+  }
+
+  /**
+   * 마지막 녹음을 기록에 남긴다 (사용자가 ‘기록에 남기기’를 눌렀을 때만): 소리는 WAV로 녹음 폴더에, 요약·메모는 기록 파일에.
+   * 수치는 그 녹음 묶음의 요약이다. 언어는 연습 중 녹음이면 그 연습의 언어, 불러온 파일이면 지금 고른 언어.
+   */
+  async saveLastTake(memo: string): Promise<AddResult | null> {
+    const take = this.lastTake
+    const summary = take === null ? null : takeSummary(take, settings.target)
+    if (take === null || summary === null || this.savingTake || this.isLastTakeSaved) return null
+    this.savingTake = true
+    try {
+      const fileName = await store.newRecordingFileName(take.recordedAt)
+      const record: RecordingRecord = {
+        id: newRecordId(),
+        recordedAt: take.recordedAt.toISOString(),
+        title: take.archiveTitle,
+        memo,
+        fileName,
+        language: take.language ?? settings.practiceLanguage,
+        pitch: pitchNumbers(summary),
+        f2Median: takeF2Median(take),
+      }
+      const blob = new Blob([encodeWav(take.samples, take.sampleRate)], { type: 'audio/wav' })
+      const result = await store.addRecord('recordings', record, { name: fileName, blob })
+      // 남기는 동안 새 녹음으로 바뀌었어도, 남긴 것은 누른 때의 녹음이다.
+      if (result !== 'failed') this.#savedTake = { takeId: take.id, recordId: record.id }
+      return result
+    } finally {
+      this.savingTake = false
     }
   }
 
@@ -147,6 +231,7 @@ class PracticeSession {
     // 그래프는 왼쪽 끝이 비지 않게 여유 2초를 두고 그린다. 이 여유는 수치에 쓰지 않는다 (녹음 묶음만 쓴다).
     this.history = new PitchHistory(this.#keepSeconds + 2)
     audio.beginRecording(this.#keepSeconds)
+    this.#log?.beginTake()
     const round = this.#loop.phase.kind === 'recording' ? this.#loop.phase.round : null
     const start = audio.now()
     this.clock = { kind: 'live', start, duration: this.#keepSeconds, round }
@@ -167,6 +252,8 @@ class PracticeSession {
       playbackGain: playbackGain(peakMagnitude(sound.samples)),
       recordedAt: new Date(),
       title: '방금 녹음',
+      archiveTitle: '',
+      language: this.#log?.language ?? null,
       readings: this.history.readings,
       graphDuration: this.#keepSeconds,
       recordingStart: clock.kind === 'live' ? clock.start : null,
@@ -175,6 +262,8 @@ class PracticeSession {
     this.lastTake = take
     this.history = takeHistory(take)
     this.clock = this.#lastTakeClock()
+    // 연습 중이면 이 녹음의 요약(요약 카드와 같은 숫자: 묶음 안의 점)을 연습 기록에 쌓는다.
+    this.#log?.finishTake(take.readings, takeDuration(take), settings.target, take.recordedAt)
     return take
   }
 
@@ -209,25 +298,31 @@ class PracticeSession {
   // MARK: - 녹음 파일
 
   /** 녹음 파일(음성 메모 등)을 불러와 분석한 뒤, 곧바로 재생하며 곡선을 보여 준다. 파일은 이 기기 안에서 읽기만 한다. */
-  async importFile(file: File): Promise<void> {
+  async importFile(file: File, saved: RecordingRecord | null = null): Promise<void> {
     if (this.isRunning) return
     this.#clearMessages()
     this.restMessage = null
     this.busy = 'analyzing'
     try {
       const analysis = await audio.analyzeFile(file)
-      this.lastTake = makeTake({
+      const fileTitle = file.name.replace(/\.[^.]+$/, '') || '불러온 녹음'
+      const take = makeTake({
         samples: analysis.samples,
         sampleRate: analysis.sampleRate,
         startTime: 0,
         playbackGain: playbackGain(peakMagnitude(analysis.samples)),
-        recordedAt: new Date(),
-        title: file.name.replace(/\.[^.]+$/, '') || '불러온 녹음',
+        recordedAt: saved === null ? new Date() : new Date(saved.recordedAt),
+        title: saved === null ? fileTitle : recordingDisplayTitle(saved),
+        archiveTitle: saved === null ? fileTitle : saved.title,
+        language: saved?.language ?? null,
         readings: analysis.readings,
         graphDuration: 0,
         recordingStart: null,
         round: null,
       })
+      this.lastTake = take
+      // 남긴 녹음을 연 것이면 이미 기록에 있다 (다시 남기지 않게)
+      if (saved !== null) this.#savedTake = { takeId: take.id, recordId: saved.id }
       if (analysis.wasTruncated) this.infoMessage = '5분이 넘는 녹음이라 앞 5분만 불러왔어요.'
     } catch {
       this.errorMessage = '이 파일을 읽지 못했어요. 녹음(오디오) 파일인지 확인해 주세요.'
@@ -238,14 +333,31 @@ class PracticeSession {
     this.replayLastTake()
   }
 
+  /** 남긴 녹음을 [높이] 화면에서 재생하며 그때의 곡선을 다시 그린다. 고른 그때 소리를 준비해야 하므로 버튼에서 바로 부른다 */
+  async openSavedRecording(record: RecordingRecord, sound: Blob): Promise<void> {
+    audio.prepare()
+    await this.importFile(new File([sound], record.fileName, { type: 'audio/wav' }), record)
+  }
+
   // MARK: - 내 목소리 재기
 
   /** 마이크로 10초 녹음해 기준 목소리를 잰다 (연습과 같은 분석). 결과는 `measurement`. 마지막 녹음은 바꾸지 않는다. */
   async startMeasuring(source: InputSource): Promise<void> {
     if (this.isRunning) return
+    this.measurement = null
+    await this.#startMeasuring(source, Baseline.recordingSeconds, null)
+  }
+
+  /** 내 모음 지도: 모음 하나를 3초 동안 길게 낸 소리로 F1·F2를 잰다. 결과는 `vowelResult`. */
+  async startMeasuringVowel(vowel: KoreanVowel, source: InputSource): Promise<void> {
+    if (this.isRunning) return
+    this.vowelResult = null
+    await this.#startMeasuring(source, VowelMaps.recordingSeconds, vowel)
+  }
+
+  async #startMeasuring(source: InputSource, seconds: number, vowel: KoreanVowel | null): Promise<void> {
     audio.prepare()
     this.errorMessage = null
-    this.measurement = null
     this.busy = 'starting'
     try {
       await audio.openMic(source, (readings) => this.#receive(readings))
@@ -256,13 +368,15 @@ class PracticeSession {
       this.busy = null
     }
     this.#measureReadings = []
-    this.measuringHistory = new PitchHistory(Baseline.recordingSeconds + 2)
+    this.measuringHistory = new PitchHistory(seconds + 2)
+    this.measuringSeconds = seconds
+    this.measuringVowel = vowel
     this.#loop.startMeasuring()
     this.#syncPhase()
-    audio.beginRecording(Baseline.recordingSeconds)
-    this.#phaseEndsAt = audio.now() + Baseline.recordingSeconds
+    audio.beginRecording(seconds)
+    this.#phaseEndsAt = audio.now() + seconds
     this.#startTicker()
-    this.#phaseTimer = setTimeout(() => void this.#finishMeasuring(), Baseline.recordingSeconds * 1000)
+    this.#phaseTimer = setTimeout(() => void this.#finishMeasuring(), seconds * 1000)
   }
 
   async #finishMeasuring(): Promise<void> {
@@ -274,7 +388,13 @@ class PracticeSession {
     this.#syncPhase()
     audio.closeMic()
     void audio.rest()
-    this.measurement = Baseline.measure(this.#measureReadings)
+    const vowel = this.measuringVowel
+    if (vowel !== null) {
+      this.vowelResult = { vowel, entry: VowelMaps.measure(this.#measureReadings) }
+      this.measuringVowel = null
+    } else {
+      this.measurement = Baseline.measure(this.#measureReadings)
+    }
   }
 
   /** 녹음 파일(음성 메모 등)로 기준 목소리를 잰다. */
@@ -292,6 +412,26 @@ class PracticeSession {
     }
   }
 
+  /** 녹음 파일(음성 메모 등)에 담긴 모음 하나로 F1·F2를 잰다. 파일 전체를 그 모음으로 본다. */
+  async measureVowelFromFile(vowel: KoreanVowel, file: File): Promise<void> {
+    if (this.isRunning) return
+    this.errorMessage = null
+    this.vowelResult = null
+    this.busy = 'analyzing'
+    try {
+      this.vowelResult = { vowel, entry: VowelMaps.measure((await audio.analyzeFile(file)).readings) }
+    } catch {
+      this.errorMessage = '이 파일을 읽지 못했어요. 녹음(오디오) 파일인지 확인해 주세요.'
+    } finally {
+      this.busy = null
+    }
+  }
+
+  /** 모음을 잰 결과를 지운다 (화면이 저장한 뒤) */
+  clearVowelResult(): void {
+    this.vowelResult = null
+  }
+
   /** 재기를 그만두거나 결과를 지운다 (다시 재기, 닫기) */
   async cancelMeasuring(): Promise<void> {
     if (this.#loop.phase.kind === 'measuring') await this.stop()
@@ -306,6 +446,7 @@ class PracticeSession {
     switch (this.#loop.phase.kind) {
       case 'recording':
         this.history.append(readings)
+        this.#log?.add(readings)
         break
       case 'measuring':
         this.measuringHistory.append(readings)

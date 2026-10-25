@@ -2,7 +2,15 @@ import { describe, expect, it } from 'vitest'
 import type { PitchReading } from '../src/dsp/pitchHistory'
 import { range } from '../src/dsp/range'
 import { Baseline, PracticeDuration, TargetRange } from '../src/model/practice'
-import { loadSettings, saveBaseline, saveTarget, saveValue, SettingKeys, type KeyValueStorage } from '../src/model/settingsStorage'
+import {
+  clearLegacyVoiceSettings,
+  loadLegacyVoiceSettings,
+  loadSettings,
+  saveValue,
+  SettingKeys,
+  type KeyValueStorage,
+} from '../src/model/settingsStorage'
+import { EMPTY_VOICE_SETTINGS, withBaseline } from '../src/model/voiceSettings'
 
 /** 0.02초 간격의 피치 기록. null은 무음. */
 function readings(frequencies: (number | null)[]): PitchReading[] {
@@ -97,12 +105,10 @@ describe('목표 범위 슬라이더', () => {
   })
 })
 
-describe('설정 저장 (이 브라우저 안에만)', () => {
-  it('처음에는 목표 범위·기준 없이, 들려줄 길이 1분, 내 문장, 전체 대본', () => {
+describe('화면 설정 저장 (이 브라우저 안에)', () => {
+  it('처음에는 들려줄 길이 1분, 내 문장, 전체 대본', () => {
     const settings = loadSettings(memoryStorage())
     expect(settings).toMatchObject({
-      target: null,
-      baseline: null,
       baselinePromptShown: false,
       practiceDuration: 60,
       sentenceSource: 'mine',
@@ -112,37 +118,58 @@ describe('설정 저장 (이 브라우저 안에만)', () => {
     expect(loadSettings(null).practiceDuration).toBe(60)
   })
 
-  it('새로 쓰는 사람: 기준을 재면 목표 범위가 기준 ±20 Hz로 생긴다', () => {
-    const storage = memoryStorage()
-    const target = saveBaseline(storage, { median: 152, low: 130, high: 175, f2: 1600 }, true)
-    expect(target).toEqual(range(130, 170))
-    expect(loadSettings(storage)).toMatchObject({ target: range(130, 170), baseline: { median: 152, f2: 1600 } })
-  })
-
-  it('목표 범위를 맞추지 않으면 그대로 두고, F2를 못 잰 기준이면 예전 F2를 지운다', () => {
-    const storage = memoryStorage()
-    saveTarget(storage, range(180, 230))
-    saveBaseline(storage, { median: 150, low: 130, high: 170, f2: 1500 }, false)
-    saveBaseline(storage, { median: 155, low: 135, high: 175, f2: null }, false)
-    const settings = loadSettings(storage)
-    expect(settings.target).toEqual(range(180, 230))
-    expect(settings.baseline).toEqual({ median: 155, low: 135, high: 175, f2: null })
-  })
-
   it('잘못 저장된 값은 기본값으로 돌린다', () => {
     const storage = memoryStorage()
     saveValue(storage, SettingKeys.practiceDuration, 999)
     saveValue(storage, SettingKeys.sentenceSource, 'unknown')
-    storage.setItem('ullim.targetLowerHz', 'abc')
     const settings = loadSettings(storage)
     expect(settings.practiceDuration).toBe(180)
     expect(settings.sentenceSource).toBe('mine')
-    expect(settings.target).toBeNull()
   })
 
   it('키는 iOS와 같은 이름에 ‘ullim.’ 을 붙인다', () => {
     const storage = memoryStorage()
-    saveTarget(storage, range(135, 175))
-    expect([...storage.data.keys()].sort()).toEqual(['ullim.targetLowerHz', 'ullim.targetUpperHz'])
+    saveValue(storage, SettingKeys.practiceDuration, 90)
+    expect([...storage.data.keys()]).toEqual(['ullim.practiceDurationSeconds'])
+  })
+})
+
+describe('내 기준 값 (기록 폴더에 남는 값)', () => {
+  it('새로 쓰는 사람: 기준을 재면 목표 범위가 기준 ±20 Hz로 생긴다', () => {
+    const next = withBaseline(EMPTY_VOICE_SETTINGS, { median: 152, low: 130, high: 175, f2: 1600 }, true)
+    expect(next).toEqual({ target: range(130, 170), baseline: { median: 152, low: 130, high: 175, f2: 1600 }, vowelMap: {} })
+  })
+
+  it('목표 범위를 맞추지 않으면 그대로 두고, F2를 못 잰 기준이면 F2도 비운다', () => {
+    const before = withBaseline({ ...EMPTY_VOICE_SETTINGS, target: range(180, 230) }, { median: 150, low: 130, high: 170, f2: 1500 }, false)
+    const after = withBaseline(before, { median: 155, low: 135, high: 175, f2: null }, false)
+    expect(after.target).toEqual(range(180, 230))
+    expect(after.baseline).toEqual({ median: 155, low: 135, high: 175, f2: null })
+  })
+
+  it('W3~W5에 이 브라우저에 둔 값을 읽어 오고, 옮긴 뒤에는 그 키만 지운다 (화면 설정은 남긴다)', () => {
+    const storage = memoryStorage()
+    expect(loadLegacyVoiceSettings(storage)).toBeNull()
+    storage.setItem('ullim.targetLowerHz', '180')
+    storage.setItem('ullim.targetUpperHz', '140') // 거꾸로 저장돼 있어도 작은 쪽이 하한
+    storage.setItem('ullim.baselineMedianHz', '152')
+    storage.setItem('ullim.baselineLowHz', '130')
+    storage.setItem('ullim.baselineHighHz', '175')
+    saveValue(storage, SettingKeys.practiceDuration, 90)
+    expect(loadLegacyVoiceSettings(storage)).toEqual({
+      target: range(140, 180),
+      baseline: { median: 152, low: 130, high: 175, f2: null },
+      vowelMap: {},
+    })
+    clearLegacyVoiceSettings(storage)
+    expect(loadLegacyVoiceSettings(storage)).toBeNull()
+    expect([...storage.data.keys()]).toEqual(['ullim.practiceDurationSeconds'])
+  })
+
+  it('예전 값 중 숫자가 아닌 것은 없는 것으로 읽는다', () => {
+    const storage = memoryStorage()
+    storage.setItem('ullim.targetLowerHz', 'abc')
+    storage.setItem('ullim.targetUpperHz', '200')
+    expect(loadLegacyVoiceSettings(storage)).toBeNull()
   })
 })

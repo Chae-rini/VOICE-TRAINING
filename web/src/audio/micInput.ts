@@ -24,8 +24,19 @@ export class MicError extends Error {
   }
 }
 
-/** 무엇을 들을지: 마이크, 또는 (개발할 때만) 기본 높이 `testToneHz`의 합성음 */
-export type InputSource = { readonly kind: 'mic' } | { readonly kind: 'testTone'; readonly testToneHz: number }
+/**
+ * 무엇을 들을지: 마이크, 또는 (개발할 때만) 기본 높이 `testToneHz`의 합성음.
+ * `formants` [Hz]를 주면 그 공명을 가진 모음처럼 배음 크기를 바꾼 합성음 ([모음] 화면 확인용).
+ */
+export type InputSource =
+  | { readonly kind: 'mic' }
+  | { readonly kind: 'testTone'; readonly testToneHz: number; readonly formants?: readonly number[] }
+
+/**
+ * [Hz] 개발용 합성 모음의 공명: 길이 17.5 cm의 고른 관(성도를 단순화한 모양)의 공명 c/4L·3c/4L·5c/4L·7c/4L.
+ * 물리 모형으로 정한 시험 신호일 뿐, 어떤 화자 집단의 평균도 아니다 (원칙 3).
+ */
+export const TEST_VOWEL_FORMANTS: readonly number[] = [500, 1500, 2500, 3500]
 
 /** 녹음 통에 남은 소리 */
 export interface CapturedSound {
@@ -132,7 +143,7 @@ export class AudioEngine {
         input.connect(capture)
         nodes.push(input)
       } else if (source.kind === 'testTone') {
-        nodes.push(...connectTestTone(context, source.testToneHz, capture))
+        nodes.push(...connectTestTone(context, source.testToneHz, capture, source.formants))
       }
     } catch (error) {
       stream?.getTracks().forEach((track) => track.stop())
@@ -287,18 +298,27 @@ export class AudioEngine {
   }
 }
 
-/** 개발용 합성음: 배음 4개(진폭 1/k)를 섞은 소리. 마이크 없이 흐름 전체를 확인할 때 쓴다. 스피커로는 나가지 않는다. */
-function connectTestTone(context: AudioContext, f0: number, destination: AudioNode): AudioNode[] {
+/**
+ * 개발용 합성음: 배음 4개(진폭 1/k)를 섞은 소리. 마이크 없이 흐름 전체를 확인할 때 쓴다. 스피커로는 나가지 않는다.
+ * `formants`를 주면 4 kHz까지의 배음을 쓰고, 배음마다 공명기(대역폭 100 Hz) 크기를 곱해 모음처럼 만든다.
+ */
+function connectTestTone(context: AudioContext, f0: number, destination: AudioNode, formants?: readonly number[]): AudioNode[] {
+  const count = formants === undefined ? 4 : Math.floor(4000 / f0)
+  // 2차 공명기의 크기: |H(f)| = F² / √((F² − f²)² + (B·f)²), 낮은 쪽에서 1
+  const envelope = (f: number) =>
+    (formants ?? []).reduce((product, F) => product * ((F * F) / Math.hypot(F * F - f * f, 100 * f)), 1)
+  const amplitudes = Array.from({ length: count }, (_, i) => (formants === undefined ? 1 / (i + 1) : envelope(f0 * (i + 1))))
+  const scale = formants === undefined ? 0.2 : 0.5 / amplitudes.reduce((sum, a) => sum + a, 0)
   const nodes: AudioNode[] = []
-  for (let k = 1; k <= 4; k++) {
+  amplitudes.forEach((amplitude, i) => {
     const oscillator = context.createOscillator()
-    oscillator.frequency.value = f0 * k
+    oscillator.frequency.value = f0 * (i + 1)
     const gain = context.createGain()
-    gain.gain.value = 0.2 / k
+    gain.gain.value = scale * amplitude
     oscillator.connect(gain).connect(destination)
     oscillator.start()
     nodes.push(oscillator, gain)
-  }
+  })
   return nodes
 }
 

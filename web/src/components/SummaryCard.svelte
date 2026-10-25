@@ -1,25 +1,45 @@
 <script lang="ts">
   import { PitchSummary } from '../dsp/pitchSummary'
+  import { session } from '../practice/session.svelte'
   import { copyText, downloadTake, shareFeedback } from '../practice/sharing'
   import type { RecordedTake } from '../practice/take'
+  import { store } from '../storage/recordStore.svelte'
 
   /**
    * 마지막 녹음(방금 녹음 또는 불러온 파일)의 피치 요약 카드 (iOS `RecordingSummaryView`).
    * "AI에게 피드백 받기"는 요약(원하면 녹음 파일도)을 브라우저 공유 창에 넘기고, 보낼 앱은 사용자가 고른다.
-   * "파일로 저장"은 녹음을 WAV로 이 기기에 내려받는다. 앱 자체는 인터넷으로 아무것도 보내지 않는다.
-   * (‘기록에 남기기’는 웹에 [기록]이 생기면 더한다.)
+   * "파일로 저장"은 녹음을 WAV로 이 기기에 내려받는다. "기록에 남기기"는 소리와 요약·메모를 내 기록 폴더(또는 기록 파일)에 남긴다.
+   * 앱 자체는 인터넷으로 아무것도 보내지 않는다.
    */
   let { take, summary }: { take: RecordedTake; summary: PitchSummary } = $props()
 
   let isShareMenuOpen = $state(false)
   let message: string | null = $state(null)
   let didCopy = $state(false)
+  let memoDialog: HTMLDialogElement
+  let memo = $state('')
+  let saveFailed = $state(false)
+
+  const connectedFolder = $derived(store.status.kind === 'connected' ? store.status.folderName : null)
+  /** 남겼지만 아직 폴더·기록 파일에 쓰지 않았는지 (폴더를 고르면 저절로 옮겨지고 이 안내도 사라진다) */
+  const isPending = $derived(session.isLastTakeSaved && (connectedFolder === null || store.unsaved))
+
+  function askMemo() {
+    memo = ''
+    memoDialog.showModal()
+  }
+
+  async function saveToRecords() {
+    memoDialog.close()
+    saveFailed = (await session.saveLastTake(memo.trim())) === 'failed'
+  }
 
   // 녹음이 바뀌면 안내를 지운다
   $effect(() => {
     void take.id
     didCopy = false
     message = null
+    saveFailed = false
   })
 
   async function share(includesAudio: boolean) {
@@ -56,7 +76,12 @@
     </div>
   </dl>
 
-  <button class="wide" onclick={() => downloadTake(take)}>⤓ 파일로 저장</button>
+  <div class="actions">
+    <button class="record" onclick={askMemo} disabled={session.isLastTakeSaved || session.savingTake}>
+      {session.savingTake ? '남기는 중…' : isPending ? '✓ 기록에 담았어요' : session.isLastTakeSaved ? '✓ 기록에 남겼어요' : '🗂 기록에 남기기'}
+    </button>
+    <button onclick={() => downloadTake(take)}>⤓ 파일로 저장</button>
+  </div>
 
   <div class="actions">
     <div class="menu">
@@ -76,6 +101,36 @@
   {#if message !== null}
     <p class="message" role="status">{message}</p>
   {/if}
+  {#if saveFailed}
+    <p class="message warning" role="alert">기록을 저장하지 못했어요. 저장 공간이나 기록 폴더를 확인해 주세요.</p>
+  {:else if isPending}
+    <p class="message pending" role="status">
+      기록에 담았어요. 기록 폴더를 고르거나 [기록]에서 ‘기록 파일로 저장’을 해야 파일로 남아요.
+    </p>
+  {/if}
+
+  <dialog bind:this={memoDialog} aria-labelledby="save-title">
+    <h2 id="save-title">기록에 남기기</h2>
+    <p>
+      {connectedFolder !== null
+        ? `이 녹음의 소리(WAV)와 요약을 ‘${connectedFolder}’ 폴더에 남겨요. 나중에 [기록]에서 날짜별로 다시 듣고 비교할 수 있어요.`
+        : '이 녹음의 소리(WAV)와 요약을 기록에 담아요. 기록 폴더를 고르거나 ‘기록 파일로 저장’을 해야 파일로 남아요.'}
+    </p>
+    <input
+      type="text"
+      bind:value={memo}
+      placeholder="메모 (안 써도 돼요)"
+      maxlength="200"
+      aria-label="메모"
+      onkeydown={(event) => {
+        if (event.key === 'Enter' && !event.isComposing) void saveToRecords()
+      }}
+    />
+    <div class="dialog-buttons">
+      <button class="plain" onclick={() => memoDialog.close()}>취소</button>
+      <button class="record-fill" onclick={saveToRecords}>남기기</button>
+    </div>
+  </dialog>
 
   <p class="caption">
     ‘녹음 파일과 함께’는 파일을 받는 앱만 보여요. 원하는 앱이 없으면 ‘요약 복사’ 후 붙여 넣으세요. 보낸 내용은 고른 앱으로
@@ -124,8 +179,50 @@
     font-size: 0.95rem;
     font-variant-numeric: tabular-nums;
   }
-  .wide {
+  .record {
+    color: var(--record);
+  }
+  dialog {
+    width: min(420px, calc(100vw - 32px));
+    padding: 16px;
+    border: none;
+    border-radius: 16px;
+    background: var(--background);
+    color: var(--text);
+    box-sizing: border-box;
+  }
+  dialog::backdrop {
+    background: rgb(0 0 0 / 0.4);
+  }
+  dialog h2 {
+    margin: 0 0 8px;
+    font-size: 1rem;
+  }
+  dialog p {
+    margin: 0 0 12px;
+    color: var(--secondary);
+    font-size: 0.85rem;
+  }
+  dialog input {
     width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border: 1px solid var(--divider);
+    border-radius: 10px;
+    background: var(--card);
+    color: var(--text);
+    font: inherit;
+  }
+  .dialog-buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 14px;
+  }
+  .record-fill {
+    background: var(--record);
+    color: var(--background);
+    font-weight: 600;
   }
   .actions {
     display: flex;
@@ -165,6 +262,10 @@
     margin: 0;
     color: var(--record);
     font-size: 0.8rem;
+  }
+  .message.warning,
+  .message.pending {
+    color: var(--warning);
   }
   .caption {
     margin: 0;
