@@ -10,6 +10,9 @@ struct VoiceBaseline: Equatable {
     let low: Double
     /// [Hz] 위 10% 지점
     let high: Double
+    /// [Hz] 둘째 포먼트(F2)의 중앙값. [높이] 탭 공명 밝기 막대의 가운데(기준)가 된다.
+    /// 포먼트가 충분히 잡히지 않았거나 이 값을 저장하기 전(2026-10-25)에 잰 기준이면 nil.
+    var f2: Double? = nil
 
     /// [s] 마이크로 잴 때의 녹음 길이
     static let recordingSeconds: TimeInterval = 10
@@ -39,7 +42,8 @@ struct VoiceBaseline: Equatable {
         return .measured(VoiceBaseline(
             median: PitchSummary.percentile(voiced, 0.5),
             low: PitchSummary.percentile(voiced, 0.1),
-            high: PitchSummary.percentile(voiced, 0.9)
+            high: PitchSummary.percentile(voiced, 0.9),
+            f2: ResonanceMeter.median(readings)
         ))
     }
 
@@ -70,6 +74,8 @@ enum TargetRangeStore {
     static let baselineMedianKey = "baselineMedianHz"
     static let baselineLowKey = "baselineLowHz"
     static let baselineHighKey = "baselineHighHz"
+    /// 기준 목소리의 F2 중앙값 [Hz] (공명 밝기 막대의 가운데)
+    static let baselineF2Key = "baselineF2Hz"
     /// 처음 실행 때 "내 목소리 재기"를 한 번 띄웠는지
     static let baselinePromptShownKey = "baselinePromptShown"
     /// 예전 사용자 확인을 이미 했는지 (한 번만 한다)
@@ -92,7 +98,7 @@ enum TargetRangeStore {
         guard let median = defaults.object(forKey: baselineMedianKey) as? Double,
               let low = defaults.object(forKey: baselineLowKey) as? Double,
               let high = defaults.object(forKey: baselineHighKey) as? Double else { return nil }
-        return VoiceBaseline(median: median, low: low, high: high)
+        return VoiceBaseline(median: median, low: low, high: high, f2: defaults.object(forKey: baselineF2Key) as? Double)
     }
 
     /// 기준을 잰 뒤 "목표 범위를 기준에 맞추기"의 처음 상태: 저장된 목표 범위가 없을 때만 켠다.
@@ -105,6 +111,12 @@ enum TargetRangeStore {
         defaults.set(baseline.median, forKey: baselineMedianKey)
         defaults.set(baseline.low, forKey: baselineLowKey)
         defaults.set(baseline.high, forKey: baselineHighKey)
+        // F2를 못 잰 기준이면 예전 기준의 F2도 지운다 (다른 날 잰 피치와 F2가 섞이지 않게).
+        if let f2 = baseline.f2 {
+            defaults.set(f2, forKey: baselineF2Key)
+        } else {
+            defaults.removeObject(forKey: baselineF2Key)
+        }
         if applyingTarget {
             defaults.set(baseline.initialTarget.lowerBound, forKey: lowerKey)
             defaults.set(baseline.initialTarget.upperBound, forKey: upperKey)

@@ -357,7 +357,8 @@ final class AudioInputManager {
         do {
             let record = try await archive.saveRecording(
                 samples: samples, sampleRate: take.buffer.format.sampleRate, summary: summary,
-                title: take.archiveTitle, memo: memo, language: take.language ?? language, recordedAt: take.recordedAt
+                title: take.archiveTitle, memo: memo, language: take.language ?? language, recordedAt: take.recordedAt,
+                f2Median: take.f2Median
             )
             // 저장하는 동안 새 녹음으로 바뀌었으면 새 녹음은 아직 남기지 않은 것이다.
             timeline.markSaved(record.persistentModelID, takeID: take.id)
@@ -801,7 +802,8 @@ private nonisolated final class PitchTapProcessor: @unchecked Sendable {
             let centerTime = pendingStartTime + Double(frameLength / 2) / sampleRate
             // 목소리가 잡힌 조각에서만 포먼트를 잰다 (조각 하나에 수 µs라 오디오 스레드에서도 부담 없음).
             let formants = estimate == nil ? nil : formantAnalyzer.estimate(frame)
-            readings.append(PitchReading(time: centerTime, frequency: estimate?.frequency, formants: formants))
+            readings.append(PitchReading(time: centerTime, frequency: estimate?.frequency, formants: formants,
+                                         level: LevelMeter.dBFS(rms: Double(vDSP.rootMeanSquare(frame)))))
 
             pending.removeFirst(hopLength)
             pendingStartTime += Double(hopLength) / sampleRate

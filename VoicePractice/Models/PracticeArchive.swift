@@ -72,7 +72,7 @@ final class PracticeArchive {
     /// 파일을 만든 뒤 기록 저장에 실패하면 그 파일을 지워, 소리만 있거나 기록만 있는 반쪽 기록이 남지 않게 한다.
     @discardableResult
     func saveRecording(samples: [Float], sampleRate: Double, summary: PitchSummary, title: String, memo: String,
-                       language: PracticeLanguage, recordedAt: Date) async throws -> SavedRecording {
+                       language: PracticeLanguage, recordedAt: Date, f2Median: Double? = nil) async throws -> SavedRecording {
         try prepareRecordingsDirectory()
         let fileName = "\(UUID().uuidString).m4a"
         let url = recordingsDirectory.appending(path: fileName)
@@ -82,7 +82,7 @@ final class PracticeArchive {
         Self.excludeFromBackup(url)
 
         let recording = SavedRecording(summary: summary, title: title, memo: memo, fileName: fileName,
-                                       language: language, recordedAt: recordedAt)
+                                       language: language, recordedAt: recordedAt, f2Median: f2Median)
         context.insert(recording)
         do {
             try save()

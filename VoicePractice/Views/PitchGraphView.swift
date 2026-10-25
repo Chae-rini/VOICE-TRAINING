@@ -22,6 +22,8 @@ struct PitchGraphView: View {
     @AppStorage(TargetRangeStore.lowerKey) private var targetLower: Double?
     @AppStorage(TargetRangeStore.upperKey) private var targetUpper: Double?
     @AppStorage(TargetRangeStore.baselineMedianKey) private var baselineMedian: Double?
+    /// 내 기준 목소리의 F2 중앙값 (공명 밝기 막대의 가운데)
+    @AppStorage(TargetRangeStore.baselineF2Key) private var baselineF2: Double?
 
     private let axisRange = PitchDetector.frequencyRange  // [Hz] 세로축 70~400 (반음 눈금)
     /// 목표 범위 안의 목소리 (분홍). 목표 범위 밖은 회색.
@@ -63,8 +65,150 @@ struct PitchGraphView: View {
                 .accessibilityElement()
                 .accessibilityLabel("목소리 높이 그래프, 가로축 \(PitchSummary.durationLabel(window.duration))")
                 .accessibilityValue(graphDescription(frequency, window: window, endTime: endTime))
+
+                meterRows(endTime: endTime)
             }
         }
+    }
+
+    // MARK: - 음량·공명 막대
+
+    /// 그래프 아래 두 줄: 지금 소리 크기(dBFS)와 공명 밝기(F2). 녹음 중·다시 듣는 중에만 값이 있다.
+    private func meterRows(endTime: TimeInterval) -> some View {
+        let isLive: Bool
+        if case .live = clock {
+            isLive = true
+        } else {
+            isLive = false
+        }
+        // 최근 3초 남짓만 꺼내 계산한다 (화면이 초당 30번 부른다).
+        let recent = clock.isMoving
+            ? Array(history.readings(in: (endTime - LevelMeter.loudSeconds - 0.2)...endTime))
+            : []
+        let level = LevelMeter.smoothedLevel(recent, at: endTime)
+        // 아주 큰 소리 안내는 지금 녹음하는 동안만 (다시 듣는 소리에는 하지 않는다)
+        let isLoud = isLive && LevelMeter.isSustainedLoud(recent, at: endTime)
+        let resonance = ResonanceMeter.current(recent, at: endTime)
+
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                meterTitle("음량")
+                levelBar(level, isLoud: isLoud)
+                meterValue(level.map { "\(Int($0.rounded())) dBFS" } ?? "– dBFS")
+            }
+            HStack(spacing: 8) {
+                meterTitle("공명")
+                if let baselineF2 {
+                    resonanceBar(resonance, baseline: baselineF2)
+                } else {
+                    Text("내 목소리 재기를 하면 기준이 생겨요")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                meterValue(resonance.map { "F2 \(Int($0.f2.rounded()))" } ?? "F2 –")
+            }
+            if isLoud {
+                Label("소리가 꽤 커요. 목에 무리가 없는지 확인해 보세요.", systemImage: "exclamationmark.triangle")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            }
+        }
+        // 화면 위에 고정된 영역이라 아주 큰 글자에서는 더 키우지 않는다.
+        .dynamicTypeSize(...DynamicTypeSize.xLarge)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("음량과 공명 밝기")
+        .accessibilityValue(meterDescription(level: level, isLoud: isLoud, resonance: resonance))
+    }
+
+    private func meterTitle(_ title: String) -> some View {
+        Text(title)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(width: 30, alignment: .leading)
+    }
+
+    private func meterValue(_ value: String) -> some View {
+        Text(value)
+            .font(.caption2)
+            .monospacedDigit()
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .frame(width: 64, alignment: .trailing)
+    }
+
+    /// 소리 크기 막대 (−60 ~ 0 dBFS). 크다·작다를 평가하는 색은 쓰지 않고, 아주 큰 소리가 이어질 때만 주황.
+    private func levelBar(_ level: Double?, isLoud: Bool) -> some View {
+        Capsule()
+            .fill(Color(.tertiarySystemFill))
+            .overlay(alignment: .leading) {
+                GeometryReader { proxy in
+                    Capsule()
+                        .fill(isLoud ? Color.orange : Color.secondary.opacity(0.7))
+                        .frame(width: proxy.size.width * LevelMeter.position(level ?? LevelMeter.range.lowerBound))
+                }
+            }
+            .frame(height: 6)
+    }
+
+    /// 공명 밝기 막대: 가운데(보라 눈금)가 내 기준 F2, 왼쪽 어두운 쪽 · 오른쪽 밝은 쪽. 지금 값은 분홍 점.
+    /// 목소리가 높아 값이 불확실하면 속이 빈 점으로 그린다 (모음 지도와 같은 규칙).
+    private func resonanceBar(_ reading: ResonanceMeter.Reading?, baseline: Double) -> some View {
+        HStack(spacing: 4) {
+            Text("어두운")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Capsule()
+                .fill(Color(.tertiarySystemFill))
+                .frame(height: 6)
+                .overlay {
+                    GeometryReader { proxy in
+                        Capsule()
+                            .fill(UllimColor.reference)
+                            .frame(width: 2, height: 12)
+                            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+                        if let reading {
+                            let x = proxy.size.width * ResonanceMeter.position(f2: reading.f2, baseline: baseline)
+                            Group {
+                                if reading.isUncertain {
+                                    Circle().strokeBorder(UllimColor.voice, style: StrokeStyle(lineWidth: 1.5, dash: [2, 2]))
+                                } else {
+                                    Circle().fill(UllimColor.voice)
+                                }
+                            }
+                            .frame(width: 10, height: 10)
+                            .position(x: x, y: proxy.size.height / 2)
+                        }
+                    }
+                }
+            Text("밝은")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// VoiceOver: "음량 −24 dBFS, 공명 밝기 F2 1650 Hz, 기준보다 밝은 쪽"
+    private func meterDescription(level: Double?, isLoud: Bool, resonance: ResonanceMeter.Reading?) -> String {
+        var parts = [level.map { "음량 \(Int($0.rounded())) dBFS" } ?? "음량 없음"]
+        if isLoud {
+            parts.append("소리가 꽤 커요")
+        }
+        if let resonance {
+            var text = "공명 밝기 F2 \(Int(resonance.f2.rounded())) Hz"
+            if let baselineF2 {
+                let position = ResonanceMeter.position(f2: resonance.f2, baseline: baselineF2)
+                text += position > 0.55 ? ", 기준보다 밝은 쪽" : (position < 0.45 ? ", 기준보다 어두운 쪽" : ", 기준과 비슷")
+            }
+            if resonance.isUncertain {
+                text += ", 불확실"
+            }
+            parts.append(text)
+        } else {
+            parts.append("공명 밝기 없음")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private func displayedFrequency(at endTime: TimeInterval) -> Double? {
@@ -312,6 +456,19 @@ struct PitchGraphView: View {
     private func isInTarget(_ frequency: Double?) -> Bool {
         guard let frequency, let target else { return false }
         return target.contains(frequency)
+    }
+}
+
+/// 음량·공명 막대 보는 법. [높이] 화면에서 그래프 아래, 문장과 함께 스크롤된다. 막대의 한계를 숨기지 않는다.
+struct MeterGuideView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("음량은 이 기기 마이크가 받은 소리 크기(dBFS, 0이 마이크가 받을 수 있는 최대)예요. 마이크마다 값이 달라서 귀로 듣는 절대 데시벨(dB SPL)이 아니에요.")
+            Text("공명 밝기는 최근 2.5초 목소리의 둘째 포먼트(F2) 중앙값이에요. 가운데 보라 선은 내 목소리 재기 때의 값이에요. 문장 속 공명은 어떤 모음을 말했는지에 따라 달라져요. 같은 대본을 읽을 때 비교하면 정확해요. 점이 비어 있으면 목소리가 높아 값이 불확실할 수 있어요.")
+        }
+        .font(.caption)
+        .foregroundStyle(.secondary)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

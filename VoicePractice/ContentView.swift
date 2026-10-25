@@ -169,6 +169,8 @@ struct ContentView: View {
                 isMeasuringBaseline = true
             }
 
+            MeterGuideView()
+
             if let summary, let title = audio.lastTakeTitle {
                 RecordingSummaryView(
                     title: title, summary: summary, isSaved: lastTakeIsSaved, isSaving: audio.isSavingTake,

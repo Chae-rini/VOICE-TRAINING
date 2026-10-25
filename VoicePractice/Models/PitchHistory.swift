@@ -1,6 +1,6 @@
 import Foundation
 
-/// 피치 한 점: 언제(time) 몇 Hz였는지(frequency), 그때의 포먼트(F1·F2).
+/// 피치 한 점: 언제(time) 몇 Hz였는지(frequency), 그때의 포먼트(F1·F2)와 소리 크기.
 nonisolated struct PitchReading: Sendable {
     /// [s] AudioClock 기준 시각
     let time: TimeInterval
@@ -8,11 +8,14 @@ nonisolated struct PitchReading: Sendable {
     let frequency: Double?
     /// F1·F2. 목소리가 잡히고 또렷한 울림을 두 개 찾았을 때만 있다.
     let formants: FormantAnalyzer.Estimate?
+    /// [dBFS] 이 조각의 소리 크기 (무음 판정과 상관없이 늘 잰다). 이 기기 마이크 기준이라 절대 데시벨이 아니다.
+    let level: Double?
 
-    init(time: TimeInterval, frequency: Double?, formants: FormantAnalyzer.Estimate? = nil) {
+    init(time: TimeInterval, frequency: Double?, formants: FormantAnalyzer.Estimate? = nil, level: Double? = nil) {
         self.time = time
         self.frequency = frequency
         self.formants = formants
+        self.level = level
     }
 }
 

@@ -45,6 +45,8 @@ struct PracticeSessionLog {
         let pitch: PitchSummary
         /// 녹음마다의 요약 (목소리가 잡힌 녹음만, 녹음 순서대로)
         var takes: [Take] = []
+        /// [Hz] 연습 전체의 F2 중앙값 (공명 밝기). 포먼트가 충분히 잡히지 않았으면 nil
+        var f2Median: Double? = nil
     }
 
     /// 녹음 한 번의 요약 (‘지금 들어보기’를 누르거나 녹음 중에 정지할 때마다 하나)
@@ -64,6 +66,8 @@ struct PracticeSessionLog {
     private(set) var voiced: [Double] = []
     /// [s] 목소리가 잡힌 시간
     private(set) var voicedSeconds: TimeInterval = 0
+    /// 목소리와 포먼트가 잡힌 점들 (연습 전체의 F2 중앙값을 내는 데만 쓴다)
+    private(set) var formantReadings: [PitchReading] = []
     /// [s] 바로 앞 점의 시각. 녹음을 새로 시작하면 지운다 (녹음 사이의 빈 시간을 목소리로 세지 않게).
     private var lastTime: TimeInterval?
 
@@ -83,6 +87,9 @@ struct PracticeSessionLog {
         for reading in readings {
             if let frequency = reading.frequency {
                 voiced.append(frequency)
+                if reading.formants != nil {
+                    formantReadings.append(reading)
+                }
                 if let lastTime {
                     voicedSeconds += min(max(reading.time - lastTime, 0), Self.maxReadingGap)
                 }
@@ -107,7 +114,7 @@ struct PracticeSessionLog {
             return nil
         }
         return Summary(startedAt: startedAt, endedAt: endedAt, takeCount: takeCount, language: language, pitch: pitch,
-                       takes: takes)
+                       takes: takes, f2Median: ResonanceMeter.median(formantReadings))
     }
 }
 
@@ -190,6 +197,8 @@ final class PracticeSession {
     /// 녹음마다의 요약. 이 기록이 생기기 전(2026-10-25)의 연습은 비어 있다.
     @Relationship(deleteRule: .cascade, inverse: \PracticeTake.session)
     var takes: [PracticeTake] = []
+    /// [Hz] 연습 전체의 F2 중앙값 (공명 밝기, 나중에 [기록] 탭 추이에 쓴다). 2026-10-25 전의 연습은 nil
+    var f2MedianHz: Double?
 
     init(_ summary: PracticeSessionLog.Summary) {
         startedAt = summary.startedAt
@@ -203,6 +212,7 @@ final class PracticeSession {
         targetUpperHz = summary.pitch.target?.upperBound
         inTargetFraction = summary.pitch.inTargetFraction
         languageCode = summary.language.rawValue
+        f2MedianHz = summary.f2Median
     }
 
     var language: PracticeLanguage {
@@ -226,7 +236,8 @@ final class PracticeSession {
             startedAt: startedAt, endedAt: endedAt, takeCount: takeCount, language: language,
             pitch: PitchSummary(duration: practiceSeconds, voicedSeconds: voicedSeconds, median: medianHz, p10: lowHz,
                                 p90: highHz, target: target, inTargetFraction: inTargetFraction),
-            takes: takes.map(\.take).sorted { $0.round < $1.round }
+            takes: takes.map(\.take).sorted { $0.round < $1.round },
+            f2Median: f2MedianHz
         )
     }
 }
@@ -297,9 +308,11 @@ final class SavedRecording {
     var targetUpperHz: Double?
     var inTargetFraction: Double?
     var languageCode: String
+    /// [Hz] 녹음 전체의 F2 중앙값 (공명 밝기). 2026-10-25 전에 남긴 녹음과 포먼트를 못 잰 녹음은 nil
+    var f2MedianHz: Double?
 
     init(summary: PitchSummary, title: String, memo: String, fileName: String,
-         language: PracticeLanguage, recordedAt: Date) {
+         language: PracticeLanguage, recordedAt: Date, f2Median: Double? = nil) {
         self.recordedAt = recordedAt
         self.title = title
         self.memo = memo
@@ -313,6 +326,7 @@ final class SavedRecording {
         targetUpperHz = summary.target?.upperBound
         inTargetFraction = summary.inTargetFraction
         languageCode = language.rawValue
+        f2MedianHz = f2Median
     }
 
     var language: PracticeLanguage {
@@ -339,12 +353,15 @@ final class BaselineRecord {
     var medianHz: Double
     var lowHz: Double
     var highHz: Double
+    /// [Hz] F2 중앙값 (2026-10-25부터, 그 전 기록과 포먼트를 못 잰 기록은 nil)
+    var f2MedianHz: Double?
 
     init(_ baseline: VoiceBaseline, measuredAt: Date) {
         self.measuredAt = measuredAt
         medianHz = baseline.median
         lowHz = baseline.low
         highHz = baseline.high
+        f2MedianHz = baseline.f2
     }
 }
 

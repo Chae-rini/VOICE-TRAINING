@@ -30,7 +30,7 @@
 | `VoicePractice/Views/ReminderSettingsView.swift` | ‘연습 알림’ 화면: 켜기·끄기, 알림 시간, 권한이 꺼졌을 때 안내 |
 | `VoicePracticeTests/PracticeReminderTests.swift` | 연습 알림 날짜 계산·알림 내용·오늘 연습 여부를 확인하는 시험지 |
 | `VoicePracticeTests/RecordingImportTests.swift` | 파일 분석·WAV 저장·요약 수치·요청문을 확인하는 시험지 |
-| `VoicePractice/Models/VoiceBaseline.swift` | 내 기준 목소리 계산(중앙값·범위·목소리 안 잡힘), 처음 목표 범위(±20 Hz), 반음 거리, 목표 범위·기준 저장 규칙(예전 사용자 값 지키기) |
+| `VoicePractice/Models/VoiceBaseline.swift` | 내 기준 목소리 계산(중앙값·범위·목소리 안 잡힘·공명 밝기 기준 F2), 처음 목표 범위(±20 Hz), 반음 거리, 목표 범위·기준 저장 규칙(예전 사용자 값 지키기) |
 | `VoicePractice/Views/BaselineMeasureView.swift` | "내 목소리 재기" 화면: 문장 읽고 10초 재기 또는 녹음 파일로 재기, 결과와 목표 범위 맞추기 스위치 |
 | `VoicePracticeTests/VoiceBaselineTests.swift` | 기준 계산·처음 목표 범위·저장값 유지·목소리 안 잡힘·파일로 재기를 확인하는 시험지 |
 | `VoicePractice/Audio/FormantAnalyzer.swift` | 소리 조각 하나에서 포먼트(F1·F2)를 LPC로 재는 계산기 (표본 줄이기, Levinson–Durbin, 다항식 근) |
@@ -58,7 +58,9 @@
 | `VoicePractice/Views/ScriptReaderView.swift` | 대본을 고르고 스크롤해서 읽는 화면 조각 |
 | `VoicePractice/Views/KoreanLineBreaking.swift` | 한글 문장이 단어 중간이 아니라 띄어쓰기에서 줄바꿈되게 하는 도구 |
 | `VoicePracticeTests/PracticeScriptTests.swift` | 대본 200편의 길이·금지어·숫자·중복과 꺾은선 끊기 규칙을 확인하는 시험지 |
-| `VoicePractice/Views/PitchGraphView.swift` | [높이] 위에 고정되는 현재 Hz 숫자와 피치 그래프(반음 눈금, 가로축 = 들려줄 길이, 시간 눈금, 시작·n번째 선, 재생 위치 선, 대본 읽기 모드). 같은 파일의 `TargetRangeControls`는 목표 범위 줄·슬라이더·내 목소리 재기 버튼 |
+| `VoicePractice/Views/PitchGraphView.swift` | [높이] 위에 고정되는 현재 Hz 숫자와 피치 그래프(반음 눈금, 가로축 = 들려줄 길이, 시간 눈금, 시작·n번째 선, 재생 위치 선, 대본 읽기 모드)와 그 아래 음량·공명 밝기 막대. 같은 파일의 `MeterGuideView`는 막대 보는 법, `TargetRangeControls`는 목표 범위 줄·슬라이더·내 목소리 재기 버튼 |
+| `VoicePractice/Models/VoiceMeters.swift` | [높이] 탭 음량 막대(dBFS, 0.3초 평활, 큰 소리 3초 지속 판정)와 공명 밝기 막대(최근 2.5초 F2 중앙값, 기준 대비 위치) 계산 |
+| `VoicePracticeTests/VoiceMetersTests.swift` | 음량·평활·큰 소리 판정, F2 이동 중앙값, 기준 대비 위치, F2 저장을 확인하는 시험지 |
 | `VoicePractice/Models/GraphWindow.swift` | 피치 그래프 가로축 계산: 보이는 시간 구간(오른쪽 끝 = 지금), 시간 눈금 간격·글자, 시작선 |
 | `VoicePracticeTests/GraphWindowTests.swift` | 그래프 구간·시간 눈금·시작선·점 묶기를 확인하는 시험지 |
 | `VoicePractice/Models/PitchScale.swift` | 반음 눈금 계산: 두 높이의 반음 거리, 반음만큼 옮기기, 그래프 위치(로그 눈금), 눈금 숫자 고르기 |

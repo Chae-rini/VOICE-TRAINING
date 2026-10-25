@@ -72,7 +72,8 @@ nonisolated enum AudioFileAnalyzer {
             let centerTime = Double(start + frameLength / 2) / sampleRate  // 창 한가운데 시각 [s]
             // 목소리가 잡힌 조각에서만 포먼트를 잰다 (무음·잡음의 가짜 울림을 피함).
             let formants = estimate == nil ? nil : formantAnalyzer.estimate(frame)
-            readings.append(PitchReading(time: centerTime, frequency: estimate?.frequency, formants: formants))
+            readings.append(PitchReading(time: centerTime, frequency: estimate?.frequency, formants: formants,
+                                         level: LevelMeter.dBFS(rms: Double(vDSP.rootMeanSquare(frame)))))
             start += hopLength
         }
         return readings

@@ -173,6 +173,11 @@ struct BaselineMeasureView: View {
             Text("범위는 잡힌 높이 중 아래 10%~위 10% 사이예요.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            // 공명 밝기 막대의 가운데(기준)로 함께 저장한다.
+            Text(baseline.f2.map { "공명 밝기 기준(F2 중앙값): \(Int($0.rounded())) Hz" }
+                 ?? "포먼트가 충분히 잡히지 않아 공명 밝기 기준은 저장하지 않아요.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
 
             Toggle(isOn: $applyToTarget) {
                 VStack(alignment: .leading, spacing: 2) {

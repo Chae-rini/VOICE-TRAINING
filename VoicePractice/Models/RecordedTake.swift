@@ -65,6 +65,11 @@ struct RecordedTake {
         PitchSummary(readings: readings, duration: duration, target: target)
     }
 
+    /// [Hz] 녹음 전체의 F2 중앙값 (공명 밝기). 포먼트가 충분히 잡히지 않았으면 nil.
+    var f2Median: Double? {
+        ResonanceMeter.median(readings)
+    }
+
     /// 다시 들을 때 그래프에 그릴 기록
     var history: PitchHistory {
         var history = PitchHistory(retention: duration + 2)
