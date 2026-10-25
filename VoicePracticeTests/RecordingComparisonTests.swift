@@ -33,19 +33,43 @@ struct RecordingComparisonTests {
         }
     }
 
-    @Test("높이 분포: 5 Hz 칸마다 비율, 범위 밖 점은 칸에 넣지 않되 전체 수에는 넣는다")
+    @Test("높이 분포: 반음 반 칸마다 비율, 범위 밖 점은 칸에 넣지 않되 전체 수에는 넣는다")
     func distribution() throws {
-        let bins = RecordingComparison.distribution([150, 151, 152, 157, 180], in: 150...185)
-        #expect(bins.count == 7)
-        #expect(bins.map(\.center) == [152.5, 157.5, 162.5, 167.5, 172.5, 177.5, 182.5])
-        #expect(abs(bins[0].fraction - 0.6) < 1e-9)
-        #expect(abs(bins[1].fraction - 0.2) < 1e-9)
-        #expect(abs(bins[6].fraction - 0.2) < 1e-9)
+        let values: [Double] = [150, 151, 152, 157, 180]
+        let bins = RecordingComparison.distribution(values, in: 150...185)
+        // 칸 가운데끼리는 반음 반 칸(2^(1/24)배)씩 떨어져 있다
+        for (a, b) in zip(bins, bins.dropFirst()) {
+            #expect(abs(PitchScale.semitones(from: a.center, to: b.center) - 0.5) < 1e-9)
+        }
+        // 150~185 Hz는 반음 약 3.6개 → 칸 7~9개
+        #expect((7...9).contains(bins.count))
         #expect(abs(bins.map(\.fraction).reduce(0, +) - 1) < 1e-9)
+        // 각 점은 자기 높이를 감싸는 칸(가운데에서 반음 ±0.25)에 들어간다
+        for value in values {
+            let home = try #require(bins.min { abs(PitchScale.semitones(from: $0.center, to: value)) < abs(PitchScale.semitones(from: $1.center, to: value)) })
+            #expect(abs(PitchScale.semitones(from: home.center, to: value)) <= 0.25 + 1e-9)
+            #expect(home.fraction > 0)
+        }
 
-        let withOutlier = RecordingComparison.distribution([150, 151, 152, 157, 180, 390], in: 150...185)
+        let withOutlier = RecordingComparison.distribution(values + [390], in: 150...185)
         #expect(abs(withOutlier.map(\.fraction).reduce(0, +) - 5.0 / 6) < 1e-9)
         #expect(RecordingComparison.distribution([], in: 150...185).isEmpty)
+    }
+
+    @Test("같은 반음만큼 흔들리면 낮은 목소리든 높은 목소리든 비슷한 수의 칸에 퍼진다 (5 Hz 칸에서는 높은 쪽이 2배 넘게 퍼졌다)")
+    func distributionFairForLowAndHigh() {
+        // 가운데에서 위아래 반음 1개씩 고르게 흔들린 목소리 (반음 2개 폭)
+        func voice(around center: Double) -> [Double] {
+            (0..<200).map { PitchScale.frequency(center, offsetBy: -1 + 2 * Double($0) / 199) }
+        }
+        func occupied(_ voiced: [Double]) -> Int {
+            let domain = (voiced.min() ?? 0)...(voiced.max() ?? 0)
+            return RecordingComparison.distribution(voiced, in: domain).filter { $0.fraction > 0 }.count
+        }
+        let low = occupied(voice(around: 120))
+        let high = occupied(voice(around: 300))
+        #expect(abs(low - high) <= 1)
+        #expect((4...5).contains(low))
     }
 
     @Test("분포 그래프 가로축: 두 녹음과 목표 범위가 들어가고, 드물게 튄 값은 뺀다")
@@ -57,7 +81,8 @@ struct RecordingComparisonTests {
         #expect(domain.contains(190))
         #expect(domain.contains(220))
         #expect(!domain.contains(395))
-        #expect(domain.upperBound - domain.lowerBound >= PracticeHistory.minimumPitchSpan)
+        #expect(PitchScale.semitones(from: domain.lowerBound, to: domain.upperBound)
+                >= PracticeHistory.minimumPitchSpanSemitones - 1e-9)
     }
 
     @Test("비교 재생기: 남긴 녹음 파일을 읽어 높이를 내고, 없는 파일은 읽지 못한 쪽으로 표시한다")

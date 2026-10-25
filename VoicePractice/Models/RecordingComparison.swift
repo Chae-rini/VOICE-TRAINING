@@ -4,7 +4,7 @@ import Foundation
 enum RecordingComparison {
     /// 높이 분포 한 칸
     struct Bin: Identifiable, Equatable {
-        /// [Hz] 칸의 가운데
+        /// [Hz] 칸의 가운데 (반음 눈금에서의 가운데)
         let center: Double
         /// 0~1. 목소리가 잡힌 점 중 이 칸에 든 비율
         let fraction: Double
@@ -12,8 +12,11 @@ enum RecordingComparison {
         var id: Double { center }
     }
 
-    /// [Hz] 분포 칸 너비
-    static let binWidth = 5.0
+    /// 분포 칸: 반음 하나를 두 칸으로 (반음 반 칸). Hz로 일정한 칸이면 높은 목소리일수록 같은 흔들림이
+    /// 더 많은 칸에 퍼져 납작하게 그려지므로, 반음 눈금으로 나눈다.
+    static let binsPerSemitone = 2.0
+    /// [Hz] 칸의 기준점 (A4). 두 녹음이 같은 칸 경계를 쓰도록 고정해 둔다.
+    static let binReference = 440.0
     /// [Hz] 중앙값 차이가 이보다 작으면 "거의 같아요"
     static let sameMedianThreshold = 1.0
 
@@ -41,20 +44,25 @@ enum RecordingComparison {
         return "B의 중앙값이 A보다 \(Int(abs(difference).rounded())) Hz \(direction) (반음 약 \(String(format: "%.1f", semitones))개)."
     }
 
-    /// 목소리 높이들을 `domain` 안에서 5 Hz 칸으로 나눠 칸마다 비율을 낸다.
+    /// 목소리 높이들을 `domain` 안에서 반음 반 칸으로 나눠 칸마다 비율을 낸다.
     /// 범위 밖 점도 전체 수에는 넣는다 (잘린 쪽의 비율이 부풀지 않게).
     static func distribution(_ frequencies: [Double], in domain: ClosedRange<Double>,
-                             binWidth: Double = binWidth) -> [Bin] {
+                             binsPerSemitone: Double = binsPerSemitone) -> [Bin] {
         guard !frequencies.isEmpty else { return [] }
-        let start = (domain.lowerBound / binWidth).rounded(.down) * binWidth
-        let binCount = max(Int(((domain.upperBound - start) / binWidth).rounded(.up)), 1)
+        // 기준점(440 Hz)에서 반음 반 칸 몇 개 떨어졌는지 (아래로 내림)
+        func index(_ frequency: Double) -> Int {
+            Int((PitchScale.semitones(from: binReference, to: frequency) * binsPerSemitone).rounded(.down))
+        }
+        let first = index(domain.lowerBound)
+        let binCount = max(index(domain.upperBound) - first + 1, 1)
         var counts = Array(repeating: 0, count: binCount)
         for frequency in frequencies where domain.contains(frequency) {
-            counts[min(Int((frequency - start) / binWidth), binCount - 1)] += 1
+            counts[min(max(index(frequency) - first, 0), binCount - 1)] += 1
         }
         let total = Double(frequencies.count)
-        return counts.enumerated().map { index, count in
-            Bin(center: start + (Double(index) + 0.5) * binWidth, fraction: Double(count) / total)
+        return counts.enumerated().map { offset, count in
+            let middle = (Double(first + offset) + 0.5) / binsPerSemitone  // [반음] 기준점에서 칸 가운데까지
+            return Bin(center: PitchScale.frequency(binReference, offsetBy: middle), fraction: Double(count) / total)
         }
     }
 

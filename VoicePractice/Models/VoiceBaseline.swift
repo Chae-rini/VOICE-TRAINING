@@ -53,7 +53,7 @@ struct VoiceBaseline: Equatable {
 
     /// 두 높이 사이의 거리 [반음]: 12·log₂(b/a). 위로 가면 +, 아래로 가면 −.
     static func semitones(from a: Double, to b: Double) -> Double {
-        12 * log2(b / a)
+        PitchScale.semitones(from: a, to: b)
     }
 
     /// 목표 범위 가운데가 기준 중앙값 `median`에서 반음 6개 이상 떨어졌는지 (방향 무관).

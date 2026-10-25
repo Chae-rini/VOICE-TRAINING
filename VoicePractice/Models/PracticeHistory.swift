@@ -110,12 +110,13 @@ enum PracticeHistory {
         return start...end
     }
 
-    /// [Hz] 이보다 좁게는 보여 주지 않는다 (작은 차이가 크게 부풀어 보이지 않게)
-    static let minimumPitchSpan = 60.0
-    /// [Hz] 위아래 여유
-    static let pitchPadding = 15.0
+    /// [반음] 이보다 좁게는 보여 주지 않는다 (작은 차이가 크게 부풀어 보이지 않게)
+    static let minimumPitchSpanSemitones = 6.0
+    /// [반음] 위아래 여유
+    static let pitchPaddingSemitones = 1.5
 
     /// 그래프 세로축 [Hz]: 연습의 범위, 목표 범위, 기준이 모두 들어가게 잡고 앱의 분석 범위(70~400 Hz) 안으로 자른다.
+    /// 그래프가 반음 눈금이라 여유와 최소 폭도 Hz가 아니라 반음으로 잡는다 (높은 쪽·낮은 쪽이 같은 여유를 갖게).
     static func pitchDomain(_ points: [SessionPoint], target: ClosedRange<Double>?, baseline: Double?) -> ClosedRange<Double> {
         pitchDomain(values: points.flatMap { [$0.low, $0.high] }, target: target, baseline: baseline)
     }
@@ -132,20 +133,23 @@ enum PracticeHistory {
         }
         guard let lowest = values.min(), let highest = values.max() else { return axis }
 
-        var lower = lowest - pitchPadding
-        var upper = highest + pitchPadding
-        if upper - lower < minimumPitchSpan {
-            let center = (lower + upper) / 2
-            lower = center - minimumPitchSpan / 2
-            upper = center + minimumPitchSpan / 2
+        var lower = PitchScale.frequency(lowest, offsetBy: -pitchPaddingSemitones)
+        var upper = PitchScale.frequency(highest, offsetBy: pitchPaddingSemitones)
+        if PitchScale.semitones(from: lower, to: upper) < minimumPitchSpanSemitones {
+            // 반음 눈금의 가운데 = 두 끝의 기하평균
+            let center = (lower * upper).squareRoot()
+            lower = PitchScale.frequency(center, offsetBy: -minimumPitchSpanSemitones / 2)
+            upper = PitchScale.frequency(center, offsetBy: minimumPitchSpanSemitones / 2)
         }
-        // 범위 밖으로 나가면 안쪽으로 밀어 넣는다 (가능한 한 폭은 유지).
+        // 범위 밖으로 나가면 안쪽으로 밀어 넣는다 (가능한 한 반음 폭은 유지).
         if lower < axis.lowerBound {
-            upper = min(upper + (axis.lowerBound - lower), axis.upperBound)
+            let shift = PitchScale.semitones(from: lower, to: axis.lowerBound)
+            upper = min(PitchScale.frequency(upper, offsetBy: shift), axis.upperBound)
             lower = axis.lowerBound
         }
         if upper > axis.upperBound {
-            lower = max(lower - (upper - axis.upperBound), axis.lowerBound)
+            let shift = PitchScale.semitones(from: upper, to: axis.upperBound)  // 음수
+            lower = max(PitchScale.frequency(lower, offsetBy: shift), axis.lowerBound)
             upper = axis.upperBound
         }
         return lower...upper

@@ -86,6 +86,14 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - 큰 글자: 화면 아래 고정 영역은 xxxLarge까지, 그래프 안 글자는 xxLarge까지만 커진다. 고정 높이가 필요한 곳(넘기는 문장 카드 등)은 `@ScaledMetric`으로 높이도 같이 키운다. UIKit 글 상자(`WordWrappedText`)는 SwiftUI의 `dynamicTypeSize`를 읽어 기본 크기에서 한 번만 키운다.
 - 언어 구분은 색 대신 점 모양(원·네모·세모·마름모)으로 한다.
 
+## 높이 눈금 (2026-10-25, 반음)
+- 목소리 높이(Hz)를 그리는 그래프는 반음(로그) 눈금이다: [높이] 그래프·목표 슬라이더(Canvas, `PitchScale.position`), [기록] 그래프·두 녹음 비교 분포(Swift Charts, `.chartYScale/.chartXScale(domain:, type: .log)`). 같은 반음 흔들림이 낮은 목소리든 높은 목소리든 같은 길이로 보여야 한다 (원칙 3).
+- 반음 계산은 `Models/PitchScale.swift` 한곳에 둔다 (반음 거리 12·log₂(b/a), 반음 옮기기, 위치, 눈금 숫자). 새 높이 그래프도 이것을 쓴다.
+- 눈금 숫자는 Hz로 쓰고 음이름은 쓰지 않는다. 숫자는 `PitchScale.ticks(in:)`가 고른다 (70·100·150·200·300·400, 좁으면 더 촘촘히).
+- 축의 여유·최소 폭은 반음으로 센다 (`PracticeHistory.pitchPaddingSemitones` 1.5, `minimumPitchSpanSemitones` 6). 분포 칸은 반음 반 칸, 경계는 440 Hz 기준으로 고정 (두 녹음이 같은 칸을 쓰게).
+- 저장값(목표 범위·기준)은 계속 Hz다. 반음 눈금은 그리는 방법만 바꾼다.
+- 모음 지도(F1·F2)는 아직 Hz 직선 눈금이다. 포먼트에 맞는 눈금은 따로 정한다.
+
 ## 개발 메모 (빌드·테스트 명령)
 - 내부 프로젝트 이름은 VoicePractice로 유지한다. Xcode 프로젝트·타깃·스킴·폴더·소스의 타입 이름(`VoicePracticeApp` 등)과 번들 ID는 바꾸지 않는다 (바꾸면 빌드 설정이 깨지기 쉽다). 사용자에게 보이는 이름만 "울림"이다.
   - 홈 화면 이름: 빌드 설정 `INFOPLIST_KEY_CFBundleDisplayName = "울림"` (Xcode에서는 타깃 → General → Identity → Display Name과 같은 값)

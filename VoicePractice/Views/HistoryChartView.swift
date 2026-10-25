@@ -3,7 +3,7 @@ import SwiftUI
 
 /// [기록] 탭의 그래프 두 개: 연습마다 목소리 높이(중앙값 점 + 아래 10%~위 10% 세로줄), 날마다 연습한 시간(막대).
 /// 점은 목소리 색(분홍), 파란 띠는 지금 목표 범위, 보라 점선은 지금 기준 목소리, 막대는 기록 색(초록)이다 ([높이] 탭과 같은 색).
-/// 언어는 색이 아니라 점 모양으로 나눈다 (색은 역할마다 하나씩만 쓰려고).
+/// 언어는 색이 아니라 점 모양으로 나눈다 (색은 역할마다 하나씩만 쓰려고). 높이 축은 반음 눈금이다.
 /// 좋아졌다·나빠졌다 같은 판정은 하지 않고 숫자의 흐름만 보여 준다.
 struct HistoryChartView: View {
     let points: [SessionPoint]
@@ -68,7 +68,11 @@ struct HistoryChartView: View {
             }
             .chartSymbolScale(domain: languages.map(\.label), range: languages.map(\.chartSymbol))
             .chartXScale(domain: dateDomain)
-            .chartYScale(domain: pitchDomain)
+            // 세로축은 [높이] 탭과 같은 반음 눈금 (로그 눈금 = 같은 반음 폭이 같은 길이)
+            .chartYScale(domain: pitchDomain, type: .log)
+            .chartYAxis {
+                AxisMarks(values: PitchScale.ticks(in: pitchDomain))
+            }
             .chartXAxis { dateAxis }
             // 기본 범례는 강조색(파랑)으로 그려져 분홍 점과 어긋나므로 직접 그린다.
             .chartLegend(.hidden)

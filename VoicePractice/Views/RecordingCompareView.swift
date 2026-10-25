@@ -235,7 +235,7 @@ struct RecordingCompareView: View {
         } header: {
             Text("높이 분포")
         } footer: {
-            Text("목소리가 잡힌 시간 중 각 높이(5 Hz 간격)에 머문 비율이에요. 점선은 각 녹음의 중앙값, 파란 띠는 지금 목표 범위예요.")
+            Text("목소리가 잡힌 시간 중 각 높이(반음 반 칸 간격)에 머문 비율이에요. 가로축은 반음 눈금이라 낮은 목소리와 높은 목소리의 흔들림을 같은 기준으로 볼 수 있어요. 점선은 각 녹음의 중앙값, 파란 띠는 지금 목표 범위예요.")
         }
     }
 
@@ -253,7 +253,10 @@ struct RecordingCompareView: View {
             medianRule(voicedB, side: .b)
         }
         .chartForegroundStyleScale(["A": colorA, "B": colorB])
-        .chartXScale(domain: domain)
+        .chartXScale(domain: domain, type: .log)  // 반음 눈금
+        .chartXAxis {
+            AxisMarks(values: PitchScale.ticks(in: domain))
+        }
         .chartYScale(domain: 0...yMax)
         .chartXAxisLabel("Hz")
         .chartYAxisLabel("%")

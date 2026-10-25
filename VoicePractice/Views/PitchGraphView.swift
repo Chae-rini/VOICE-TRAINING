@@ -3,6 +3,7 @@ import SwiftUI
 /// 현재 피치 숫자 + 최근 10초 피치 그래프 + 목표 범위 슬라이더.
 /// 녹음 중에는 실시간으로, 녹음을 다시 들을 때는 그때의 곡선을 소리와 같은 속도로 흘려 보여준다.
 /// 내 기준 목소리를 쟀으면 그 중앙값을 점선으로 보여 준다. 목표 범위는 기준을 잰 뒤에 생긴다 (방향을 미리 정하지 않음).
+/// 세로축은 반음 눈금이다 (PitchScale): 같은 반음 폭은 어느 높이에서든 같은 길이로 그려진다.
 struct PitchGraphView: View {
     let history: PitchHistory
     /// 녹음 중의 현재 피치 [Hz]. 다시 듣는 중에는 기록에서 재생 위치의 값을 찾아 쓴다.
@@ -21,8 +22,7 @@ struct PitchGraphView: View {
     /// 목표 범위 슬라이더를 펼쳤는지 (평소에는 한 줄로 접어 둔다)
     @State private var isAdjustingTarget = false
 
-    private let axisRange = PitchDetector.frequencyRange  // [Hz] 세로축 70~400
-    private let gridStep = 50.0                            // [Hz] 눈금 간격
+    private let axisRange = PitchDetector.frequencyRange  // [Hz] 세로축 70~400 (반음 눈금)
     private let minimumGap = 10.0                          // [Hz] 하한과 상한의 최소 간격
     /// 목표 범위 안의 목소리 (분홍). 목표 범위 밖은 회색.
     private let inRangeColor = UllimColor.voice
@@ -119,9 +119,9 @@ struct PitchGraphView: View {
         // 왼쪽은 Hz 숫자, 아래는 시간 표시 자리로 비워 둔다.
         let plot = CGRect(x: 40, y: 12, width: size.width - 52, height: size.height - 36)
 
+        // 반음 눈금: Hz가 아니라 비율(반음) 간격으로 위치를 정한다.
         func y(_ frequency: Double) -> CGFloat {
-            let ratio = (frequency - axisRange.lowerBound) / (axisRange.upperBound - axisRange.lowerBound)
-            return plot.maxY - CGFloat(ratio) * plot.height
+            plot.maxY - CGFloat(PitchScale.position(of: frequency, in: axisRange)) * plot.height
         }
 
         // 목표 범위 띠
@@ -131,9 +131,8 @@ struct PitchGraphView: View {
             context.fill(Path(band), with: .color(targetColor.opacity(UllimColor.bandOpacity)))
         }
 
-        // 50Hz 간격 눈금 (100, 150, …, 400) + 아래 경계 70
-        let ticks = [axisRange.lowerBound] + Array(stride(from: 100.0, through: axisRange.upperBound, by: gridStep))
-        for frequency in ticks {
+        // 눈금 70·100·150·200·300·400 Hz (반음 눈금에서 고르게 보이는 숫자)
+        for frequency in PitchScale.ticks(in: axisRange) {
             var line = Path()
             line.move(to: CGPoint(x: plot.minX, y: y(frequency)))
             line.addLine(to: CGPoint(x: plot.maxX, y: y(frequency)))
@@ -256,9 +255,14 @@ struct PitchGraphView: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 measureButton
-            } else if isAdjustingTarget {
+            } else if isAdjustingTarget, let target {
                 slider("하한", value: lowerBinding)
                 slider("상한", value: upperBinding)
+                // 폭을 반음으로도 알려 준다: 같은 Hz 폭이라도 낮은 쪽이 귀로는 더 넓다.
+                Text("목표 범위의 폭은 반음 \(String(format: "%.1f", PitchScale.semitones(from: target.lowerBound, to: target.upperBound)))개예요.")
+                    .font(.caption)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
                 Text("편하게 낼 수 있는 높이로 정하세요. 목이 불편하면 잠시 쉬어 가요.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -305,14 +309,22 @@ struct PitchGraphView: View {
         .disabled(!canMeasure)
     }
 
+    /// 목표 범위 슬라이더. 그래프와 같은 반음 눈금이라, 같은 거리만큼 끌면 어느 높이에서든 같은 반음만큼 움직인다.
+    /// 슬라이더는 0~1 위치를 다루고, 저장·표시는 Hz로 한다.
     private func slider(_ title: String, value: Binding<Double>) -> some View {
-        HStack {
+        let position = Binding(
+            get: { PitchScale.position(of: value.wrappedValue, in: axisRange) },
+            set: { value.wrappedValue = PitchScale.frequency(atPosition: $0, in: axisRange) }
+        )
+        return HStack {
             Text(title)
                 .font(.footnote)
                 .frame(width: 32, alignment: .leading)
-            Slider(value: value, in: axisRange) {
+            Slider(value: position, in: 0...1) {
                 Text("목표 \(title)")
             }
+            // VoiceOver가 0~1 위치(퍼센트) 대신 Hz를 읽게 한다.
+            .accessibilityValue("\(Int(value.wrappedValue)) Hz")
         }
     }
 

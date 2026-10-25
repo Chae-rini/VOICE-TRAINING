@@ -76,19 +76,47 @@ struct PracticeHistoryTests {
         #expect(PracticeHistory.dateDomain([], period: .all, now: now, calendar: calendar) == date(19, 0)...date(26, 0))
     }
 
-    @Test("세로축: 연습 범위·목표 범위·기준이 모두 들어가고, 70~400 Hz 안, 최소 60 Hz 폭")
+    /// 두 높이가 반음으로 몇 개 떨어졌는지
+    private func semitones(_ a: Double, _ b: Double) -> Double {
+        PitchScale.semitones(from: a, to: b)
+    }
+
+    @Test("세로축(반음 눈금): 연습 범위·목표 범위·기준이 모두 들어가고, 위아래 반음 1.5개 여유, 70~400 Hz 안, 최소 반음 6개 폭")
     func pitchDomain() {
         let points = [point(.now, low: 140, high: 185), point(.now, low: 150, high: 210)]
-        // 가장 낮은 값 140, 가장 높은 값은 목표 상한 230 → 위아래 15 Hz 여유
-        #expect(PracticeHistory.pitchDomain(points, target: 190...230, baseline: 165) == 125...245)
-        // 폭이 좁으면 가운데를 두고 60 Hz로 넓힌다
-        #expect(PracticeHistory.pitchDomain([point(.now, low: 200, high: 210)], target: nil, baseline: nil) == 175...235)
-        // 아래 끝을 넘으면 안쪽으로 민다
-        #expect(PracticeHistory.pitchDomain([point(.now, low: 75, high: 100)], target: nil, baseline: nil) == 70...130)
+        // 가장 낮은 값 140, 가장 높은 값은 목표 상한 230 → 위아래로 반음 1.5개씩 여유
+        let domain = PracticeHistory.pitchDomain(points, target: 190...230, baseline: 165)
+        #expect(abs(semitones(domain.lowerBound, 140) - 1.5) < 1e-9)
+        #expect(abs(semitones(230, domain.upperBound) - 1.5) < 1e-9)
+
+        // 폭이 좁으면 가운데(반음 눈금의 가운데)를 두고 반음 6개로 넓힌다
+        let narrow = PracticeHistory.pitchDomain([point(.now, low: 200, high: 210)], target: nil, baseline: nil)
+        #expect(abs(semitones(narrow.lowerBound, narrow.upperBound) - 6) < 1e-9)
+        #expect(abs(semitones(narrow.lowerBound, 200) - semitones(210, narrow.upperBound)) < 1e-9)
+
+        // 아래 끝을 넘으면 안쪽으로 민다 (반음 폭은 그대로)
+        let low = PracticeHistory.pitchDomain([point(.now, low: 75, high: 100)], target: nil, baseline: nil)
+        #expect(low.lowerBound == 70)
+        #expect(low.contains(100))
+        #expect(abs(semitones(70, low.upperBound) - semitones(75, 100) - 3) < 1e-9)
+
         // 위 끝
-        #expect(PracticeHistory.pitchDomain([point(.now, low: 360, high: 395)], target: nil, baseline: nil) == 335...400)
+        let high = PracticeHistory.pitchDomain([point(.now, low: 360, high: 395)], target: nil, baseline: nil)
+        #expect(high.upperBound == 400)
+        #expect(abs(semitones(high.lowerBound, 400) - 6) < 1e-9)
+
         // 아무것도 없으면 분석 범위 전체
         #expect(PracticeHistory.pitchDomain([], target: nil, baseline: nil) == 70...400)
+    }
+
+    @Test("세로축 여유는 낮은 목소리와 높은 목소리에 똑같이 (반음으로) 준다")
+    func pitchDomainFairForLowAndHigh() {
+        let lowVoice = PracticeHistory.pitchDomain([point(.now, low: 100, high: 130)], target: nil, baseline: nil)
+        let highVoice = PracticeHistory.pitchDomain([point(.now, low: 220, high: 286)], target: nil, baseline: nil)
+        // 두 연습 모두 반음 약 4.5개 폭 → 그래프 높이에서 차지하는 비율이 같다
+        let lowShare = semitones(100, 130) / semitones(lowVoice.lowerBound, lowVoice.upperBound)
+        let highShare = semitones(220, 286) / semitones(highVoice.lowerBound, highVoice.upperBound)
+        #expect(abs(lowShare - highShare) < 1e-3)
     }
 
     @Test("모두 합친 시간 표시", arguments: [
