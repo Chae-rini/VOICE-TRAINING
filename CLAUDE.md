@@ -58,7 +58,7 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
    - 점수·등급·향상률·연속 기록(스트릭)은 쓰지 않는다. 숫자와 그래프만 보여 준다
 
 그 뒤 (순서 미정)
-- 웹(PWA)·안드로이드(APK) 버전 (2026-10-25 시작, 계획은 `Docs/WEB_PLAN.md`): W0 준비 ✅ / W1 분석 코드 ✅ / W2 마이크 입력 / A1 APK 시험판 / W3 [높이] 화면 / W4 연습 흐름 / W5 PWA·배포 / A2 APK 완성
+- 웹(PWA)·안드로이드(APK) 버전 (2026-10-25 시작, 계획은 `Docs/WEB_PLAN.md`): W0 준비 ✅ / W1 분석 코드 ✅ / W2 마이크 입력 ✅ / W3 [높이] 화면 ✅ / W4 연습 흐름 / W5 PWA·배포 / A1·A2 APK (2026-10-25 사용자 결정: 웹 먼저)
 - 5단계: 문장 단위 억양 곡선
 - 외국어 연습 (2026-10-25 아이디어: 외국어로 말할 때 피치가 많이 달라진다): 영어 발표·일본어 스피치 연습 문장과 대본, 언어별 기준 목소리, 일본어 5모음 지도, 언어별 억양(5단계와 이어짐). 화면 글자는 한국어 그대로
 
@@ -146,4 +146,13 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - 패키지는 정확한 버전으로 고정하고(`--save-exact`), 나온 지 2주가 지난 버전을 쓴다. TypeScript는 6.x (svelte-check가 7을 아직 지원하지 않음).
 - 이 Mac의 Node는 25(홀수, 장기 지원판 아님)다. Vitest 5가 지원 목록에 22·24·26만 적어 설치 때 경고가 나지만, 테스트·빌드는 돈다 (2026-10-25). 문제가 생기면 Node 24 LTS를 설치한다(승인 받기).
 - 원칙 2: 외부 폰트·CDN·분석 도구를 쓰지 않는다. `web/index.html`의 CSP가 앱 자신의 파일 말고는 연결을 막는다.
-- 브라우저 미리보기: `.claude/launch.json`(깃에 올리지 않음)의 `web-preview`(빌드 결과, 4173)·`web-dev`(5173).
+- 브라우저 미리보기: `.claude/launch.json`(깃에 올리지 않음)의 `web-preview`(빌드 결과, 4173)·`web-dev`(5173). Claude의 미리보기 브라우저는 마이크를 막는다 → 개발 서버에서만 보이는 ‘테스트 음 180 Hz (개발용)’ 버튼으로 흐름 전체를 확인하고, 실제 목소리는 사용자가 확인한다 (`Docs/WEB_PLAN.md` 직접 확인)
+- 마이크 흐름(W2): 마이크 → 소리 받기 AudioWorklet(`captureProcessor.ts`, 1024샘플씩) → MessageChannel로 분석 Worker에 바로 → 점을 화면으로. 오디오 스레드에서는 분석하지 않는다. 워크릿은 `?worker&url`로, 워커는 `new Worker(new URL(..., import.meta.url), { type: 'module' })`로 불러온다 (Vite 문서 확인)
+  - 점의 시각은 AudioContext 시계(`startFrame / sampleRate`), 화면의 지금은 `context.currentTime` — 같은 시계다
+  - 소리 받기 노드가 계속 돌도록 출력을 음량 0 GainNode → destination에 잇는다 (스피커로는 안 나감)
+  - AudioContext는 버튼을 누른 직후 `getUserMedia`를 기다리기 전에 만든다 (아이폰 사파리 규칙)
+  - 자동 처리 끄기는 꼭 지켜야 하는 조건(exact)이 아니다. 못 끄는 브라우저에서도 마이크는 켜지고, 실제 상태(`getSettings`)를 화면에 알린다
+- [높이] 화면(W3): 대본은 iOS의 `VoicePractice/Models/PracticeScripts.json`을 직접 읽는다(`vite.config.ts`의 `server.fs.allow`). 직접 쓴 문장·패턴·단어는 `web/src/data/sentences.ts`에 사본이 있고, `web/test/sentences.test.ts`가 iOS Swift 파일과 같은지 확인한다 — **한쪽을 고치면 다른 쪽도 고친다**
+  - 설정은 localStorage에 `ullim.` + iOS와 같은 키 이름으로 둔다 (`model/settingsStorage.ts`). 녹음·숫자 기록 저장은 아직 없다 (W4·[기록])
+  - ‘내 목소리 재기’는 목표 범위의 출발점이라 W3에 넣었다. 마이크 대신 쓰는 ‘테스트 음 (개발용)’ 버튼은 개발 서버에서만 보인다
+  - Svelte 컴포넌트의 스타일은 그 컴포넌트 안의 같은 클래스 이름에 모두 걸린다. 배치용 `div`와 버튼에 같은 클래스(`.main`)를 쓰면 버튼 배경이 화면 전체에 칠해진다 (2026-10-25에 겪음)

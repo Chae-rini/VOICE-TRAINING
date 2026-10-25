@@ -94,7 +94,20 @@
 | `web/package.json`, `web/package-lock.json` | 웹 버전이 쓰는 도구와 정확한 버전, 명령(`dev`·`build`·`test`·`check`) |
 | `web/vite.config.ts`, `web/tsconfig.json` | 웹 빌드·테스트 설정 (상대 경로로 빌드: GitHub Pages·APK 어디서나 열리게) |
 | `web/index.html` | 웹 첫 페이지. 앱 자신의 파일 말고는 연결하지 못하게 막는 CSP (원칙 2) |
-| `web/src/main.ts`, `web/src/App.svelte`, `web/src/app.css` | 웹 화면 시작점. 지금은 분석 코드가 도는지만 보여 주는 자리표시 화면 |
+| `web/src/main.ts`, `web/src/App.svelte`, `web/src/app.css` | 웹 화면 시작점(지금은 [높이] 화면 하나)과 공통 모양. 색은 iOS 색 세트와 같은 값(밝은·어두운 모드) |
+| `web/src/components/PitchScreen.svelte` | [높이] 화면 배치: 위에 고정된 높이·그래프, 스크롤되는 목표 범위·문장, 아래 고정 버튼(마이크 켜기·정지, 들려줄 길이). 처음 열 때 내 목소리 재기 |
+| `web/src/components/LivePanel.svelte` | 지금 높이 숫자, 그래프(캔버스), 음량·공명 막대. 화면을 그릴 때마다 최근 점으로 고친다. 화면 읽기 프로그램용 설명 |
+| `web/src/components/TargetRangeControls.svelte` | 목표 범위 한 줄·슬라이더(반음 눈금, 5 Hz 단위)·기준에서 먼 범위 안내·내 목소리 재기 버튼 |
+| `web/src/components/BaselineSheet.svelte` | 내 목소리 재기 창: 10초 재기, 결과(중앙·범위·F2), 목표 범위를 기준에 맞추기, 저장 |
+| `web/src/components/SentenceCards.svelte`, `ScriptReader.svelte` | 문장 카드(내 문장·자동 생성, 밀어서 넘기기)와 대본 읽기(종류·길이 거르기, 다른 대본, 들려줄 길이 맞추기) |
+| `web/src/components/DurationControl.svelte` | ‘들려줄 길이’ 버튼과 조정 창 (10초~3분) |
+| `web/src/practice/session.svelte.ts` | 마이크 켜고 끄기, 그래프 시계(흐름·멈춤), 내 목소리 재기 10초, 15분 쉬어 가기 안내 |
+| `web/src/graph/pitchGraph.ts` | 그래프 그리기(목표 띠·눈금·기준선·시작선·꺾은선·축 밖 점선·다시 듣기)와 그래프 높이 규칙. 꺾은선 나누기는 순수 함수라 테스트한다 |
+| `web/src/graph/descriptions.ts` | 그래프·막대를 말로 바꾼 설명(iOS와 같은 문장), 쉬어 가기 안내 문구 |
+| `web/src/model/practice.ts` | 들려줄 길이, 내 기준 목소리 재기·처음 목표 범위·먼 범위 판정, 목표 범위 슬라이더 규칙 |
+| `web/src/model/settingsStorage.ts`, `settings.svelte.ts` | 설정을 이 브라우저(localStorage, `ullim.` 키)에 저장하고 읽기. 저장을 막은 브라우저에서도 기본값으로 동작 |
+| `web/src/text/korean.ts`, `sentenceGenerator.ts` | 조사 고르기(을/를 등), 단모음 세기, 자동 생성 문장 (iOS와 같은 규칙) |
+| `web/src/data/sentences.ts`, `scripts.ts` | 직접 쓴 문장·패턴·단어(iOS 파일과 같은지 테스트), 대본은 iOS의 `PracticeScripts.json`을 그대로 읽는다 |
 | `web/src/dsp/pitchDetector.ts` | YIN 피치 검출 (iOS `PitchDetector.swift`를 그대로 옮김) |
 | `web/src/dsp/formantAnalyzer.ts` | LPC 포먼트(F1·F2) 분석 (iOS `FormantAnalyzer.swift`) |
 | `web/src/dsp/pitchScale.ts`, `web/src/dsp/range.ts` | 반음 눈금, 세로축 범위(목표 ±50 Hz), 축 밖 판정, 눈금 숫자 |
@@ -103,6 +116,12 @@
 | `web/src/dsp/voiceMeters.ts`, `web/src/dsp/vowelSpace.ts` | 음량(dBFS) 막대, 공명 밝기(F2) 막대, F1 불확실 규칙 |
 | `web/src/dsp/pitchSummary.ts` | 요약 수치(중앙값·10%·90%·목표 안 비율)와 AI 피드백 요청문 |
 | `web/src/dsp/analysis.ts` | 소리 전체를 연습과 같은 방식으로 분석, 다시 듣기 배율, 녹음 묶음에 넣을 점 고르기 |
-| `web/test/*.test.ts` | iOS 테스트를 옮긴 웹 시험지 + `golden.test.ts`(iOS 정답표와 숫자 비교) |
+| `web/src/dsp/streamAnalyzer.ts` | 마이크에서 조각조각 들어오는 소리를 창(2048샘플, 절반씩 밀기)으로 분석 (iOS `PitchTapProcessor`). 조각 크기와 상관없이 파일 분석과 같은 점 |
+| `web/src/audio/micInput.ts` | 마이크 켜기·끄기: 마이크 → 소리 받기(AudioWorklet) → 분석 스레드(Web Worker) → 화면. 못 켠 까닭별 안내, 개발용 테스트 음 |
+| `web/src/audio/captureProcessor.ts`, `worklet-globals.d.ts` | 소리 받기(오디오 스레드): 128샘플씩 받아 1024샘플로 모아 분석 스레드로 바로 보낸다 |
+| `web/src/audio/analysisWorker.ts` | 분석 스레드: 조각을 받아 높이·포먼트·크기를 재고 점을 화면으로 보낸다 |
+| `web/src/audio/messages.ts` | 소리 받기·분석 스레드·화면이 주고받는 메시지 모양 |
+| `web/src/audio/processing.ts` | 브라우저의 자동 음량 조절·잡음 제거·에코 제거를 끄는 조건, 실제로 꺼졌는지 읽어 안내하기 |
+| `web/test/*.test.ts` | iOS 테스트를 옮긴 웹 시험지 + `golden.test.ts`(iOS 정답표와 숫자 비교), `streamAnalyzer.test.ts`(조각 분석 = 파일 분석), `processing.test.ts`(자동 처리 안내), `sentences.test.ts`(문장 데이터가 iOS와 같은지, 조사·모음·자동 생성·대본), `practice.test.ts`(들려줄 길이·기준·목표 범위·설정 저장), `graph.test.ts`(그래프 크기·꺾은선 나누기·설명 문장) |
 | `web/test/signals.ts` | 웹 테스트용 합성 신호 (iOS 테스트·`Tools/WebGolden`과 같은 식) |
 | `web/test/golden/swift-golden.json` | `Tools/WebGolden`이 만든 정답표. 손으로 고치지 않는다 |
