@@ -70,6 +70,8 @@ final class AudioInputManager {
     var lastTakeTitle: String? { timeline.lastTake?.title }
     /// [s] 마지막 녹음의 길이
     var lastTakeDuration: TimeInterval? { timeline.lastTake?.duration }
+    /// 마지막 녹음을 마친(또는 불러온) 때. 파일로 저장할 때 이름에 쓴다.
+    var lastTakeRecordedAt: Date? { timeline.lastTake?.recordedAt }
     /// 마지막 녹음을 남긴 기록의 ID. 남기지 않았으면 nil
     var lastTakeSavedRecordID: PersistentIdentifier? { timeline.lastTake?.savedRecordID }
     /// 마지막 녹음이 지금 기록에 남아 있는지. 남긴 뒤 [기록] 탭에서 지웠으면 false라서 다시 남길 수 있다.
@@ -382,21 +384,37 @@ final class AudioInputManager {
         guard let take = timeline.lastTake, let original = take.originalSamples else {
             throw AudioFileAnalyzer.AnalysisError.emptyFile
         }
+        let url = Self.newExportURL(extension: "wav")
+        try AudioFileAnalyzer.writeWAV(samples: original, sampleRate: take.buffer.format.sampleRate, to: url)
+        return url
+    }
 
+    /// 마지막 녹음의 원래 소리를 m4a(AAC, 음성 메모와 같은 형식)로 임시 폴더에 만든다. ‘파일로 저장’에서 쓴다.
+    /// 만드는 데 시간이 걸릴 수 있어(3분이면 1초 남짓) 백그라운드에서 한다.
+    func makeLastTakeM4A() async throws -> URL {
+        guard let take = timeline.lastTake, let original = take.originalSamples else {
+            throw AudioFileAnalyzer.AnalysisError.emptyFile
+        }
+        let url = Self.newExportURL(extension: "m4a")
+        let sampleRate = take.buffer.format.sampleRate
+        try await Task.detached(priority: .userInitiated) {
+            try AudioFileAnalyzer.writeM4A(samples: original, sampleRate: sampleRate, to: url)
+        }.value
+        return url
+    }
+
+    /// 내보낼 임시 파일 자리: 지난번에 내보내려고 만든 파일은 지우고(임시 폴더라 iOS도 때때로 비운다) 새 이름을 정한다.
+    private static func newExportURL(extension pathExtension: String) -> URL {
         let directory = FileManager.default.temporaryDirectory
-        // 지난번에 공유하려고 만든 파일은 지운다 (임시 폴더라 iOS도 때때로 비운다).
         if let oldFiles = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
-            for file in oldFiles where Self.isExportFile(named: file.lastPathComponent) {
+            for file in oldFiles where isExportFile(named: file.lastPathComponent) {
                 try? FileManager.default.removeItem(at: file)
             }
         }
-
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withYear, .withMonth, .withDay, .withTime]  // 예: 20261025T061230
         formatter.timeZone = .current
-        let url = directory.appendingPathComponent("\(Self.exportFilePrefix)\(formatter.string(from: .now)).wav")
-        try AudioFileAnalyzer.writeWAV(samples: original, sampleRate: take.buffer.format.sampleRate, to: url)
-        return url
+        return directory.appendingPathComponent("\(exportFilePrefix)\(formatter.string(from: .now)).\(pathExtension)")
     }
 
     /// 연습을 멈춘다 (직접 정지, 전화·알람, 이어폰 연결 변화, 백그라운드 전환).

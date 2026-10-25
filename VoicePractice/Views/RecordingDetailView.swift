@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// 남긴 녹음 하나: 요약 수치, 메모·언어 고치기, 다시 듣기([높이] 탭에서 곡선과 함께), 지우기.
+/// 남긴 녹음 하나: 요약 수치, 메모·언어 고치기, 다시 듣기([높이] 탭에서 곡선과 함께), 파일로 저장, 지우기.
 struct RecordingDetailView: View {
     @Bindable var recording: SavedRecording
     let archive: PracticeArchive
@@ -13,6 +13,10 @@ struct RecordingDetailView: View {
     @State private var isConfirmingDelete = false
     /// 화면이 닫힌 뒤에 지운다. 보고 있는 동안 지우면 화면이 지워진 기록을 읽으려다 멈출 수 있다.
     @State private var deleteOnDisappear = false
+    /// ‘파일로 저장’: 저장 창에 넘길 m4a와 창을 띄울지, 실패했는지
+    @State private var fileToSave: AudioFileDocument?
+    @State private var isExportingFile = false
+    @State private var fileSaveFailed = false
 
     private var fileExists: Bool {
         FileManager.default.fileExists(atPath: archive.fileURL(for: recording).path)
@@ -64,6 +68,22 @@ struct RecordingDetailView: View {
             }
 
             Section {
+                Button {
+                    do {
+                        fileToSave = try AudioFileDocument(url: archive.fileURL(for: recording))
+                        isExportingFile = true
+                    } catch {
+                        fileSaveFailed = true
+                    }
+                } label: {
+                    Label("파일로 저장", systemImage: "square.and.arrow.down")
+                }
+                .disabled(!fileExists)
+            } footer: {
+                Text("m4a 파일을 저장할 곳을 직접 골라요 (나의 iPhone, iCloud Drive 등). iCloud Drive를 고르면 iCloud에 올라가요.")
+            }
+
+            Section {
                 Button("이 녹음 지우기", role: .destructive) {
                     isConfirmingDelete = true
                 }
@@ -71,6 +91,18 @@ struct RecordingDetailView: View {
         }
         .navigationTitle(recording.displayTitle)
         .navigationBarTitleDisplayMode(.inline)
+        .fileExporter(isPresented: $isExportingFile, document: fileToSave, contentType: AudioFileDocument.contentType,
+                      defaultFilename: AudioFileDocument.defaultFileName(for: recording.recordedAt)) { result in
+            if case .failure = result {
+                fileSaveFailed = true
+            }
+            fileToSave = nil
+        }
+        .alert("파일로 저장하지 못했어요", isPresented: $fileSaveFailed) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text("저장 공간을 확인한 뒤 다시 시도해 주세요.")
+        }
         .confirmationDialog("이 녹음을 지울까요?", isPresented: $isConfirmingDelete, titleVisibility: .visible) {
             Button("지우기", role: .destructive) {
                 deleteOnDisappear = true

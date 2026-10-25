@@ -26,6 +26,25 @@ enum PitchScale {
         range.lowerBound * pow(range.upperBound / range.lowerBound, position)
     }
 
+    /// [Hz] [높이] 그래프 세로축의 여유: 목표 범위 위아래로 이만큼만 보여 준다 (2026-10-25 사용자 요청 "밴드 ±50 Hz").
+    /// 70~400 Hz 전체를 그리면 목표 근처의 움직임이 작게 보여서, 목표 범위 둘레를 크게 본다.
+    static let graphMargin = 50.0
+
+    /// [높이] 그래프 세로축 범위: 목표 범위 ±50 Hz (분석 범위 70~400 Hz 안으로). 목표 범위가 없으면 분석 범위 전체.
+    static func graphRange(around target: ClosedRange<Double>?,
+                           within full: ClosedRange<Double> = PitchDetector.frequencyRange) -> ClosedRange<Double> {
+        guard let target else { return full }
+        let lower = max(target.lowerBound - graphMargin, full.lowerBound)
+        let upper = min(target.upperBound + graphMargin, full.upperBound)
+        return lower < upper ? lower...upper : full
+    }
+
+    /// 두 높이 [Hz]가 모두 `range`의 같은 쪽 밖에 있는가. 그래프는 이 구간을 끝에 붙인 점선으로 그린다
+    /// (끝에 붙인 실선은 "그 높이로 평평하게 냈다"로 읽히기 쉬워서).
+    static func isBeyond(_ a: Double, _ b: Double, range: ClosedRange<Double>) -> Bool {
+        (a > range.upperBound && b > range.upperBound) || (a < range.lowerBound && b < range.lowerBound)
+    }
+
     /// 눈금 후보. 반음 눈금에서 고르게 보이는 숫자를 성긴 것부터 고른다.
     private static let tickSets: [[Double]] = [
         [70, 100, 150, 200, 300, 400],
@@ -33,11 +52,11 @@ enum PitchScale {
         Array(stride(from: 70.0, through: 400.0, by: 10)),
     ]
 
-    /// `range` 안의 눈금 [Hz]. 가장 성긴 묶음부터 보고, 눈금이 3개 이상 들어가는 첫 묶음을 쓴다.
-    static func ticks(in range: ClosedRange<Double>) -> [Double] {
+    /// `range` 안의 눈금 [Hz]. 가장 성긴 묶음부터 보고, 눈금이 `minimumCount`개(기본 3개) 이상 들어가는 첫 묶음을 쓴다.
+    static func ticks(in range: ClosedRange<Double>, minimumCount: Int = 3) -> [Double] {
         for set in tickSets {
             let inside = set.filter { range.contains($0) }
-            if inside.count >= 3 {
+            if inside.count >= minimumCount {
                 return inside
             }
         }

@@ -20,6 +20,12 @@ struct ContentView: View {
     /// 파일 고르기 창을 무엇에 쓰는지. 파일 고르기 창은 화면에 하나만 두고 용도만 바꾼다.
     @State private var importPurpose = ImportPurpose.recording
     @State private var sharePayload: SharePayload?
+    /// ‘파일로 저장’: 저장 창에 넘길 m4a, 창을 띄울지, 만드는 중인지, 실패했는지
+    @State private var fileToSave: AudioFileDocument?
+    @State private var fileToSaveName = ""
+    @State private var isExportingFile = false
+    @State private var isPreparingFile = false
+    @State private var fileSaveFailed = false
     @State private var isMeasuringBaseline = false
     @State private var tab = AppTab.pitch
 
@@ -121,25 +127,29 @@ struct ContentView: View {
 
     private var practiceScreen: some View {
         // 높이 숫자와 그래프는 화면 위에 고정하고, 그 아래(목표 범위·요약·문장·대본)만 스크롤한다.
-        // 대본을 내려 읽는 동안에도 그래프를 볼 수 있게.
-        VStack(spacing: 0) {
-            PitchGraphView(
-                history: audio.history,
-                currentFrequency: audio.currentFrequency,
-                clock: audio.graphClock,
-                caption: graphCaption,
-                idleDuration: practiceDuration,
-                isCompact: sentenceSource == .scripts
-            )
-            .padding(.horizontal)
-            .padding(.top, 8)
-            .padding(.bottom, 10)
+        // 대본을 내려 읽는 동안에도 그래프를 볼 수 있게. 그래프 높이는 쓸 수 있는 화면 높이에 맞춘다.
+        GeometryReader { proxy in
+            let isReading = sentenceSource == .scripts
+            VStack(spacing: 0) {
+                PitchGraphView(
+                    history: audio.history,
+                    currentFrequency: audio.currentFrequency,
+                    clock: audio.graphClock,
+                    caption: graphCaption,
+                    idleDuration: practiceDuration,
+                    isCompact: isReading,
+                    graphHeight: PitchGraphView.graphHeight(available: proxy.size.height, isCompact: isReading)
+                )
+                .padding(.horizontal)
+                .padding(.top, 8)
+                .padding(.bottom, 10)
 
-            Divider()
+                Divider()
 
-            ScrollView {
-                practiceContent
-                    .padding()
+                ScrollView {
+                    practiceContent
+                        .padding()
+                }
             }
         }
         // 시작 버튼은 스크롤과 상관없이 항상 화면 아래에 보이게 한다.
@@ -152,6 +162,19 @@ struct ContentView: View {
             audio.clearMeasurement()
         }) {
             BaselineMeasureView(audio: audio)
+        }
+        // ‘파일로 저장’: 저장할 곳은 iOS 파일 저장 창에서 사용자가 고른다 (나의 iPhone, iCloud Drive 등).
+        .fileExporter(isPresented: $isExportingFile, document: fileToSave, contentType: AudioFileDocument.contentType,
+                      defaultFilename: fileToSaveName) { result in
+            if case .failure = result {
+                fileSaveFailed = true
+            }
+            fileToSave = nil
+        }
+        .alert("파일로 저장하지 못했어요", isPresented: $fileSaveFailed) {
+            Button("확인", role: .cancel) {}
+        } message: {
+            Text("저장 공간을 확인한 뒤 다시 시도해 주세요.")
         }
         .onAppear {
             // 처음 실행할 때 한 번: 기준 목소리를 아직 안 쟀으면 재기 화면을 띄운다 ("나중에"로 건너뛸 수 있음).
@@ -169,8 +192,6 @@ struct ContentView: View {
                 isMeasuringBaseline = true
             }
 
-            MeterGuideView()
-
             if let summary, let title = audio.lastTakeTitle {
                 RecordingSummaryView(
                     title: title, summary: summary, isSaved: lastTakeIsSaved, isSaving: audio.isSavingTake,
@@ -179,13 +200,19 @@ struct ContentView: View {
                     },
                     onShare: { includesAudio in
                         share(summary: summary, title: title, includesAudio: includesAudio)
-                    }
+                    },
+                    isPreparingFile: isPreparingFile,
+                    onSaveFile: saveLastTakeToFiles
                 )
             }
 
+            SentenceCardView(isPracticing: audio.isRunning)
+
+            // 말하는 언어는 문장 아래에 둔다 (그래프가 커져서, 문장이 먼저 보이게).
             languageRow
 
-            SentenceCardView(isPracticing: audio.isRunning)
+            // 막대 보는 법은 문장 아래에 둔다 (그래프가 커져서, 문장 카드가 너무 아래로 밀리지 않게).
+            MeterGuideView()
         }
     }
 
@@ -241,6 +268,23 @@ struct ContentView: View {
     private var summary: PitchSummary? {
         if case .recording = audio.loop.phase { return nil }
         return audio.lastTakeSummary(target: target)
+    }
+
+    /// 마지막 녹음을 m4a로 만들어 파일 저장 창을 연다.
+    private func saveLastTakeToFiles() {
+        guard !isPreparingFile else { return }
+        isPreparingFile = true
+        Task {
+            defer { isPreparingFile = false }
+            do {
+                let url = try await audio.makeLastTakeM4A()
+                fileToSave = try AudioFileDocument(url: url)
+                fileToSaveName = AudioFileDocument.defaultFileName(for: audio.lastTakeRecordedAt ?? .now)
+                isExportingFile = true
+            } catch {
+                fileSaveFailed = true
+            }
+        }
     }
 
     private func share(summary: PitchSummary, title: String, includesAudio: Bool) {

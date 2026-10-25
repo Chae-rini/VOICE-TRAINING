@@ -14,8 +14,17 @@ struct PitchGraphView: View {
     let caption: String
     /// [s] 아직 녹음이 없을 때 보여 줄 가로축 길이 (지금 ‘들려줄 길이’)
     var idleDuration: TimeInterval = PracticeDuration.defaultSeconds
-    /// 읽기 모드: 대본을 읽는 동안 그래프를 낮게(150pt), 큰 숫자를 한 줄로 작게 줄여 대본 자리를 넓힌다.
+    /// 읽기 모드: 대본을 읽는 동안 그래프를 낮게, 큰 숫자를 한 줄로 작게 줄여 대본 자리를 넓힌다.
     var isCompact = false
+    /// [pt] 그래프 높이. 화면 높이에 맞춰 정한다 (`graphHeight(available:isCompact:)`).
+    var graphHeight: CGFloat = 220
+
+    /// 그래프 높이 [pt]: [높이] 화면에서 쓸 수 있는 높이의 45%(대본 읽기 모드는 33%).
+    /// 작은 화면에서도 너무 낮지 않게(220·150pt), 큰 화면에서도 아래 문장 자리를 남기게(380·280pt) 막는다.
+    /// 2026-10-25 사용자 요청 "그래프를 더 크게": 예전에는 220·150pt로 고정이었다.
+    static func graphHeight(available: CGFloat, isCompact: Bool) -> CGFloat {
+        isCompact ? min(max(available * 0.33, 150), 280) : min(max(available * 0.45, 220), 380)
+    }
 
     @Environment(\.displayScale) private var displayScale
 
@@ -25,7 +34,10 @@ struct PitchGraphView: View {
     /// 내 기준 목소리의 F2 중앙값 (공명 밝기 막대의 가운데)
     @AppStorage(TargetRangeStore.baselineF2Key) private var baselineF2: Double?
 
-    private let axisRange = PitchDetector.frequencyRange  // [Hz] 세로축 70~400 (반음 눈금)
+    /// [Hz] 세로축 범위 (반음 눈금): 목표 범위 ±50 Hz. 목표 범위가 없으면 70~400 Hz 전체.
+    private var axisRange: ClosedRange<Double> {
+        PitchScale.graphRange(around: target)
+    }
     /// 목표 범위 안의 목소리 (분홍). 목표 범위 밖은 회색.
     private let inRangeColor = UllimColor.voice
     private let outOfRangeColor = UllimColor.inactive
@@ -57,7 +69,7 @@ struct PitchGraphView: View {
                 Canvas { context, size in
                     drawGraph(in: &context, size: size, window: window, endTime: endTime)
                 }
-                .frame(height: isCompact ? 150 : 220)
+                .frame(height: graphHeight)
                 .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
                 // 눈금 숫자는 그래프 왼쪽의 정해진 칸(40pt)에 들어가야 해서 아주 큰 글자에서는 더 키우지 않는다.
                 .dynamicTypeSize(...DynamicTypeSize.xxLarge)
@@ -263,7 +275,8 @@ struct PitchGraphView: View {
     /// VoiceOver로 읽을 그래프 설명.
     /// 예: "가로축 1분, 녹음 시작부터 0:35, 목표 범위 130에서 320 Hz, 기준 200 Hz, 지금 152 Hz, 목표 범위 안"
     private func graphDescription(_ frequency: Double?, window: GraphWindow, endTime: TimeInterval) -> String {
-        var parts = ["가로축 \(PitchSummary.durationLabel(window.duration))"]
+        var parts = ["가로축 \(PitchSummary.durationLabel(window.duration))",
+                     "세로축 \(Int(axisRange.lowerBound))에서 \(Int(axisRange.upperBound)) Hz"]
         let elapsed = GraphWindow.timeLabel(endTime - (window.recordingStart ?? window.start))
         if case .replay = clock {
             parts.append("재생 위치 \(elapsed)")
@@ -292,15 +305,16 @@ struct PitchGraphView: View {
     // MARK: - 그래프
 
     private func drawGraph(in context: inout GraphicsContext, size: CGSize, window: GraphWindow, endTime: TimeInterval) {
-        // 왼쪽은 Hz 숫자, 아래는 시간 표시 자리로 비워 둔다.
-        let plot = CGRect(x: 40, y: 12, width: size.width - 52, height: size.height - 36)
+        // 왼쪽은 Hz 숫자(세 자리), 아래는 시간 표시 자리로 비워 둔다. 그래프가 넓게 보이게 양옆 여백은 좁게.
+        let plot = CGRect(x: 34, y: 12, width: size.width - 42, height: size.height - 36)
 
         // 가로: 가로축 구간 안의 위치. 세로: 반음 눈금 (Hz가 아니라 비율(반음) 간격으로 위치를 정한다).
         func x(_ time: TimeInterval) -> CGFloat {
             plot.minX + CGFloat(window.position(of: time)) * plot.width
         }
         func y(_ frequency: Double) -> CGFloat {
-            plot.maxY - CGFloat(PitchScale.position(of: frequency, in: axisRange)) * plot.height
+            // 세로축 밖의 높이는 위·아래 끝에 붙여 점선으로 그린다 (그래프에서 사라지지 않게, 큰 숫자에는 실제 값이 보인다).
+            plot.maxY - CGFloat(min(max(PitchScale.position(of: frequency, in: axisRange), 0), 1)) * plot.height
         }
 
         // 목표 범위 띠
@@ -310,8 +324,9 @@ struct PitchGraphView: View {
             context.fill(Path(band), with: .color(targetColor.opacity(UllimColor.bandOpacity)))
         }
 
-        // 눈금 70·100·150·200·300·400 Hz (반음 눈금에서 고르게 보이는 숫자)
-        for frequency in PitchScale.ticks(in: axisRange) {
+        // Hz 눈금: 세로축 범위 안에서 반음 눈금에 고르게 보이는 숫자 (예: 100·150·200, 좁으면 더 촘촘히)
+        // 세로축이 목표 범위 둘레로 좁아서 눈금을 5개 이상 둔다 (예: 90·100·125·150·175·200).
+        for frequency in PitchScale.ticks(in: axisRange, minimumCount: 5) {
             var line = Path()
             line.move(to: CGPoint(x: plot.minX, y: y(frequency)))
             line.addLine(to: CGPoint(x: plot.maxX, y: y(frequency)))
@@ -338,8 +353,8 @@ struct PitchGraphView: View {
             )
         }
 
-        // 내 기준 목소리(중앙값): 얇은 점선과 "기준" 글자
-        if let baselineMedian {
+        // 내 기준 목소리(중앙값): 얇은 점선과 "기준" 글자. 세로축(목표 범위 ±50 Hz) 밖이면 긋지 않는다.
+        if let baselineMedian, axisRange.contains(baselineMedian) {
             var line = Path()
             line.move(to: CGPoint(x: plot.minX, y: y(baselineMedian)))
             line.addLine(to: CGPoint(x: plot.maxX, y: y(baselineMedian)))
@@ -395,6 +410,8 @@ struct PitchGraphView: View {
         let outsideDotSize: CGFloat = 3.5
         var inside = Path()
         var outside = Path()
+        var beyondAxis = Path()  // 세로축 밖 (위·아래 끝에 붙인 점선)
+        var beyondAxisEnd: CGPoint?
         var lonelyInside = Path()
         var lonelyOutside = Path()
         for segment in segments {
@@ -412,7 +429,15 @@ struct PitchGraphView: View {
             for (previous, next) in zip(segment, segment.dropFirst()) {
                 guard let a = point(previous), let b = point(next),
                       let f1 = previous.frequency, let f2 = next.frequency else { continue }
-                if isInTarget((f1 + f2) / 2) {
+                if PitchScale.isBeyond(f1, f2, range: axisRange) {
+                    // 이어지는 조각은 한 선으로 잇는다. 조각마다 새로 시작하면 점선 무늬도 조각마다 처음부터라 실선처럼 보인다.
+                    // (Path.currentPoint는 Float 정밀도로 돌아와 a와 같지 않으므로 끝점을 따로 기억한다)
+                    if beyondAxisEnd != a {
+                        beyondAxis.move(to: a)
+                    }
+                    beyondAxis.addLine(to: b)
+                    beyondAxisEnd = b
+                } else if isInTarget((f1 + f2) / 2) {
                     inside.move(to: a)
                     inside.addLine(to: b)
                 } else {
@@ -424,6 +449,8 @@ struct PitchGraphView: View {
         func drawCurve(in layer: inout GraphicsContext) {
             layer.stroke(outside, with: .color(outOfRangeColor),
                          style: StrokeStyle(lineWidth: outsideWidth, lineCap: .round, lineJoin: .round))
+            layer.stroke(beyondAxis, with: .color(outOfRangeColor),
+                         style: StrokeStyle(lineWidth: outsideWidth, lineCap: .round, dash: [2, 4]))
             layer.stroke(inside, with: .color(inRangeColor),
                          style: StrokeStyle(lineWidth: insideWidth, lineCap: .round, lineJoin: .round))
             layer.fill(lonelyOutside, with: .color(outOfRangeColor))

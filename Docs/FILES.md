@@ -59,12 +59,14 @@
 | `VoicePractice/Views/KoreanLineBreaking.swift` | 한글 문장이 단어 중간이 아니라 띄어쓰기에서 줄바꿈되게 하는 도구 |
 | `VoicePracticeTests/PracticeScriptTests.swift` | 대본 200편의 길이·금지어·숫자·중복과 꺾은선 끊기 규칙을 확인하는 시험지 |
 | `VoicePractice/Views/PitchGraphView.swift` | [높이] 위에 고정되는 현재 Hz 숫자와 피치 그래프(반음 눈금, 가로축 = 들려줄 길이, 시간 눈금, 시작·n번째 선, 재생 위치 선, 대본 읽기 모드)와 그 아래 음량·공명 밝기 막대. 같은 파일의 `MeterGuideView`는 막대 보는 법, `TargetRangeControls`는 목표 범위 줄·슬라이더·내 목소리 재기 버튼 |
+| `VoicePractice/Views/AudioFileDocument.swift` | ‘파일로 저장’에서 iOS 파일 저장 창에 넘기는 m4a 파일과 처음 파일 이름(Ullim-날짜-시각) |
+| `VoicePracticeTests/AudioFileExportTests.swift` | 파일 이름·확장자(.m4a), 마지막 녹음 m4a 만들기·다시 재기·임시 파일 정리, 그래프 높이를 확인하는 시험지 |
 | `VoicePractice/Models/VoiceMeters.swift` | [높이] 탭 음량 막대(dBFS, 0.3초 평활, 큰 소리 3초 지속 판정)와 공명 밝기 막대(최근 2.5초 F2 중앙값, 기준 대비 위치) 계산 |
 | `VoicePracticeTests/VoiceMetersTests.swift` | 음량·평활·큰 소리 판정, F2 이동 중앙값, 기준 대비 위치, F2 저장을 확인하는 시험지 |
 | `VoicePractice/Models/GraphWindow.swift` | 피치 그래프 가로축 계산: 보이는 시간 구간(오른쪽 끝 = 지금), 시간 눈금 간격·글자, 시작선 |
 | `VoicePracticeTests/GraphWindowTests.swift` | 그래프 구간·시간 눈금·시작선·점 묶기를 확인하는 시험지 |
-| `VoicePractice/Models/PitchScale.swift` | 반음 눈금 계산: 두 높이의 반음 거리, 반음만큼 옮기기, 그래프 위치(로그 눈금), 눈금 숫자 고르기 |
-| `VoicePracticeTests/PitchScaleTests.swift` | 반음 계산·위치·같은 반음 = 같은 길이·눈금을 확인하는 시험지 |
+| `VoicePractice/Models/PitchScale.swift` | 반음 눈금 계산: 두 높이의 반음 거리, 반음만큼 옮기기, 그래프 위치(로그 눈금), [높이] 세로축 범위(목표 ±50 Hz)와 축 밖 판정, 눈금 숫자 고르기 |
+| `VoicePracticeTests/PitchScaleTests.swift` | 반음 계산·위치·같은 반음 = 같은 길이·세로축 범위·축 밖 판정·눈금을 확인하는 시험지 |
 | `VoicePractice/Views/SentenceCardView.swift` | 연습 문장을 카드로 보여 주고 넘기는 화면 조각. 내 문장/자동 생성 전환 포함 |
 | `VoicePractice/Views/PracticeDurationView.swift` | ‘들려줄 길이’(예전 이름 연습 시간) 작은 버튼과, 누르면 뜨는 슬라이더 창 |
 | `VoicePractice/Views/PermissionDeniedView.swift` | 마이크 권한이 꺼졌을 때 켜는 방법을 알려 주는 화면 |
