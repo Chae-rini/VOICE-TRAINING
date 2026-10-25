@@ -3,7 +3,10 @@ import SwiftUI
 /// 한국어 연습 문장 카드. 좌우로 밀거나 이전/다음 버튼으로 넘긴다.
 /// 직접 쓴 문장, 패턴으로 자동 생성한 문장, 긴 낭독 대본 중에서 고를 수 있다.
 struct SentenceCardView: View {
-    private enum Source: String, CaseIterable, Identifiable {
+    /// 고른 문장 종류를 저장하는 키. [높이] 화면이 대본을 읽는 중인지 알아 그래프를 줄이는 데도 쓴다.
+    static let sourceKey = "sentenceSource"
+
+    enum Source: String, CaseIterable, Identifiable {
         case mine = "내 문장"
         case generated = "자동 생성"
         case scripts = "대본"
@@ -14,7 +17,7 @@ struct SentenceCardView: View {
     /// 연습 중인지. 대본의 "들려줄 길이 맞추기"를 잠그는 데 쓴다.
     let isPracticing: Bool
 
-    @AppStorage("sentenceSource") private var source = Source.mine
+    @AppStorage(Self.sourceKey) private var source = Source.mine
     @State private var generatedSentences: [String] = []
     @State private var index = 0
     /// 문장 묶음이 바뀔 때마다 늘려서 카드 넘김 상태를 처음부터 다시 그리게 한다.

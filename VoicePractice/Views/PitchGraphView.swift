@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// 현재 피치 숫자 + 최근 10초 피치 그래프 + 목표 범위 슬라이더.
-/// 녹음 중에는 실시간으로, 녹음을 다시 들을 때는 그때의 곡선을 소리와 같은 속도로 흘려 보여준다.
+/// 현재 피치 숫자 + 피치 그래프. [높이] 화면 위에 고정되어, 아래의 문장·대본을 넘겨도 늘 보인다.
+/// 가로축은 ‘들려줄 길이’(10초~3분)다 (GraphWindow). 녹음 중에는 오른쪽 끝이 지금이고 곡선과 시간 눈금이 왼쪽으로 흐르며,
+/// 다시 들을 때는 녹음 전체를 그대로 두고 재생 위치에 세로선을 움직인다.
 /// 내 기준 목소리를 쟀으면 그 중앙값을 점선으로 보여 준다. 목표 범위는 기준을 잰 뒤에 생긴다 (방향을 미리 정하지 않음).
 /// 세로축은 반음 눈금이다 (PitchScale): 같은 반음 폭은 어느 높이에서든 같은 길이로 그려진다.
 struct PitchGraphView: View {
@@ -11,19 +12,18 @@ struct PitchGraphView: View {
     let clock: GraphClock
     /// 큰 숫자 아래의 안내 문구 ("현재 목소리 높이", "녹음 다시 듣는 중" 등)
     let caption: String
-    /// 연습 중에는 내 목소리 재기를 막는다.
-    var canMeasure = true
-    /// "내 목소리 재기" 화면을 연다.
-    var onMeasure: () -> Void = {}
+    /// [s] 아직 녹음이 없을 때 보여 줄 가로축 길이 (지금 ‘들려줄 길이’)
+    var idleDuration: TimeInterval = PracticeDuration.defaultSeconds
+    /// 읽기 모드: 대본을 읽는 동안 그래프를 낮게(150pt), 큰 숫자를 한 줄로 작게 줄여 대본 자리를 넓힌다.
+    var isCompact = false
+
+    @Environment(\.displayScale) private var displayScale
 
     @AppStorage(TargetRangeStore.lowerKey) private var targetLower: Double?
     @AppStorage(TargetRangeStore.upperKey) private var targetUpper: Double?
     @AppStorage(TargetRangeStore.baselineMedianKey) private var baselineMedian: Double?
-    /// 목표 범위 슬라이더를 펼쳤는지 (평소에는 한 줄로 접어 둔다)
-    @State private var isAdjustingTarget = false
 
     private let axisRange = PitchDetector.frequencyRange  // [Hz] 세로축 70~400 (반음 눈금)
-    private let minimumGap = 10.0                          // [Hz] 하한과 상한의 최소 간격
     /// 목표 범위 안의 목소리 (분홍). 목표 범위 밖은 회색.
     private let inRangeColor = UllimColor.voice
     private let outOfRangeColor = UllimColor.inactive
@@ -39,27 +39,31 @@ struct PitchGraphView: View {
     }
 
     var body: some View {
-        VStack(spacing: 12) {
-            // 녹음 중이거나 다시 듣는 중에만 초당 30번 다시 그린다. 멈추면 그 순간의 10초를 그대로 보여준다.
-            TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !clock.isMoving)) { _ in
-                let endTime = clock.endTime(now: AudioClock.now)
-                let frequency = displayedFrequency(at: endTime)
-                VStack(spacing: 12) {
+        // 녹음 중이거나 다시 듣는 중에만 초당 30번 다시 그린다. 멈추면 마지막 녹음을 그대로 보여 준다.
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !clock.isMoving)) { _ in
+            let now = AudioClock.now
+            let endTime = clock.endTime(now: now)
+            // 아직 녹음이 없으면 지금 ‘들려줄 길이’만큼의 빈 가로축을 보여 준다.
+            let window = clock.window(now: now) ?? GraphWindow(start: endTime - idleDuration, duration: idleDuration)
+            let frequency = displayedFrequency(at: endTime)
+            VStack(spacing: isCompact ? 4 : 8) {
+                if isCompact {
+                    compactPitchLabel(frequency)
+                } else {
                     currentPitchLabel(frequency)
-                    Canvas { context, size in
-                        drawGraph(in: &context, size: size, endTime: endTime)
-                    }
-                    .frame(height: 220)
-                    .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
-                    // 눈금 숫자는 그래프 왼쪽의 정해진 칸(40pt)에 들어가야 해서 아주 큰 글자에서는 더 키우지 않는다.
-                    .dynamicTypeSize(...DynamicTypeSize.xxLarge)
-                    // 그림이라 VoiceOver가 읽을 것이 없으므로, 그래프가 보여 주는 내용을 말로 붙인다.
-                    .accessibilityElement()
-                    .accessibilityLabel("최근 10초 목소리 높이 그래프")
-                    .accessibilityValue(graphDescription(frequency))
                 }
+                Canvas { context, size in
+                    drawGraph(in: &context, size: size, window: window, endTime: endTime)
+                }
+                .frame(height: isCompact ? 150 : 220)
+                .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+                // 눈금 숫자는 그래프 왼쪽의 정해진 칸(40pt)에 들어가야 해서 아주 큰 글자에서는 더 키우지 않는다.
+                .dynamicTypeSize(...DynamicTypeSize.xxLarge)
+                // 그림이라 VoiceOver가 읽을 것이 없으므로, 그래프가 보여 주는 내용을 말로 붙인다.
+                .accessibilityElement()
+                .accessibilityLabel("목소리 높이 그래프, 가로축 \(PitchSummary.durationLabel(window.duration))")
+                .accessibilityValue(graphDescription(frequency, window: window, endTime: endTime))
             }
-            targetRangeControls
         }
     }
 
@@ -91,9 +95,37 @@ struct PitchGraphView: View {
         .accessibilityElement(children: .combine)
     }
 
-    /// VoiceOver로 읽을 그래프 설명. 예: "목표 범위 130에서 320 Hz, 기준 200 Hz, 지금 152 Hz, 목표 범위 안"
-    private func graphDescription(_ frequency: Double?) -> String {
-        var parts: [String] = []
+    /// 읽기 모드의 한 줄: "152 Hz · 현재 목소리 높이 · 목표 범위 안"
+    private func compactPitchLabel(_ frequency: Double?) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(frequency.map { "\(Int($0.rounded()))" } ?? "–")
+                .font(.system(size: 28, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(isInTarget(frequency) ? inRangeColor : .primary)
+            Text("Hz")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Text(isInTarget(frequency) ? "\(caption) · 목표 범위 안" : caption)
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+        }
+        // 고정된 영역이라 아주 큰 글자에서도 한 줄을 지킨다.
+        .dynamicTypeSize(...DynamicTypeSize.xxLarge)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// VoiceOver로 읽을 그래프 설명.
+    /// 예: "가로축 1분, 녹음 시작부터 0:35, 목표 범위 130에서 320 Hz, 기준 200 Hz, 지금 152 Hz, 목표 범위 안"
+    private func graphDescription(_ frequency: Double?, window: GraphWindow, endTime: TimeInterval) -> String {
+        var parts = ["가로축 \(PitchSummary.durationLabel(window.duration))"]
+        let elapsed = GraphWindow.timeLabel(endTime - (window.recordingStart ?? window.start))
+        if case .replay = clock {
+            parts.append("재생 위치 \(elapsed)")
+        } else if window.recordingStart != nil {
+            parts.append("녹음 시작부터 \(elapsed)")
+        }
         if let target {
             parts.append("목표 범위 \(Int(target.lowerBound))에서 \(Int(target.upperBound)) Hz")
         } else {
@@ -115,11 +147,14 @@ struct PitchGraphView: View {
 
     // MARK: - 그래프
 
-    private func drawGraph(in context: inout GraphicsContext, size: CGSize, endTime: TimeInterval) {
+    private func drawGraph(in context: inout GraphicsContext, size: CGSize, window: GraphWindow, endTime: TimeInterval) {
         // 왼쪽은 Hz 숫자, 아래는 시간 표시 자리로 비워 둔다.
         let plot = CGRect(x: 40, y: 12, width: size.width - 52, height: size.height - 36)
 
-        // 반음 눈금: Hz가 아니라 비율(반음) 간격으로 위치를 정한다.
+        // 가로: 가로축 구간 안의 위치. 세로: 반음 눈금 (Hz가 아니라 비율(반음) 간격으로 위치를 정한다).
+        func x(_ time: TimeInterval) -> CGFloat {
+            plot.minX + CGFloat(window.position(of: time)) * plot.width
+        }
         func y(_ frequency: Double) -> CGFloat {
             plot.maxY - CGFloat(PitchScale.position(of: frequency, in: axisRange)) * plot.height
         }
@@ -143,16 +178,21 @@ struct PitchGraphView: View {
                 anchor: .trailing
             )
         }
-        context.draw(
-            Text("10초 전").font(.caption2).foregroundStyle(.secondary),
-            at: CGPoint(x: plot.minX, y: plot.maxY + 6),
-            anchor: .topLeading
-        )
-        context.draw(
-            Text("지금").font(.caption2).foregroundStyle(.secondary),
-            at: CGPoint(x: plot.maxX, y: plot.maxY + 6),
-            anchor: .topTrailing
-        )
+
+        // 시간 눈금: 녹음을 시작한 때부터 몇 분 몇 초인지 ("0:30"). 양 끝 글자는 그래프 밖으로 나가지 않게 붙인다.
+        for tick in window.ticks {
+            let tickX = x(tick.time)
+            var line = Path()
+            line.move(to: CGPoint(x: tickX, y: plot.minY))
+            line.addLine(to: CGPoint(x: tickX, y: plot.maxY))
+            context.stroke(line, with: .color(.secondary.opacity(0.15)), lineWidth: 0.5)
+            let anchor: UnitPoint = tickX < plot.minX + 12 ? .topLeading : (tickX > plot.maxX - 12 ? .topTrailing : .top)
+            context.draw(
+                Text(tick.label).font(.caption2).monospacedDigit().foregroundStyle(.secondary),
+                at: CGPoint(x: tickX, y: plot.maxY + 6),
+                anchor: anchor
+            )
+        }
 
         // 내 기준 목소리(중앙값): 얇은 점선과 "기준" 글자
         if let baselineMedian {
@@ -167,16 +207,42 @@ struct PitchGraphView: View {
             )
         }
 
-        // 피치 꺾은선: 오른쪽이 지금, 왼쪽으로 갈수록 과거. 무음 구간은 선을 끊어 빈칸으로 남긴다.
+        // 녹음 시작선: 녹음을 시작한 때가 가로축 안에 있을 때만 (오래 녹음해 흘러가면 왼쪽 밖으로 사라진다).
+        // 첫 녹음은 실선 "시작", 반복 루프에서 다시 녹음한 것은 점선 "2번째"처럼 모양을 다르게 한다.
+        if window.showsStartLine, let recordingStart = window.recordingStart {
+            let startX = max(x(recordingStart), plot.minX)
+            var line = Path()
+            line.move(to: CGPoint(x: startX, y: plot.minY))
+            line.addLine(to: CGPoint(x: startX, y: plot.maxY))
+            let style = window.isRoundBoundary
+                ? StrokeStyle(lineWidth: 1.5, dash: [4, 3])
+                : StrokeStyle(lineWidth: 1.5)
+            context.stroke(line, with: .color(.secondary.opacity(0.8)), style: style)
+            // 막 시작해 선이 오른쪽 끝 가까이 있으면 글자를 선 왼쪽에 붙인다 (그래프 밖으로 나가지 않게).
+            let labelOnLeft = startX > plot.maxX - 44
+            context.draw(
+                Text(window.startLabel).font(.caption2.weight(.medium)).foregroundStyle(.secondary),
+                at: CGPoint(x: labelOnLeft ? startX - 4 : startX + 4, y: plot.minY + 2),
+                anchor: labelOnLeft ? .topTrailing : .topLeading
+            )
+        }
+
+        // 피치 꺾은선: 무음 구간은 선을 끊어 빈칸으로 남긴다.
         // 선분마다 두 끝점의 가운데 높이가 목표 범위 안이면 분홍(목소리 색), 밖이면 회색으로 칠한다.
         func point(_ reading: PitchReading) -> CGPoint? {
             guard let frequency = reading.frequency else { return nil }
-            let age = endTime - reading.time  // [s] 몇 초 전인지
-            let x = min(plot.maxX, plot.maxX - CGFloat(age / history.visibleDuration) * plot.width)
-            return CGPoint(x: x, y: y(frequency))
+            return CGPoint(x: x(reading.time), y: y(frequency))
         }
-        // 보이는 10초(왼쪽 끝을 조금 넘는 데까지)만 그린다. 다시 듣는 중에는 아직 재생되지 않은 뒷부분을 그리지 않는다.
-        let visibleTimes = (endTime - history.visibleDuration - 0.5)...endTime
+        // 녹음 중·멈춘 화면은 "지금"까지, 다시 듣는 중에는 녹음 전체를 그린다 (아직 재생되지 않은 뒷부분은 흐리게).
+        let isReplaying: Bool
+        if case .replay = clock {
+            isReplaying = true
+        } else {
+            isReplaying = false
+        }
+        // 화면 폭보다 촘촘한 점은 같은 픽셀 열마다 하나로 묶는다 (3분이면 점이 8천 개가 넘는다).
+        let segments = history.displaySegments(in: window, until: isReplaying ? window.end : endTime,
+                                               width: Double(plot.width * displayScale))
 
         // 목표 범위 안은 굵게, 밖은 가늘게: 색을 구분하기 어려워도 굵기로 알 수 있다.
         let insideWidth: CGFloat = 3.5
@@ -187,7 +253,7 @@ struct PitchGraphView: View {
         var outside = Path()
         var lonelyInside = Path()
         var lonelyOutside = Path()
-        for segment in history.voicedSegments(within: visibleTimes) {
+        for segment in segments {
             // 앞뒤로 이어진 점이 없는 외톨이 점은 선이 안 보이므로 작은 점으로 그린다.
             if segment.count == 1, let only = segment.first, let p = point(only) {
                 if isInTarget(only.frequency) {
@@ -211,15 +277,70 @@ struct PitchGraphView: View {
                 }
             }
         }
+        func drawCurve(in layer: inout GraphicsContext) {
+            layer.stroke(outside, with: .color(outOfRangeColor),
+                         style: StrokeStyle(lineWidth: outsideWidth, lineCap: .round, lineJoin: .round))
+            layer.stroke(inside, with: .color(inRangeColor),
+                         style: StrokeStyle(lineWidth: insideWidth, lineCap: .round, lineJoin: .round))
+            layer.fill(lonelyOutside, with: .color(outOfRangeColor))
+            layer.fill(lonelyInside, with: .color(inRangeColor))
+        }
 
-        // 10초보다 오래된 부분은 그래프 왼쪽 밖으로 잘라 낸다.
+        // 가로축 구간 밖(흘러간 앞부분)은 그래프 밖으로 잘라 낸다.
         context.clip(to: Path(plot.insetBy(dx: -dotSize, dy: -dotSize)))
-        context.stroke(outside, with: .color(outOfRangeColor),
-                       style: StrokeStyle(lineWidth: outsideWidth, lineCap: .round, lineJoin: .round))
-        context.stroke(inside, with: .color(inRangeColor),
-                       style: StrokeStyle(lineWidth: insideWidth, lineCap: .round, lineJoin: .round))
-        context.fill(lonelyOutside, with: .color(outOfRangeColor))
-        context.fill(lonelyInside, with: .color(inRangeColor))
+        guard isReplaying else {
+            drawCurve(in: &context)
+            return
+        }
+        // 다시 듣는 중: 재생한 앞부분은 그대로, 아직 재생하지 않은 뒷부분은 흐리게, 재생 위치에 세로선
+        let playheadX = min(max(x(endTime), plot.minX), plot.maxX)
+        context.drawLayer { layer in
+            layer.clip(to: Path(CGRect(x: 0, y: 0, width: playheadX, height: size.height)))
+            drawCurve(in: &layer)
+        }
+        context.drawLayer { layer in
+            layer.clip(to: Path(CGRect(x: playheadX, y: 0, width: size.width - playheadX, height: size.height)))
+            layer.opacity = 0.3
+            drawCurve(in: &layer)
+        }
+        var playhead = Path()
+        playhead.move(to: CGPoint(x: playheadX, y: plot.minY))
+        playhead.addLine(to: CGPoint(x: playheadX, y: plot.maxY))
+        context.stroke(playhead, with: .color(.primary.opacity(0.6)), lineWidth: 1.5)
+    }
+
+    private func isInTarget(_ frequency: Double?) -> Bool {
+        guard let frequency, let target else { return false }
+        return target.contains(frequency)
+    }
+}
+
+/// 목표 범위 한 줄(접기·펼치기)과 슬라이더, 내 목소리 재기 버튼. [높이] 화면에서 그래프 아래, 문장과 함께 스크롤된다.
+struct TargetRangeControls: View {
+    /// 연습 중에는 내 목소리 재기를 막는다.
+    var canMeasure = true
+    /// "내 목소리 재기" 화면을 연다.
+    var onMeasure: () -> Void = {}
+
+    @AppStorage(TargetRangeStore.lowerKey) private var targetLower: Double?
+    @AppStorage(TargetRangeStore.upperKey) private var targetUpper: Double?
+    @AppStorage(TargetRangeStore.baselineMedianKey) private var baselineMedian: Double?
+    /// 목표 범위 슬라이더를 펼쳤는지 (평소에는 한 줄로 접어 둔다)
+    @State private var isAdjustingTarget = false
+
+    private let axisRange = PitchDetector.frequencyRange  // [Hz] 슬라이더 범위 70~400 (그래프와 같은 반음 눈금)
+    private let minimumGap = 10.0                          // [Hz] 하한과 상한의 최소 간격
+    private let targetColor = UllimColor.target
+    private let baselineColor = UllimColor.reference
+
+    /// 저장된 목표 범위. 아직 없으면 nil.
+    private var target: ClosedRange<Double>? {
+        guard let targetLower, let targetUpper else { return nil }
+        return min(targetLower, targetUpper)...max(targetLower, targetUpper)
+    }
+
+    var body: some View {
+        targetRangeControls
     }
 
     // MARK: - 목표 범위
@@ -347,14 +468,12 @@ struct PitchGraphView: View {
     private func snapped(_ frequency: Double) -> Double {
         (frequency / 5).rounded() * 5
     }
-
-    private func isInTarget(_ frequency: Double?) -> Bool {
-        guard let frequency, let target else { return false }
-        return target.contains(frequency)
-    }
 }
 
 #Preview {
-    PitchGraphView(history: PitchHistory(), currentFrequency: 196, clock: .frozen(nil), caption: "현재 목소리 높이")
-        .padding()
+    VStack {
+        PitchGraphView(history: PitchHistory(), currentFrequency: 196, clock: .frozen(nil, at: nil), caption: "현재 목소리 높이")
+        TargetRangeControls()
+    }
+    .padding()
 }

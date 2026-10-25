@@ -11,6 +11,8 @@ struct ContentView: View {
     @AppStorage(TargetRangeStore.baselinePromptShownKey) private var baselinePromptShown = false
     @AppStorage(PracticeLanguage.storageKey) private var language = PracticeLanguage.korean
     @Environment(\.scenePhase) private var scenePhase
+    /// 고른 문장 종류. 대본을 읽는 중이면 그래프를 줄여(읽기 모드) 대본 자리를 넓힌다.
+    @AppStorage(SentenceCardView.sourceKey) private var sentenceSource = SentenceCardView.Source.mine
     /// 남긴 녹음 목록. 마지막 녹음이 아직 기록에 남아 있는지 보는 데만 쓴다.
     @Query private var savedRecordings: [SavedRecording]
 
@@ -118,35 +120,27 @@ struct ContentView: View {
     }
 
     private var practiceScreen: some View {
-        ScrollView {
-            VStack(spacing: 16) {
-                PitchGraphView(
-                    history: audio.history,
-                    currentFrequency: audio.currentFrequency,
-                    clock: audio.graphClock,
-                    caption: graphCaption,
-                    canMeasure: !audio.isRunning && !audio.isAnalyzingFile
-                ) {
-                    isMeasuringBaseline = true
-                }
+        // 높이 숫자와 그래프는 화면 위에 고정하고, 그 아래(목표 범위·요약·문장·대본)만 스크롤한다.
+        // 대본을 내려 읽는 동안에도 그래프를 볼 수 있게.
+        VStack(spacing: 0) {
+            PitchGraphView(
+                history: audio.history,
+                currentFrequency: audio.currentFrequency,
+                clock: audio.graphClock,
+                caption: graphCaption,
+                idleDuration: practiceDuration,
+                isCompact: sentenceSource == .scripts
+            )
+            .padding(.horizontal)
+            .padding(.top, 8)
+            .padding(.bottom, 10)
 
-                if let summary, let title = audio.lastTakeTitle {
-                    RecordingSummaryView(
-                        title: title, summary: summary, isSaved: lastTakeIsSaved, isSaving: audio.isSavingTake,
-                        onSave: { memo in
-                            Task { await audio.saveLastTake(memo: memo, language: language, target: target) }
-                        },
-                        onShare: { includesAudio in
-                            share(summary: summary, title: title, includesAudio: includesAudio)
-                        }
-                    )
-                }
+            Divider()
 
-                languageRow
-
-                SentenceCardView(isPracticing: audio.isRunning)
+            ScrollView {
+                practiceContent
+                    .padding()
             }
-            .padding()
         }
         // 시작 버튼은 스크롤과 상관없이 항상 화면 아래에 보이게 한다.
         .safeAreaInset(edge: .bottom) { controls }
@@ -165,6 +159,31 @@ struct ContentView: View {
                 baselinePromptShown = true
                 isMeasuringBaseline = true
             }
+        }
+    }
+
+    /// 그래프 아래에서 스크롤되는 부분
+    private var practiceContent: some View {
+        VStack(spacing: 16) {
+            TargetRangeControls(canMeasure: !audio.isRunning && !audio.isAnalyzingFile) {
+                isMeasuringBaseline = true
+            }
+
+            if let summary, let title = audio.lastTakeTitle {
+                RecordingSummaryView(
+                    title: title, summary: summary, isSaved: lastTakeIsSaved, isSaving: audio.isSavingTake,
+                    onSave: { memo in
+                        Task { await audio.saveLastTake(memo: memo, language: language, target: target) }
+                    },
+                    onShare: { includesAudio in
+                        share(summary: summary, title: title, includesAudio: includesAudio)
+                    }
+                )
+            }
+
+            languageRow
+
+            SentenceCardView(isPracticing: audio.isRunning)
         }
     }
 

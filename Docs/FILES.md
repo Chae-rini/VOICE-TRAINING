@@ -58,7 +58,9 @@
 | `VoicePractice/Views/ScriptReaderView.swift` | 대본을 고르고 스크롤해서 읽는 화면 조각 |
 | `VoicePractice/Views/KoreanLineBreaking.swift` | 한글 문장이 단어 중간이 아니라 띄어쓰기에서 줄바꿈되게 하는 도구 |
 | `VoicePracticeTests/PracticeScriptTests.swift` | 대본 200편의 길이·금지어·숫자·중복과 꺾은선 끊기 규칙을 확인하는 시험지 |
-| `VoicePractice/Views/PitchGraphView.swift` | 현재 Hz 숫자, 10초 그래프(반음 눈금), 목표 범위 띠와 슬라이더, 기준 목소리 점선, 내 목소리 재기 버튼을 그리는 화면 조각 |
+| `VoicePractice/Views/PitchGraphView.swift` | [높이] 위에 고정되는 현재 Hz 숫자와 피치 그래프(반음 눈금, 가로축 = 들려줄 길이, 시간 눈금, 시작·n번째 선, 재생 위치 선, 대본 읽기 모드). 같은 파일의 `TargetRangeControls`는 목표 범위 줄·슬라이더·내 목소리 재기 버튼 |
+| `VoicePractice/Models/GraphWindow.swift` | 피치 그래프 가로축 계산: 보이는 시간 구간(오른쪽 끝 = 지금), 시간 눈금 간격·글자, 시작선 |
+| `VoicePracticeTests/GraphWindowTests.swift` | 그래프 구간·시간 눈금·시작선·점 묶기를 확인하는 시험지 |
 | `VoicePractice/Models/PitchScale.swift` | 반음 눈금 계산: 두 높이의 반음 거리, 반음만큼 옮기기, 그래프 위치(로그 눈금), 눈금 숫자 고르기 |
 | `VoicePracticeTests/PitchScaleTests.swift` | 반음 계산·위치·같은 반음 = 같은 길이·눈금을 확인하는 시험지 |
 | `VoicePractice/Views/SentenceCardView.swift` | 연습 문장을 카드로 보여 주고 넘기는 화면 조각. 내 문장/자동 생성 전환 포함 |

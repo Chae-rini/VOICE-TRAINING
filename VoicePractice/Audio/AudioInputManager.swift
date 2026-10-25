@@ -27,7 +27,7 @@ final class AudioInputManager {
     /// 녹음 중 화면 위에 크게 보여줄 현재 피치 [Hz]. 무음이면 nil.
     private(set) var currentFrequency: Double?
     /// 그래프의 "지금"을 어느 시각으로 볼지 (실시간 / 멈춤 / 녹음 다시 듣기)
-    private(set) var graphClock = GraphClock.frozen(nil)
+    private(set) var graphClock = GraphClock.frozen(nil, at: nil)
     private(set) var errorMessage: String?
     /// 오래 연습했을 때 목을 쉬어 가라는 안내. 다음 연습이나 파일 불러오기 전까지 남겨 둔다.
     private(set) var restMessage: String?
@@ -312,7 +312,7 @@ final class AudioInputManager {
         loop.stop()
         // 잰 점은 재기 결과에만 쓰고, 그래프는 마지막 녹음으로 되돌린다 (재기는 마지막 녹음을 바꾸지 않는다).
         let readings = timeline.finishMeasuring()
-        graphClock = .frozen(timeline.lastTake?.endTime)
+        graphClock = lastTakeClock
         switch measuringTarget {
         case .baseline:
             measurement = VoiceBaseline.measure(readings)
@@ -412,10 +412,8 @@ final class AudioInputManager {
         default:
             break
         }
-        if case .measuring = loop.phase {
-            graphClock = .frozen(timeline.lastTake?.endTime)  // 그래프가 마지막 녹음으로 돌아갔다
-        } else if isRunning {
-            graphClock = .frozen(graphClock.endTime(now: AudioClock.now))
+        if isRunning {
+            graphClock = lastTakeClock  // 녹음 중이었으면 방금 남긴 녹음, 재기 중이었으면 그 전 녹음
         }
         restReminderTask?.cancel()
         restReminderTask = nil
@@ -477,7 +475,12 @@ final class AudioInputManager {
             fail("마이크를 시작하지 못했어요. 잠시 후 다시 시도해 주세요.")
             return
         }
-        graphClock = .live
+        // 그래프 가로축은 들려줄(잴) 길이만큼. 오른쪽 끝이 지금이고, 녹음을 시작한 때에 시작선을 긋는다.
+        var round: Int?
+        if case .recording(let number) = loop.phase {
+            round = number
+        }
+        graphClock = .live(start: AudioClock.now, duration: keepDuration, round: round)
         phaseInterval = nil
         recordingStart = .now
         sessionLog?.beginTake()  // 연습 중일 때만 있다 (내 목소리 재기는 기록하지 않음)
@@ -507,7 +510,8 @@ final class AudioInputManager {
         }
         player.scheduleBuffer(take.buffer, at: nil, options: [], completionHandler: nil)
         player.play()
-        graphClock = .replay(takeStart: take.startTime, playbackStart: AudioClock.now)
+        // 녹음 구간 전체를 보이고 재생 위치만 움직인다.
+        graphClock = .replay(take.graphWindow, takeStart: take.startTime, playbackStart: AudioClock.now)
 
         let length = Double(take.buffer.frameLength) / take.buffer.format.sampleRate  // [s]
         schedule(.finishListening, after: length + playbackTailMargin)
@@ -515,7 +519,7 @@ final class AudioInputManager {
 
     private func finishListening() {
         stopEngines()
-        graphClock = .frozen(graphClock.endTime(now: AudioClock.now))
+        graphClock = lastTakeClock
         loop.listeningFinished()
 
         if case .countdown = loop.phase {
@@ -642,13 +646,25 @@ final class AudioInputManager {
         isTapInstalled = false
     }
 
+    /// 멈춘 화면의 그래프: 마지막 녹음의 구간을 그대로 보여 준다 (녹음이 없으면 빈 그래프).
+    private var lastTakeClock: GraphClock {
+        .frozen(timeline.lastTake?.graphWindow, at: timeline.lastTake?.endTime)
+    }
+
     /// 지금까지 녹음한 소리를 "마지막 녹음"으로 남긴다.
     @discardableResult
     private func keepTake() -> RecordedTake? {
         defer { recorder = nil }
         guard let recorder, let playback = recorder.makePlaybackBuffer() else { return nil }
+        var recordingStart: TimeInterval?
+        var round: Int?
+        if case .live(let start, _, let number) = graphClock {
+            recordingStart = start
+            round = number
+        }
         let take = timeline.keepTake(buffer: playback.buffer, startTime: recorder.startTime ?? AudioClock.now,
-                                     playbackGain: playback.gain, language: sessionLog?.language)
+                                     playbackGain: playback.gain, language: sessionLog?.language,
+                                     graphDuration: keepDuration, recordingStart: recordingStart, round: round)
         // 연습 중이면 이 녹음의 요약(요약 카드와 같은 숫자: 묶음 안의 점)을 연습 기록에 쌓는다.
         // 다음 녹음이 시작되면 요약 카드가 사라지므로, 나중에 [기록]에서 보고 보낼 수 있게 남겨 둔다.
         sessionLog?.finishTake(readings: take.readings, duration: take.duration,

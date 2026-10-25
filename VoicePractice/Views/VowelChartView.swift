@@ -169,6 +169,6 @@ struct VowelChartView: View {
 }
 
 #Preview {
-    VowelChartView(history: PitchHistory(), clock: .frozen(nil), caption: "지금 내는 모음")
+    VowelChartView(history: PitchHistory(), clock: .frozen(nil, at: nil), caption: "지금 내는 모음")
         .padding()
 }

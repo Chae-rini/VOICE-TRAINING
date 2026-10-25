@@ -30,11 +30,15 @@ struct RecordingTimeline {
     }
 
     /// 연습 녹음을 마지막 녹음으로 확정한다. 소리 구간(`startTime`부터 소리 길이만큼)의 점만 묶음에 넣는다.
+    /// `graphDuration` [s]: 그래프 가로축 길이(들려줄 길이), `recordingStart` [s]: 녹음을 시작한 시각, `round`: 몇 번째 녹음인지.
     @discardableResult
     mutating func keepTake(buffer: AVAudioPCMBuffer, startTime: TimeInterval, playbackGain: Float,
-                           language: PracticeLanguage?, recordedAt: Date = .now) -> RecordedTake {
+                           language: PracticeLanguage?, recordedAt: Date = .now,
+                           graphDuration: TimeInterval = 0, recordingStart: TimeInterval? = nil,
+                           round: Int? = nil) -> RecordedTake {
         let take = RecordedTake(buffer: buffer, startTime: startTime, playbackGain: playbackGain, recordedAt: recordedAt,
-                                title: "방금 녹음", archiveTitle: "", language: language, readings: display.readings)
+                                title: "방금 녹음", archiveTitle: "", language: language, readings: display.readings,
+                                graphDuration: graphDuration, recordingStart: recordingStart, round: round)
         lastTake = take
         display = take.history
         return take

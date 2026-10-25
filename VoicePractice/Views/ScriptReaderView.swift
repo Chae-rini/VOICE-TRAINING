@@ -12,6 +12,8 @@ struct ScriptReaderView: View {
     @AppStorage("scriptLength") private var length = ScriptLength.any
     @AppStorage("practiceDurationSeconds") private var practiceDuration = PracticeDuration.defaultSeconds
     @State private var index = 0
+    /// [pt] 대본 상자 높이. 글자가 커지면 같이 커져서 보이는 줄 수가 크게 줄지 않는다.
+    @ScaledMetric(relativeTo: .body) private var scriptHeight: CGFloat = 240
 
     /// 파일에 처음 나오는 순서대로의 종류 목록
     private var categories: [String] {
@@ -90,10 +92,11 @@ struct ScriptReaderView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
+            // 그래프가 화면 위에 고정되어 있어서, 대본은 이 상자 안에서 넘기며 읽는다.
             ScrollView {
                 WordWrappedText(text: script.text, lineSpacing: 6)
             }
-            .frame(height: 170)
+            .frame(height: scriptHeight)
 
             if script.needsFactCheck == true {
                 Text("아직 사실 확인을 거치지 않은 글이에요.")

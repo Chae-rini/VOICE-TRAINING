@@ -23,12 +23,19 @@ struct RecordedTake {
     let language: PracticeLanguage?
     /// 이 소리 구간(첫 샘플~마지막 샘플)의 피치·포먼트 점
     let readings: [PitchReading]
+    /// [s] 그래프 가로축 길이. 연습 녹음은 녹음할 때의 ‘들려줄 길이’, 불러온 파일은 0 (파일 길이만큼)
+    let graphDuration: TimeInterval
+    /// [s] 연습 녹음을 시작한 시각 (‘녹음 시작’ 선과 가로축 시간의 기준). 불러온 파일은 nil
+    let recordingStart: TimeInterval?
+    /// 반복 루프에서 몇 번째 녹음인지 (1부터). 불러온 파일은 nil
+    let round: Int?
     /// 기록에 남겼으면 그 기록(`SavedRecording`)의 ID
     var savedRecordID: PersistentIdentifier?
 
     /// `readings`에서 이 소리 구간에 든 점만 잘라 담는다. 점의 시각은 분석 창의 한가운데다.
     init(buffer: AVAudioPCMBuffer, startTime: TimeInterval, playbackGain: Float, recordedAt: Date = .now,
-         title: String, archiveTitle: String, language: PracticeLanguage?, readings: [PitchReading]) {
+         title: String, archiveTitle: String, language: PracticeLanguage?, readings: [PitchReading],
+         graphDuration: TimeInterval = 0, recordingStart: TimeInterval? = nil, round: Int? = nil) {
         self.buffer = buffer
         self.startTime = startTime
         self.playbackGain = playbackGain
@@ -36,6 +43,9 @@ struct RecordedTake {
         self.title = title
         self.archiveTitle = archiveTitle
         self.language = language
+        self.graphDuration = graphDuration
+        self.recordingStart = recordingStart
+        self.round = round
         let endTime = startTime + Double(buffer.frameLength) / buffer.format.sampleRate
         self.readings = readings.filter { $0.time >= startTime && $0.time <= endTime }
     }

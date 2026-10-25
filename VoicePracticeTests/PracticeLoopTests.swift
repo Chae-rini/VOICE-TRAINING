@@ -159,13 +159,18 @@ struct TakeRecorderTests {
 
 @MainActor
 struct ReplayGraphTests {
-    @Test("다시 듣기 중 그래프의 '지금'은 녹음 시작 시각 + 재생된 시간이다")
+    @Test("다시 듣기 중 그래프의 재생 위치는 녹음 첫 소리 시각 + 재생된 시간이고, 가로축은 녹음 구간 그대로다")
     func replayClock() {
-        let clock = GraphClock.replay(takeStart: 100, playbackStart: 500)
+        let window = GraphWindow(start: 52, duration: 60, recordingStart: 100)  // 12초 녹음, 오른쪽 끝 = 녹음 끝(112초)
+        let clock = GraphClock.replay(window, takeStart: 100, playbackStart: 500)
         #expect(clock.endTime(now: 503.5) == 103.5)
+        #expect(clock.window(now: 530) == window)
         #expect(clock.isMoving)
-        #expect(GraphClock.frozen(42).endTime(now: 999) == 42)
-        #expect(!GraphClock.frozen(42).isMoving)
+        let frozen = GraphClock.frozen(window, at: 112)
+        #expect(frozen.endTime(now: 999) == 112)
+        #expect(frozen.window(now: 999) == window)
+        #expect(!frozen.isMoving)
+        #expect(GraphClock.frozen(nil, at: nil).window(now: 5) == nil)
     }
 
     @Test("다시 듣기 중에는 재생 위치 직전의 피치를 찾고, 아직 재생되지 않은 점은 그리지 않는다")
