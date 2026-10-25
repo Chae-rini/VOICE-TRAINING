@@ -38,10 +38,18 @@ struct VowelMapScreen: View {
         .onChange(of: audio.vowelResult) { _, result in
             guard let result else { return }
             if let entry = result.entry {
+                // 이력을 먼저 남긴다. 실패하면 지도도 바꾸지 않고 안내만 한다.
+                do {
+                    try audio.archive.saveVowel(entry, for: result.vowel)
+                } catch {
+                    message = "‘\(result.vowel.rawValue)’를 저장하지 못했어요. 저장 공간을 확인해 주세요."
+                    messageIsWarning = true
+                    audio.clearVowelResult()
+                    return
+                }
                 var updated = map
                 updated.set(entry, for: result.vowel)
                 mapData = updated.data
-                audio.archive.saveVowel(entry, for: result.vowel)
                 message = "‘\(result.vowel.rawValue)’를 저장했어요 · F1 \(Int(entry.f1.rounded())) · F2 \(Int(entry.f2.rounded())) Hz"
                 messageIsWarning = false
             } else {

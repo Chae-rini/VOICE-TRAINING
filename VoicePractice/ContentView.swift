@@ -11,6 +11,8 @@ struct ContentView: View {
     @AppStorage(TargetRangeStore.baselinePromptShownKey) private var baselinePromptShown = false
     @AppStorage(PracticeLanguage.storageKey) private var language = PracticeLanguage.korean
     @Environment(\.scenePhase) private var scenePhase
+    /// 남긴 녹음 목록. 마지막 녹음이 아직 기록에 남아 있는지 보는 데만 쓴다.
+    @Query private var savedRecordings: [SavedRecording]
 
     @State private var isImporting = false
     /// 파일 고르기 창을 무엇에 쓰는지. 파일 고르기 창은 화면에 하나만 두고 용도만 바꾼다.
@@ -130,9 +132,9 @@ struct ContentView: View {
 
                 if let summary, let title = audio.lastTakeTitle {
                     RecordingSummaryView(
-                        title: title, summary: summary, isSaved: audio.lastTakeIsSaved, isSaving: audio.isSavingTake,
+                        title: title, summary: summary, isSaved: lastTakeIsSaved, isSaving: audio.isSavingTake,
                         onSave: { memo in
-                            Task { await audio.saveLastTake(summary: summary, memo: memo, language: language) }
+                            Task { await audio.saveLastTake(memo: memo, language: language, target: target) }
                         },
                         onShare: { includesAudio in
                             share(summary: summary, title: title, includesAudio: includesAudio)
@@ -202,15 +204,22 @@ struct ContentView: View {
         }
     }
 
-    /// 마지막 녹음의 피치 요약. 녹음하는 동안에는 숨긴다.
+    /// 마지막 녹음이 지금 기록에 남아 있는지. [기록] 탭에서 지우면 목록(@Query)이 바뀌어 바로 ‘기록에 남기기’로 돌아온다.
+    private var lastTakeIsSaved: Bool {
+        guard let id = audio.lastTakeSavedRecordID else { return false }
+        return savedRecordings.contains { $0.persistentModelID == id }
+    }
+
+    /// 지금 목표 범위. 아직 정하지 않았으면 nil
+    private var target: ClosedRange<Double>? {
+        guard let targetLower, let targetUpper else { return nil }
+        return min(targetLower, targetUpper)...max(targetLower, targetUpper)
+    }
+
+    /// 마지막 녹음의 피치 요약 (그 녹음 묶음의 기록으로). 녹음하는 동안에는 숨긴다.
     private var summary: PitchSummary? {
-        guard audio.hasLastTake, let duration = audio.lastTakeDuration else { return nil }
         if case .recording = audio.loop.phase { return nil }
-        var target: ClosedRange<Double>?
-        if let targetLower, let targetUpper {
-            target = min(targetLower, targetUpper)...max(targetLower, targetUpper)
-        }
-        return PitchSummary(readings: audio.history.readings, duration: duration, target: target)
+        return audio.lastTakeSummary(target: target)
     }
 
     private func share(summary: PitchSummary, title: String, includesAudio: Bool) {

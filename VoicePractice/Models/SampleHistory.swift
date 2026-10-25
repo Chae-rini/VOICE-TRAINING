@@ -26,8 +26,9 @@ extension PracticeArchive {
         for daysAgo in [38, 20, 3] {
             guard let day = calendar.date(byAdding: .day, value: -daysAgo, to: today) else { continue }
             let median = 148 + Double(40 - daysAgo) * 0.3
-            saveBaseline(VoiceBaseline(median: median, low: median - 18, high: median + 22),
-                         measuredAt: day.addingTimeInterval(19 * 3600))
+            // 개발용 가짜 기록이라 저장 실패는 무시한다.
+            try? saveBaseline(VoiceBaseline(median: median, low: median - 18, high: median + 22),
+                              measuredAt: day.addingTimeInterval(19 * 3600))
         }
     }
 
@@ -37,8 +38,8 @@ extension PracticeArchive {
         let duration = minutes * 60
         guard let pitch = PitchSummary(voiced: voiced, voicedSeconds: duration * 0.4, duration: duration,
                                        target: TargetRangeStore.savedTarget(in: .standard)) else { return }
-        saveSession(PracticeSessionLog.Summary(startedAt: start, endedAt: start.addingTimeInterval(duration),
-                                               takeCount: takes, language: language, pitch: pitch))
+        try? saveSession(PracticeSessionLog.Summary(startedAt: start, endedAt: start.addingTimeInterval(duration),
+                                                    takeCount: takes, language: language, pitch: pitch))
     }
 }
 #endif

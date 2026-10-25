@@ -121,4 +121,7 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - 시뮬레이터 앱의 설정값(UserDefaults)을 바깥에서 바꾸려면 앱을 끈 뒤 `xcrun simctl spawn <기기> defaults write <앱 데이터 폴더>/Library/Preferences/<번들 ID> <키> <값>`처럼 파일 경로로 쓴다 (번들 ID만 주면 다른 곳에 써진다). 연습 알림은 알림 시간을 몇 분 뒤로 바꾸고 앱을 다시 켠 뒤 홈 화면으로 가서 확인한다. 예약·전달 여부는 `log show`에서 SpringBoard의 "pending notification"·"Deliver local notification" 줄로 본다.
 - 시뮬레이터에서 SwiftUI 스위치(Toggle)는 도구로 탭하면 안 켜질 때가 있다. 끌면(swipe) 켜진다.
 - 시뮬레이터에서 글자 입력: 도구의 text 입력(붙여넣기)은 한글이 안 되고 영어도 들어가지 않을 때가 있다. 화면 자판의 키를 좌표로 직접 누르면 한글도 들어간다.
+- 녹음 수치는 녹음 묶음(`RecordedTake`) 안의 점으로만 만든다. 요약 카드·기록에 남기기·AI 공유·다시 듣기 모두. 화면 그래프용 기록(`RecordingTimeline.display`, 여유 2초 포함)과 재기용 기록(`measurement`)은 수치에 쓰지 않는다 (2026-10-25 버그 ①②).
+- `PracticeArchive`의 남기기·지우기는 `throws`다. 영구 저장에 성공한 뒤에만 화면에 완료를 표시하고, 실패하면 저장소가 바꾼 내용을 되돌린다(`rollback`). `try?`로 버리지 않는다. 테스트에서는 `simulatedSaveError`(Debug 전용)로 실패를 흉내 낸다.
+- 테스트가 하나라도 실패하면 `xcodebuild test`가 시뮬레이터 진단을 모으느라 10분쯤 멈춰 있다가 끝날 수 있다. 실패 내용은 `xcrun xcresulttool get test-results tests --path <xcresult> --format json`으로 본다.
 - 저장된 기록을 지울 때는 `delete(model:)`(한꺼번에 지우기) 대신 하나씩 지운다. 한꺼번에 지우면 화면의 `@Query` 목록이 바로 따라 바뀌지 않는다는 보고가 있어서 피했다 (직접 재현하지는 않음).

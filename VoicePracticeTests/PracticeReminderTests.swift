@@ -75,7 +75,7 @@ struct PracticeReminderTests {
             var log = PracticeSessionLog(startedAt: start, language: .korean)
             log.beginTake()
             log.add((0..<500).map { PitchReading(time: Double($0) * 0.02, frequency: 180) })
-            archive.saveSession(try #require(log.finish(at: start.addingTimeInterval(minutes * 60), target: nil)))
+            try archive.saveSession(try #require(log.finish(at: start.addingTimeInterval(minutes * 60), target: nil)))
         }
 
         try save(start: date(24, 10), minutes: 10)  // 어제 낮

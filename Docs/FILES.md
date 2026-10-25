@@ -10,7 +10,10 @@
 | `VoicePractice/Models/PitchSummary.swift` | 녹음의 요약 수치(중앙값·범위·목표 범위 안 비율)와 AI에게 보낼 피드백 요청문 |
 | `VoicePractice/Views/RecordingSummaryView.swift` | 그래프 아래 요약 카드와 "기록에 남기기"(메모 창)·"AI에게 피드백 받기"·"요약 복사" 버튼, iOS 공유 창 |
 | `VoicePractice/Models/PracticeRecord.swift` | 기록의 모양: 말하는 언어, 연습 한 번 모으기 규칙(30초·5초 기준), 저장하는 기록 4가지(연습 요약, 남긴 녹음, 기준 목소리 이력, 모음 이력) |
-| `VoicePractice/Models/PracticeArchive.swift` | 기록 저장소: 숫자는 SwiftData, 남긴 녹음은 m4a 파일(백업 제외). 저장·하나 지우기·모두 지우기를 한곳에서 한다 |
+| `VoicePractice/Models/PracticeArchive.swift` | 기록 저장소: 숫자는 SwiftData, 남긴 녹음은 m4a 파일(백업 제외). 저장·하나 지우기·모두 지우기를 한곳에서 하고, 저장에 실패하면 되돌린 뒤 오류를 알린다 |
+| `VoicePractice/Models/RecordedTake.swift` | 녹음 한 번의 묶음: 소리, 시작 시각·길이, 그 구간의 피치·포먼트 점, 남긴 기록의 ID. 요약·저장·공유·다시 듣기는 이것만 쓴다 |
+| `VoicePractice/Models/RecordingTimeline.swift` | 녹음·재기 중의 피치 점을 화면 그래프용·재기용으로 나눠 담고, 마지막 녹음 묶음을 들고 있는 곳 |
+| `VoicePracticeTests/RecordedTakeTests.swift` | 외부 리뷰 버그 세 개(요약 구간, 재기 덮어쓰기, 저장 실패)의 재현 테스트 |
 | `VoicePracticeTests/PracticeRecordTests.swift` | 연습 한 번 모으기 규칙과 저장소(저장·다시 읽기·m4a·백업 제외·하나 지우기·모두 지우기·녹음 이름)를 확인하는 시험지 |
 | `VoicePractice/Models/PracticeHistory.swift` | [기록] 탭의 계산 규칙: 기간(7일·30일·전체), 언어 거르기, 날마다 연습 시간, 모아 보기, 그래프 축 범위, 시간 표시 |
 | `VoicePractice/Models/SampleHistory.swift` | 개발용 가짜 기록 40일치 (시뮬레이터 확인용, Debug 빌드에서 `-seedSampleHistory YES`일 때만) |

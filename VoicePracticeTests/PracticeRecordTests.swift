@@ -95,7 +95,7 @@ struct PracticeArchiveTests {
     @Test("연습 요약을 남기면 같은 값으로 다시 읽힌다")
     func savesSession() throws {
         let (archive, _) = makeArchive()
-        archive.saveSession(try sessionSummary())
+        try archive.saveSession(try sessionSummary())
 
         let sessions = try archive.context.fetch(FetchDescriptor<PracticeSession>())
         let session = try #require(sessions.first)
@@ -112,11 +112,11 @@ struct PracticeArchiveTests {
     @Test("내 목소리 재기와 모음 재기는 잴 때마다 이력이 하나씩 쌓인다")
     func savesMeasurements() throws {
         let (archive, _) = makeArchive()
-        archive.saveBaseline(VoiceBaseline(median: 150, low: 130, high: 175))
-        archive.saveBaseline(VoiceBaseline(median: 160, low: 140, high: 185))
+        try archive.saveBaseline(VoiceBaseline(median: 150, low: 130, high: 175))
+        try archive.saveBaseline(VoiceBaseline(median: 160, low: 140, high: 185))
         let entry = VowelMap.Entry(f1: 750, f2: 1300, f1Spread: 730...770, f2Spread: 1280...1330,
                                    isF1Uncertain: false, measuredAt: Date(timeIntervalSince1970: 1_800_000_000))
-        archive.saveVowel(entry, for: .a)
+        try archive.saveVowel(entry, for: .a)
 
         #expect(try count(BaselineRecord.self, in: archive) == 2)
         let vowel = try #require(try archive.context.fetch(FetchDescriptor<VowelRecord>()).first)
@@ -155,7 +155,7 @@ struct PracticeArchiveTests {
         #expect(abs(rereadSummary.median - 200) < 1)
         #expect(abs(reread.duration - 3) < 0.1)
 
-        archive.delete(recording)
+        try archive.delete(recording)
         #expect(!FileManager.default.fileExists(atPath: url.path))
         #expect(try count(SavedRecording.self, in: archive) == 0)
     }
@@ -163,12 +163,12 @@ struct PracticeArchiveTests {
     @Test("연습 기록과 기준 이력은 하나씩 지울 수 있다")
     func deletesOne() throws {
         let (archive, _) = makeArchive()
-        archive.saveSession(try sessionSummary())
-        archive.saveBaseline(VoiceBaseline(median: 150, low: 130, high: 175))
-        archive.saveBaseline(VoiceBaseline(median: 160, low: 140, high: 185))
+        try archive.saveSession(try sessionSummary())
+        try archive.saveBaseline(VoiceBaseline(median: 150, low: 130, high: 175))
+        try archive.saveBaseline(VoiceBaseline(median: 160, low: 140, high: 185))
 
-        archive.delete(try #require(try archive.context.fetch(FetchDescriptor<PracticeSession>()).first))
-        archive.delete(try #require(try archive.context.fetch(FetchDescriptor<BaselineRecord>()).first))
+        try archive.delete(try #require(try archive.context.fetch(FetchDescriptor<PracticeSession>()).first))
+        try archive.delete(try #require(try archive.context.fetch(FetchDescriptor<BaselineRecord>()).first))
         #expect(try count(PracticeSession.self, in: archive) == 0)
         #expect(try count(BaselineRecord.self, in: archive) == 1)
     }
@@ -190,8 +190,8 @@ struct PracticeArchiveTests {
     func deletesAll() async throws {
         let (archive, directory) = makeArchive()
         defer { try? FileManager.default.removeItem(at: directory) }
-        archive.saveSession(try sessionSummary())
-        archive.saveBaseline(VoiceBaseline(median: 150, low: 130, high: 175))
+        try archive.saveSession(try sessionSummary())
+        try archive.saveBaseline(VoiceBaseline(median: 150, low: 130, high: 175))
         let samples = Signal.sine(150, sampleRate: 48_000, count: 48_000)
         let summary = try #require(PitchSummary(
             readings: AudioFileAnalyzer.pitchReadings(samples, sampleRate: 48_000), duration: 1, target: nil

@@ -21,6 +21,8 @@ struct HistoryScreen: View {
     @State private var isConfirmingDeleteAll = false
     @State private var comparePair: ComparePair?
     @State private var isShowingReminder = false
+    /// 지우기가 영구 저장에 실패했는지 (실패하면 기록은 그대로 남는다)
+    @State private var deleteFailed = false
     @AppStorage(PracticeReminder.enabledKey) private var isReminderEnabled = false
 
     private let calendar = Calendar.current
@@ -69,6 +71,17 @@ struct HistoryScreen: View {
             }
             .sheet(isPresented: $isShowingReminder) {
                 ReminderSettingsView(archive: audio.archive)
+            }
+            // 저장소 파일을 열지 못해 메모리에만 기록하는 중이면, 기록이 있든 없든 맨 위에 알린다.
+            .safeAreaInset(edge: .top, spacing: 0) {
+                if audio.archive.isTemporary {
+                    temporaryStoreBanner
+                }
+            }
+            .alert("지우지 못했어요", isPresented: $deleteFailed) {
+                Button("확인", role: .cancel) {}
+            } message: {
+                Text("기록을 저장하지 못했어요. 저장 공간을 확인해 주세요. 기록은 그대로 있어요.")
             }
         }
         // 오늘 연습 기록을 지웠으면 오늘 알림을 다시 넣는다.
@@ -145,7 +158,7 @@ struct HistoryScreen: View {
                     }
                     .swipeActions {
                         Button("지우기", role: .destructive) {
-                            audio.archive.delete(recording)
+                            delete { try audio.archive.delete(recording) }
                         }
                     }
                 }
@@ -159,7 +172,7 @@ struct HistoryScreen: View {
                         sessionRow(session)
                             .swipeActions {
                                 Button("지우기", role: .destructive) {
-                                    audio.archive.delete(session)
+                                    delete { try audio.archive.delete(session) }
                                 }
                             }
                     }
@@ -176,7 +189,7 @@ struct HistoryScreen: View {
                         baselineRow(baseline)
                             .swipeActions {
                                 Button("지우기", role: .destructive) {
-                                    audio.archive.delete(baseline)
+                                    delete { try audio.archive.delete(baseline) }
                                 }
                             }
                     }
@@ -197,11 +210,30 @@ struct HistoryScreen: View {
         }
         .confirmationDialog("모든 기록을 지울까요?", isPresented: $isConfirmingDeleteAll, titleVisibility: .visible) {
             Button("모두 지우기", role: .destructive) {
-                try? audio.archive.deleteAll()
+                delete { try audio.archive.deleteAll() }
             }
         } message: {
             Text("연습 기록, 남긴 녹음과 메모, 내 목소리·모음 재기 이력이 모두 지워져요. 지금 쓰는 기준 목소리·목표 범위·모음 지도는 그대로예요. 되돌릴 수 없어요.")
         }
+    }
+
+    /// 지우기를 하고, 실패하면 안내한다.
+    private func delete(_ action: () throws -> Void) {
+        do {
+            try action()
+        } catch {
+            deleteFailed = true
+        }
+    }
+
+    private var temporaryStoreBanner: some View {
+        Label("이번 실행 동안만 기록이 유지돼요. 앱을 다시 켜면 이번에 남긴 기록은 사라져요.",
+              systemImage: "exclamationmark.triangle.fill")
+            .font(.footnote)
+            .padding(.horizontal)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.orange.opacity(0.18))
     }
 
     // MARK: - 줄

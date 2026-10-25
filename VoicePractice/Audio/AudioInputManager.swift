@@ -1,6 +1,7 @@
 import Accelerate
 import AVFoundation
 import Observation
+import SwiftData
 
 /// 마이크 권한 상태.
 enum MicrophonePermission {
@@ -21,8 +22,8 @@ final class AudioInputManager {
     let archive: PracticeArchive
     private(set) var loop = PracticeLoop()
     private(set) var permission: MicrophonePermission
-    /// 지금(또는 마지막) 녹음 한 번의 피치 기록. 다시 들을 때 처음부터 그릴 수 있게 녹음 길이만큼 보관한다.
-    private(set) var history = PitchHistory(retention: PracticeDuration.range.upperBound + 2)
+    /// 녹음·재기 중에 들어온 피치 점과 마지막 녹음 묶음
+    private(set) var timeline = RecordingTimeline()
     /// 녹음 중 화면 위에 크게 보여줄 현재 피치 [Hz]. 무음이면 nil.
     private(set) var currentFrequency: Double?
     /// 그래프의 "지금"을 어느 시각으로 볼지 (실시간 / 멈춤 / 녹음 다시 듣기)
@@ -40,14 +41,6 @@ final class AudioInputManager {
     private(set) var restReminderCount = 0
     /// 연습 기록을 하나 남길 때마다 1씩 늘어난다. 화면이 이 값을 보고 오늘의 연습 알림을 거둔다.
     private(set) var savedSessionCount = 0
-    /// 다시 들을 수 있는 마지막 녹음이 있는지.
-    private(set) var hasLastTake = false
-    /// 마지막 녹음의 이름("방금 녹음" 또는 불러온 파일 이름)
-    private(set) var lastTakeTitle: String?
-    /// [s] 마지막 녹음의 길이
-    private(set) var lastTakeDuration: TimeInterval?
-    /// 마지막 녹음을 이미 기록에 남겼는지
-    private(set) var lastTakeIsSaved = false
     /// 마지막 녹음을 기록에 남기는 중인지
     private(set) var isSavingTake = false
     /// 녹음 파일을 분석하는 중인지
@@ -69,15 +62,33 @@ final class AudioInputManager {
 
     var isRunning: Bool { loop.isActive }
 
+    /// 화면 그래프에 그릴 피치 기록
+    var history: PitchHistory { timeline.display }
+    /// 다시 들을 수 있는 마지막 녹음이 있는지.
+    var hasLastTake: Bool { timeline.lastTake != nil }
+    /// 마지막 녹음의 이름("방금 녹음" 또는 불러온 파일 이름)
+    var lastTakeTitle: String? { timeline.lastTake?.title }
+    /// [s] 마지막 녹음의 길이
+    var lastTakeDuration: TimeInterval? { timeline.lastTake?.duration }
+    /// 마지막 녹음을 남긴 기록의 ID. 남기지 않았으면 nil
+    var lastTakeSavedRecordID: PersistentIdentifier? { timeline.lastTake?.savedRecordID }
+    /// 마지막 녹음이 지금 기록에 남아 있는지. 남긴 뒤 [기록] 탭에서 지웠으면 false라서 다시 남길 수 있다.
+    var lastTakeIsSaved: Bool {
+        guard let id = lastTakeSavedRecordID else { return false }
+        return archive.recordingExists(id)
+    }
+
+    /// 마지막 녹음의 요약 (요약 카드·기록에 남기기·AI 공유가 함께 쓴다). 목소리가 안 잡혔거나 녹음이 없으면 nil.
+    func lastTakeSummary(target: ClosedRange<Double>?) -> PitchSummary? {
+        timeline.lastTakeSummary(target: target)
+    }
+
     // 녹음과 재생은 오디오 설정이 달라서 엔진을 따로 쓰고, 단계마다 새로 만든다.
     // 설정을 바꾼 뒤에 만든 엔진은 바뀐 장치 상태를 처음부터 그대로 받아들인다.
     @ObservationIgnored private var recordingEngine: AVAudioEngine?
     @ObservationIgnored private var playbackEngine: AVAudioEngine?
     @ObservationIgnored private var player: AVAudioPlayerNode?
     @ObservationIgnored private var recorder: TakeRecorder?
-    @ObservationIgnored private var lastTake: RecordedTake? {
-        didSet { lastTakeIsSaved = false }
-    }
     /// 지금 하고 있는 연습 한 번의 기록. 연습 중에만 있다.
     @ObservationIgnored private var sessionLog: PracticeSessionLog?
     /// [s] "지금 들어보기"를 누르면 들려줄 최근 길이
@@ -101,22 +112,6 @@ final class AudioInputManager {
     private let tapBufferSize: AVAudioFrameCount = 2048
     /// [s] 재생이 스피커에서 실제로 끝날 때까지의 여유
     private let playbackTailMargin: TimeInterval = 0.2
-
-    private struct RecordedTake {
-        let id = UUID()
-        /// 들려줄 수 있게 키운 소리
-        let buffer: AVAudioPCMBuffer
-        /// [s] 첫 샘플의 시각. 피치 기록과 같은 시계를 쓴다 (불러온 파일은 0)
-        let startTime: TimeInterval
-        /// 재생용으로 곱한 배율. 원래 소리 = buffer ÷ playbackGain
-        let playbackGain: Float
-        /// 녹음을 마친(또는 파일을 불러온) 때
-        let recordedAt = Date.now
-        /// 기록에 남길 때의 제목. 불러온 파일은 파일 이름, 방금 녹음한 것은 빈 글자
-        let archiveTitle: String
-        /// 연습 중에 녹음했으면 그 연습의 언어. 불러온 파일은 nil (남길 때 고른 언어를 쓴다)
-        let language: PracticeLanguage?
-    }
 
     /// 예약해 둔 다음 단계. 녹음은 사용자가 멈출 때까지 이어지므로 예약하지 않는다.
     private enum Step {
@@ -177,10 +172,11 @@ final class AudioInputManager {
 
     /// 연습이 끝난 뒤 마지막 녹음을 다시 듣는다.
     func replayLastTake() {
-        guard !isRunning, let lastTake else { return }
+        guard !isRunning, let take = timeline.lastTake else { return }
         errorMessage = nil
+        timeline.showLastTake()
         loop.startReplay()
-        play(lastTake)
+        play(take)
     }
 
     /// 녹음 파일(음성 메모 등)을 불러와 피치를 미리 계산한 뒤, 곧바로 재생하며 곡선을 보여준다.
@@ -206,14 +202,9 @@ final class AudioInputManager {
             return false
         }
 
-        history = PitchHistory(retention: analysis.duration + 2)
-        history.append(contentsOf: analysis.readings)
         let title = title ?? url.deletingPathExtension().lastPathComponent
-        lastTake = RecordedTake(buffer: playback.buffer, startTime: 0, playbackGain: playback.gain,
-                                archiveTitle: title, language: nil)
-        hasLastTake = true
-        lastTakeTitle = title
-        lastTakeDuration = analysis.duration
+        timeline.load(RecordedTake(buffer: playback.buffer, startTime: 0, playbackGain: playback.gain,
+                                   title: title, archiveTitle: title, language: nil, readings: analysis.readings))
         if analysis.wasTruncated {
             infoMessage = "5분이 넘는 녹음이라 앞 5분만 불러왔어요."
         }
@@ -223,8 +214,9 @@ final class AudioInputManager {
 
     /// [기록] 탭에서 남긴 녹음을 다시 열어 재생하며 곡선을 보여 준다. 이미 기록에 있으므로 ‘기록에 남겼어요’로 표시한다.
     func openSavedRecording(_ recording: SavedRecording) async {
-        if await importRecording(from: archive.fileURL(for: recording), title: recording.displayTitle) {
-            lastTakeIsSaved = true
+        if await importRecording(from: archive.fileURL(for: recording), title: recording.displayTitle),
+           let take = timeline.lastTake {
+            timeline.markSaved(recording.persistentModelID, takeID: take.id)
         }
     }
 
@@ -316,14 +308,16 @@ final class AudioInputManager {
         removeTap()
         recorder = nil
         currentFrequency = nil
-        graphClock = .frozen(graphClock.endTime(now: AudioClock.now))
         shutDown()
         loop.stop()
+        // 잰 점은 재기 결과에만 쓰고, 그래프는 마지막 녹음으로 되돌린다 (재기는 마지막 녹음을 바꾸지 않는다).
+        let readings = timeline.finishMeasuring()
+        graphClock = .frozen(timeline.lastTake?.endTime)
         switch measuringTarget {
         case .baseline:
-            measurement = VoiceBaseline.measure(history.readings)
+            measurement = VoiceBaseline.measure(readings)
         case .vowel(let vowel):
-            vowelResult = VowelResult(vowel: vowel, entry: VowelMap.measure(history.readings))
+            vowelResult = VowelResult(vowel: vowel, entry: VowelMap.measure(readings))
             measuringVowel = nil
         }
     }
@@ -354,30 +348,22 @@ final class AudioInputManager {
     }
 
     /// 마지막 녹음을 기록에 남긴다 (사용자가 ‘기록에 남기기’를 눌렀을 때만). 소리는 m4a로 기기 안에 저장한다.
-    /// `summary`: 화면에 보이는 그 녹음의 요약. `language`: 불러온 파일일 때 붙일 언어 (연습 중 녹음은 그 연습의 언어).
-    func saveLastTake(summary: PitchSummary, memo: String, language: PracticeLanguage) async {
-        guard let take = lastTake, !lastTakeIsSaved, !isSavingTake, let samples = originalSamples(of: take) else { return }
+    /// 수치는 그 녹음 묶음의 요약이다. `target`: 지금 목표 범위. `language`: 불러온 파일일 때 붙일 언어 (연습 중 녹음은 그 연습의 언어).
+    func saveLastTake(memo: String, language: PracticeLanguage, target: ClosedRange<Double>?) async {
+        guard let take = timeline.lastTake, !lastTakeIsSaved, !isSavingTake, let samples = take.originalSamples,
+              let summary = timeline.lastTakeSummary(target: target) else { return }
         isSavingTake = true
         defer { isSavingTake = false }
         do {
-            try await archive.saveRecording(
+            let record = try await archive.saveRecording(
                 samples: samples, sampleRate: take.buffer.format.sampleRate, summary: summary,
                 title: take.archiveTitle, memo: memo, language: take.language ?? language, recordedAt: take.recordedAt
             )
             // 저장하는 동안 새 녹음으로 바뀌었으면 새 녹음은 아직 남기지 않은 것이다.
-            if lastTake?.id == take.id {
-                lastTakeIsSaved = true
-            }
+            timeline.markSaved(record.persistentModelID, takeID: take.id)
         } catch {
-            errorMessage = "녹음을 기록에 남기지 못했어요. 기기 저장 공간을 확인해 주세요."
+            errorMessage = "기록을 저장하지 못했어요. 저장 공간을 확인해 주세요."
         }
-    }
-
-    /// 재생용으로 키우기 전의 원래 소리
-    private func originalSamples(of take: RecordedTake) -> [Float]? {
-        guard let channel = take.buffer.floatChannelData?[0] else { return nil }
-        let boosted = Array(UnsafeBufferPointer(start: channel, count: Int(take.buffer.frameLength)))
-        return take.playbackGain == 1 ? boosted : vDSP.divide(boosted, take.playbackGain)
     }
 
     /// 공유용 WAV 파일 이름의 앞부분. 예: "Ullim-20261025T061230.wav"
@@ -392,7 +378,7 @@ final class AudioInputManager {
 
     /// 마지막 녹음의 원래 소리를 공유용 WAV 파일로 임시 폴더에 만든다. 다 쓰면 지워도 된다.
     func exportLastTake() throws -> URL {
-        guard let lastTake, let original = originalSamples(of: lastTake) else {
+        guard let take = timeline.lastTake, let original = take.originalSamples else {
             throw AudioFileAnalyzer.AnalysisError.emptyFile
         }
 
@@ -408,18 +394,27 @@ final class AudioInputManager {
         formatter.formatOptions = [.withYear, .withMonth, .withDay, .withTime]  // 예: 20261025T061230
         formatter.timeZone = .current
         let url = directory.appendingPathComponent("\(Self.exportFilePrefix)\(formatter.string(from: .now)).wav")
-        try AudioFileAnalyzer.writeWAV(samples: original, sampleRate: lastTake.buffer.format.sampleRate, to: url)
+        try AudioFileAnalyzer.writeWAV(samples: original, sampleRate: take.buffer.format.sampleRate, to: url)
         return url
     }
 
     /// 연습을 멈춘다 (직접 정지, 전화·알람, 이어폰 연결 변화, 백그라운드 전환).
     /// 녹음 도중이었다면 거기까지 녹음한 소리를 남겨 다시 들을 수 있게 한다.
     func stop() {
-        if case .recording = loop.phase {
+        switch loop.phase {
+        case .recording:
             removeTap()
             keepTake()
+        case .measuring:
+            removeTap()
+            recorder = nil
+            timeline.cancelMeasuring()
+        default:
+            break
         }
-        if isRunning {
+        if case .measuring = loop.phase {
+            graphClock = .frozen(timeline.lastTake?.endTime)  // 그래프가 마지막 녹음으로 돌아갔다
+        } else if isRunning {
             graphClock = .frozen(graphClock.endTime(now: AudioClock.now))
         }
         restReminderTask?.cancel()
@@ -437,7 +432,13 @@ final class AudioInputManager {
         sessionLog = nil
         // 목표 범위는 연습 중에도 옮길 수 있으므로, 정지한 때의 값과 비교한다.
         guard let summary = log.finish(at: .now, target: TargetRangeStore.savedTarget(in: .standard)) else { return }
-        archive.saveSession(summary)
+        do {
+            try archive.saveSession(summary)
+        } catch {
+            errorMessage = "연습 기록을 저장하지 못했어요. 저장 공간을 확인해 주세요."
+            return
+        }
+        // 영구 저장이 끝난 뒤에만 남겼다고 알린다.
         savedSessionCount += 1
         infoMessage = "연습 기록을 남겼어요 · \(PitchSummary.durationLabel(summary.pitch.duration))"
     }
@@ -466,8 +467,7 @@ final class AudioInputManager {
         processor.installTap(on: engine.inputNode, bufferSize: tapBufferSize, format: format)
         isTapInstalled = true
 
-        // 들려줄 최근 N초 동안의 곡선을 다시 그릴 수 있게 그만큼 보관한다.
-        history = PitchHistory(retention: keepDuration + 2)
+        timeline.beginRecording(keepSeconds: keepDuration)
         currentFrequency = nil
         lastVoicedTime = 0
         do {
@@ -647,18 +647,8 @@ final class AudioInputManager {
     private func keepTake() -> RecordedTake? {
         defer { recorder = nil }
         guard let recorder, let playback = recorder.makePlaybackBuffer() else { return nil }
-        let take = RecordedTake(
-            buffer: playback.buffer,
-            startTime: recorder.startTime ?? AudioClock.now,
-            playbackGain: playback.gain,
-            archiveTitle: "",
-            language: sessionLog?.language
-        )
-        lastTake = take
-        hasLastTake = true
-        lastTakeTitle = "방금 녹음"
-        lastTakeDuration = Double(playback.buffer.frameLength) / playback.buffer.format.sampleRate
-        return take
+        return timeline.keepTake(buffer: playback.buffer, startTime: recorder.startTime ?? AudioClock.now,
+                                 playbackGain: playback.gain, language: sessionLog?.language)
     }
 
     private func receive(_ readings: [PitchReading]) {
@@ -666,12 +656,12 @@ final class AudioInputManager {
         switch loop.phase {
         case .recording:
             sessionLog?.add(readings)
+            timeline.receive(readings, isMeasuring: false)
         case .measuring:
-            break
+            timeline.receive(readings, isMeasuring: true)
         default:
             return
         }
-        history.append(contentsOf: readings)
 
         for reading in readings {
             if let frequency = reading.frequency {

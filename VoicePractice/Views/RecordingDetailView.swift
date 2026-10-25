@@ -79,11 +79,13 @@ struct RecordingDetailView: View {
         } message: {
             Text("소리 파일과 요약, 메모가 이 기기에서 지워져요. 되돌릴 수 없어요.")
         }
+        // 화면이 닫힌 뒤라 실패를 알릴 곳이 없다. 실패하면 저장소가 바뀐 내용을 되돌리므로,
+        // 지우기는 목록에 그대로 남고 고친 메모·언어는 예전 값으로 돌아간다 (반쪽 상태는 남지 않는다).
         .onDisappear {
             if deleteOnDisappear {
-                archive.delete(recording)
+                try? archive.delete(recording)
             } else {
-                archive.save()  // 고친 메모·언어
+                try? archive.save()  // 고친 메모·언어
             }
         }
     }

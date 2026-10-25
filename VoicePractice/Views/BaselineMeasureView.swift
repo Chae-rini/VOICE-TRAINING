@@ -11,6 +11,8 @@ struct BaselineMeasureView: View {
     /// 목표 범위를 기준에 맞출지. 저장해 둔 목표 범위가 있으면 처음에는 꺼 둔다 (저절로 바뀌지 않게).
     @State private var applyToTarget = TargetRangeStore.shouldApplyInitialTarget(in: .standard)
     @State private var isImporting = false
+    /// ‘이 값으로 저장’이 실패했는지
+    @State private var saveFailed = false
 
     private var isMeasuring: Bool {
         audio.loop.phase == .measuring
@@ -182,8 +184,14 @@ struct BaselineMeasureView: View {
             }
 
             Button {
+                // 날짜별 이력을 먼저 남긴다. 실패하면 기준·목표 범위도 바꾸지 않고 안내만 한다.
+                do {
+                    try audio.archive.saveBaseline(baseline)
+                } catch {
+                    saveFailed = true
+                    return
+                }
                 TargetRangeStore.save(baseline, applyingTarget: applyToTarget, in: .standard)
-                audio.archive.saveBaseline(baseline)  // 날짜별 이력에도 남긴다
                 audio.clearMeasurement()
                 dismiss()
             } label: {
@@ -194,7 +202,14 @@ struct BaselineMeasureView: View {
             .tint(UllimColor.referenceFill)
             .controlSize(.large)
 
+            if saveFailed {
+                Label("기록을 저장하지 못했어요. 저장 공간을 확인해 주세요.", systemImage: "exclamationmark.triangle")
+                    .font(.footnote)
+                    .foregroundStyle(.orange)
+            }
+
             Button("다시 재기") {
+                saveFailed = false
                 audio.clearMeasurement()
             }
             .frame(maxWidth: .infinity)

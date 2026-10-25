@@ -40,26 +40,29 @@ final class PracticeArchive {
     }
 
     // MARK: - 남기기
+    // 남기기·지우기는 영구 저장까지 마쳐야 끝난다. 저장에 실패하면 바꾼 내용을 되돌리고 오류를 호출한 쪽에 던진다
+    // (화면이 "남겼어요"를 보여 주지 않게).
 
     /// 연습 한 번의 요약을 남긴다 (정지할 때 자동으로).
-    func saveSession(_ summary: PracticeSessionLog.Summary) {
+    func saveSession(_ summary: PracticeSessionLog.Summary) throws {
         context.insert(PracticeSession(summary))
-        save()
+        try save()
     }
 
     /// ‘내 목소리 재기’ 결과를 이력에 더한다 (저장을 눌렀을 때).
-    func saveBaseline(_ baseline: VoiceBaseline, measuredAt: Date = .now) {
+    func saveBaseline(_ baseline: VoiceBaseline, measuredAt: Date = .now) throws {
         context.insert(BaselineRecord(baseline, measuredAt: measuredAt))
-        save()
+        try save()
     }
 
     /// 모음 하나를 잰 결과를 이력에 더한다.
-    func saveVowel(_ entry: VowelMap.Entry, for vowel: KoreanVowel) {
+    func saveVowel(_ entry: VowelMap.Entry, for vowel: KoreanVowel) throws {
         context.insert(VowelRecord(entry, vowel: vowel))
-        save()
+        try save()
     }
 
     /// 녹음 소리를 m4a로 저장하고 기록을 남긴다. 파일 만들기는 화면이 멈추지 않게 백그라운드에서 한다.
+    /// 파일을 만든 뒤 기록 저장에 실패하면 그 파일을 지워, 소리만 있거나 기록만 있는 반쪽 기록이 남지 않게 한다.
     @discardableResult
     func saveRecording(samples: [Float], sampleRate: Double, summary: PitchSummary, title: String, memo: String,
                        language: PracticeLanguage, recordedAt: Date) async throws -> SavedRecording {
@@ -74,8 +77,21 @@ final class PracticeArchive {
         let recording = SavedRecording(summary: summary, title: title, memo: memo, fileName: fileName,
                                        language: language, recordedAt: recordedAt)
         context.insert(recording)
-        save()
+        do {
+            try save()
+        } catch {
+            try? FileManager.default.removeItem(at: url)  // 지우기에 실패해도 원래 오류를 알리는 것이 먼저다
+            throw error
+        }
         return recording
+    }
+
+    /// 그 녹음 기록이 아직 저장소에 있는지 ([기록] 탭에서 지웠는지 확인할 때).
+    func recordingExists(_ id: PersistentIdentifier) -> Bool {
+        var descriptor = FetchDescriptor<SavedRecording>(predicate: #Predicate { $0.persistentModelID == id })
+        descriptor.fetchLimit = 1
+        // 읽기에 실패하면 없는 것으로 본다 (다시 남길 수 있게 두는 쪽을 고른다).
+        return ((try? context.fetchCount(descriptor)) ?? 0) > 0
     }
 
     func fileURL(for recording: SavedRecording) -> URL {
@@ -94,21 +110,23 @@ final class PracticeArchive {
 
     // MARK: - 지우기
 
-    /// 남긴 녹음 하나를 소리 파일과 함께 지운다.
-    func delete(_ recording: SavedRecording) {
-        try? FileManager.default.removeItem(at: fileURL(for: recording))
+    /// 남긴 녹음 하나를 소리 파일과 함께 지운다. 기록을 먼저 지우고 저장에 성공한 뒤에 파일을 지운다
+    /// (저장에 실패하면 기록이 되돌아오는데, 그때 파일이 없으면 반쪽 기록이 되므로).
+    func delete(_ recording: SavedRecording) throws {
+        let url = fileURL(for: recording)
         context.delete(recording)
-        save()
+        try save()
+        try? FileManager.default.removeItem(at: url)  // 기록은 이미 지워졌다. 파일이 남아도 화면에는 보이지 않는다
     }
 
-    func delete(_ session: PracticeSession) {
+    func delete(_ session: PracticeSession) throws {
         context.delete(session)
-        save()
+        try save()
     }
 
-    func delete(_ baseline: BaselineRecord) {
+    func delete(_ baseline: BaselineRecord) throws {
         context.delete(baseline)
-        save()
+        try save()
     }
 
     /// 모든 기록과 녹음 파일을 지운다. 지금 쓰는 기준 목소리·목표 범위·모음 지도(UserDefaults)는 그대로 둔다.
@@ -118,7 +136,7 @@ final class PracticeArchive {
         try deleteEach(SavedRecording.self)
         try deleteEach(BaselineRecord.self)
         try deleteEach(VowelRecord.self)
-        try context.save()
+        try save()
         if FileManager.default.fileExists(atPath: recordingsDirectory.path) {
             try FileManager.default.removeItem(at: recordingsDirectory)
         }
@@ -132,10 +150,24 @@ final class PracticeArchive {
         }
     }
 
-    /// 메인 저장소(mainContext)는 때가 되면 스스로도 저장하지만, 앱이 곧 꺼질 수 있으니 바로 저장한다.
-    /// 화면에서 메모 등을 고친 뒤에도 부른다.
-    func save() {
-        try? context.save()
+    #if DEBUG
+    /// 테스트에서 저장 실패를 흉내 낼 때만 쓴다. 실제 앱에서는 늘 nil이다.
+    var simulatedSaveError: (any Error)?
+    #endif
+
+    /// 바뀐 내용을 바로 영구 저장한다 (메인 저장소는 때가 되면 스스로도 저장하지만, 앱이 곧 꺼질 수 있으므로).
+    /// 실패하면 아직 저장하지 않은 바뀐 내용을 모두 되돌리고 오류를 던진다. 되돌리지 않으면 화면 목록에는
+    /// 저장 안 된 기록이 보이고, 나중에 저절로 저장될 수도 있다. 화면에서 메모 등을 고친 뒤에도 부른다.
+    func save() throws {
+        do {
+            #if DEBUG
+            if let simulatedSaveError { throw simulatedSaveError }
+            #endif
+            try context.save()
+        } catch {
+            context.rollback()
+            throw error
+        }
     }
 
     private func prepareRecordingsDirectory() throws {
