@@ -98,6 +98,7 @@ struct VowelMapScreen: View {
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
+                .tint(UllimColor.referenceFill)  // 흰 글자가 읽히는 진한 보라
                 .disabled(audio.isRunning || audio.isAnalyzingFile || audio.permission == .denied)
 
                 Button {

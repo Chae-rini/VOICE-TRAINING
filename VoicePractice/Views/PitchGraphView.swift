@@ -18,6 +18,8 @@ struct PitchGraphView: View {
     @AppStorage(TargetRangeStore.lowerKey) private var targetLower: Double?
     @AppStorage(TargetRangeStore.upperKey) private var targetUpper: Double?
     @AppStorage(TargetRangeStore.baselineMedianKey) private var baselineMedian: Double?
+    /// 목표 범위 슬라이더를 펼쳤는지 (평소에는 한 줄로 접어 둔다)
+    @State private var isAdjustingTarget = false
 
     private let axisRange = PitchDetector.frequencyRange  // [Hz] 세로축 70~400
     private let gridStep = 50.0                            // [Hz] 눈금 간격
@@ -41,13 +43,20 @@ struct PitchGraphView: View {
             // 녹음 중이거나 다시 듣는 중에만 초당 30번 다시 그린다. 멈추면 그 순간의 10초를 그대로 보여준다.
             TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !clock.isMoving)) { _ in
                 let endTime = clock.endTime(now: AudioClock.now)
+                let frequency = displayedFrequency(at: endTime)
                 VStack(spacing: 12) {
-                    currentPitchLabel(displayedFrequency(at: endTime))
+                    currentPitchLabel(frequency)
                     Canvas { context, size in
                         drawGraph(in: &context, size: size, endTime: endTime)
                     }
                     .frame(height: 220)
                     .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 12))
+                    // 눈금 숫자는 그래프 왼쪽의 정해진 칸(40pt)에 들어가야 해서 아주 큰 글자에서는 더 키우지 않는다.
+                    .dynamicTypeSize(...DynamicTypeSize.xxLarge)
+                    // 그림이라 VoiceOver가 읽을 것이 없으므로, 그래프가 보여 주는 내용을 말로 붙인다.
+                    .accessibilityElement()
+                    .accessibilityLabel("최근 10초 목소리 높이 그래프")
+                    .accessibilityValue(graphDescription(frequency))
                 }
             }
             targetRangeControls
@@ -74,10 +83,34 @@ struct PitchGraphView: View {
                     .font(.title3)
                     .foregroundStyle(.secondary)
             }
-            Text(caption)
+            // 색을 구분하기 어려워도 알 수 있게 목표 범위 안이면 글자로도 적는다 (판정이 아니라 사실만).
+            Text(isInTarget(frequency) ? "\(caption) · 목표 범위 안" : caption)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
+        .accessibilityElement(children: .combine)
+    }
+
+    /// VoiceOver로 읽을 그래프 설명. 예: "목표 범위 130에서 320 Hz, 기준 200 Hz, 지금 152 Hz, 목표 범위 안"
+    private func graphDescription(_ frequency: Double?) -> String {
+        var parts: [String] = []
+        if let target {
+            parts.append("목표 범위 \(Int(target.lowerBound))에서 \(Int(target.upperBound)) Hz")
+        } else {
+            parts.append("목표 범위 없음")
+        }
+        if let baselineMedian {
+            parts.append("기준 \(Int(baselineMedian.rounded())) Hz")
+        }
+        if let frequency {
+            parts.append("지금 \(Int(frequency.rounded())) Hz")
+            if target != nil {
+                parts.append(isInTarget(frequency) ? "목표 범위 안" : "목표 범위 밖")
+            }
+        } else {
+            parts.append("지금 잡힌 목소리 없음")
+        }
+        return parts.joined(separator: ", ")
     }
 
     // MARK: - 그래프
@@ -146,7 +179,11 @@ struct PitchGraphView: View {
         // 보이는 10초(왼쪽 끝을 조금 넘는 데까지)만 그린다. 다시 듣는 중에는 아직 재생되지 않은 뒷부분을 그리지 않는다.
         let visibleTimes = (endTime - history.visibleDuration - 0.5)...endTime
 
-        let dotSize: CGFloat = 4
+        // 목표 범위 안은 굵게, 밖은 가늘게: 색을 구분하기 어려워도 굵기로 알 수 있다.
+        let insideWidth: CGFloat = 3.5
+        let outsideWidth: CGFloat = 2
+        let dotSize: CGFloat = 5
+        let outsideDotSize: CGFloat = 3.5
         var inside = Path()
         var outside = Path()
         var lonelyInside = Path()
@@ -154,11 +191,12 @@ struct PitchGraphView: View {
         for segment in history.voicedSegments(within: visibleTimes) {
             // 앞뒤로 이어진 점이 없는 외톨이 점은 선이 안 보이므로 작은 점으로 그린다.
             if segment.count == 1, let only = segment.first, let p = point(only) {
-                let dot = CGRect(x: p.x - dotSize / 2, y: p.y - dotSize / 2, width: dotSize, height: dotSize)
                 if isInTarget(only.frequency) {
-                    lonelyInside.addEllipse(in: dot)
+                    lonelyInside.addEllipse(in: CGRect(x: p.x - dotSize / 2, y: p.y - dotSize / 2,
+                                                       width: dotSize, height: dotSize))
                 } else {
-                    lonelyOutside.addEllipse(in: dot)
+                    lonelyOutside.addEllipse(in: CGRect(x: p.x - outsideDotSize / 2, y: p.y - outsideDotSize / 2,
+                                                        width: outsideDotSize, height: outsideDotSize))
                 }
                 continue
             }
@@ -177,9 +215,10 @@ struct PitchGraphView: View {
 
         // 10초보다 오래된 부분은 그래프 왼쪽 밖으로 잘라 낸다.
         context.clip(to: Path(plot.insetBy(dx: -dotSize, dy: -dotSize)))
-        let line = StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round)
-        context.stroke(outside, with: .color(outOfRangeColor), style: line)
-        context.stroke(inside, with: .color(inRangeColor), style: line)
+        context.stroke(outside, with: .color(outOfRangeColor),
+                       style: StrokeStyle(lineWidth: outsideWidth, lineCap: .round, lineJoin: .round))
+        context.stroke(inside, with: .color(inRangeColor),
+                       style: StrokeStyle(lineWidth: insideWidth, lineCap: .round, lineJoin: .round))
         context.fill(lonelyOutside, with: .color(outOfRangeColor))
         context.fill(lonelyInside, with: .color(inRangeColor))
     }
@@ -188,46 +227,82 @@ struct PitchGraphView: View {
 
     private var targetRangeControls: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("목표 범위")
-                Spacer()
-                if let target {
-                    Text("\(Int(target.lowerBound)) – \(Int(target.upperBound)) Hz")
-                        .monospacedDigit()
-                        .foregroundStyle(targetColor)
+            // 한 줄에 들어가면 한 줄로, 아주 큰 글자에서는 제목·값·버튼을 한 줄씩 쌓는다.
+            ViewThatFits(in: .horizontal) {
+                HStack {
+                    Text("목표 범위")
+                    Spacer()
+                    targetValue
+                    adjustButton
+                }
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("목표 범위")
+                    targetValue
+                    adjustButton
                 }
             }
             .font(.subheadline.weight(.medium))
 
-            if target != nil {
-                slider("하한", value: lowerBinding)
-                slider("상한", value: upperBinding)
-            } else {
-                Text("아직 목표 범위가 없어요. 내 목소리를 먼저 재면 그 높이를 기준으로 목표 범위를 만들어요.")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
-            // 기준에서 많이 떨어진 목표: 막거나 권하지 않고, 목 상태만 확인하도록 부드럽게 알린다.
+            // 기준에서 많이 떨어진 목표: 막거나 권하지 않고, 목 상태만 확인하도록 부드럽게 알린다 (접혀 있어도 보인다).
             if let target, let baselineMedian, VoiceBaseline.isFar(target, from: baselineMedian) {
                 Label("기준 목소리와 꽤 떨어진 범위예요. 목에 무리가 없는지 천천히 확인해 보세요.", systemImage: "info.circle")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Text("편하게 낼 수 있는 높이로 정하세요. 목이 불편하면 잠시 쉬어 가요.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
+            // 목표 범위는 자주 바꾸지 않으므로 평소에는 접어 둔다. 아직 없으면 만드는 방법을 바로 보여 준다.
+            if target == nil {
+                Text("아직 목표 범위가 없어요. 내 목소리를 먼저 재면 그 높이를 기준으로 목표 범위를 만들어요.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                measureButton
+            } else if isAdjustingTarget {
+                slider("하한", value: lowerBinding)
+                slider("상한", value: upperBinding)
+                Text("편하게 낼 수 있는 높이로 정하세요. 목이 불편하면 잠시 쉬어 가요.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                measureButton
+            }
+        }
+    }
 
-            Button(action: onMeasure) {
-                Label(baselineMedian.map { "내 목소리 다시 재기 · 기준 \(Int($0.rounded())) Hz" } ?? "내 목소리 재기",
-                      systemImage: "waveform")
+    /// "130 – 320 Hz" (값 중간에서 줄이 바뀌지 않게). 목표 범위가 없으면 비어 있다.
+    @ViewBuilder
+    private var targetValue: some View {
+        if let target {
+            Text("\(Int(target.lowerBound)) – \(Int(target.upperBound)) Hz")
+                .monospacedDigit()
+                .foregroundStyle(targetColor)
+                .fixedSize()
+        }
+    }
+
+    /// 목표 범위 슬라이더를 펼치고 접는 버튼. 목표 범위가 없으면 비어 있다.
+    @ViewBuilder
+    private var adjustButton: some View {
+        if target != nil {
+            Button {
+                withAnimation(.snappy) { isAdjustingTarget.toggle() }
+            } label: {
+                Label("조정", systemImage: isAdjustingTarget ? "chevron.up" : "chevron.down")
             }
             .font(.footnote)
             .buttonStyle(.bordered)
-            .tint(baselineColor)  // 내 기준 색(보라): 기준 점선과 같은 색
-            .disabled(!canMeasure)
+            .controlSize(.small)
+            .accessibilityHint(isAdjustingTarget ? "목표 범위 슬라이더를 접어요" : "목표 범위 슬라이더를 펼쳐요")
         }
+    }
+
+    private var measureButton: some View {
+        Button(action: onMeasure) {
+            Label(baselineMedian.map { "내 목소리 다시 재기 · 기준 \(Int($0.rounded())) Hz" } ?? "내 목소리 재기",
+                  systemImage: "waveform")
+        }
+        .font(.footnote)
+        .buttonStyle(.bordered)
+        .tint(baselineColor)  // 내 기준 색(보라): 기준 점선과 같은 색
+        .disabled(!canMeasure)
     }
 
     private func slider(_ title: String, value: Binding<Double>) -> some View {

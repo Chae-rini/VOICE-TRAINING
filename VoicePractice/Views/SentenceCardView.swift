@@ -11,7 +11,7 @@ struct SentenceCardView: View {
         var id: Self { self }
     }
 
-    /// 연습 중인지. 대본의 "연습 시간 맞추기"를 잠그는 데 쓴다.
+    /// 연습 중인지. 대본의 "들려줄 길이 맞추기"를 잠그는 데 쓴다.
     let isPracticing: Bool
 
     @AppStorage("sentenceSource") private var source = Source.mine
@@ -19,6 +19,9 @@ struct SentenceCardView: View {
     @State private var index = 0
     /// 문장 묶음이 바뀔 때마다 늘려서 카드 넘김 상태를 처음부터 다시 그리게 한다.
     @State private var deckID = 0
+    /// 넘기는 카드는 높이를 정해 줘야 해서, 문장 글자(title3) 크기 설정에 맞춰 같이 키운다.
+    /// 고정 높이였을 때는 아주 큰 글자에서 문장 첫 줄이 잘렸다.
+    @ScaledMetric(relativeTo: .title3) private var cardHeight: CGFloat = 120
 
     private var sentences: [String] {
         source == .mine ? PracticeSentences.all : generatedSentences
@@ -76,7 +79,7 @@ struct SentenceCardView: View {
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
-            .frame(height: 120)
+            .frame(height: cardHeight)
             .id(deckID)
 
             HStack {

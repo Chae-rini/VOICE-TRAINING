@@ -94,6 +94,7 @@ struct BaselineMeasureView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            .tint(UllimColor.referenceFill)
             .controlSize(.large)
             .disabled(audio.isRunning || audio.permission == .denied)
 
@@ -155,6 +156,7 @@ struct BaselineMeasureView: View {
                 audio.clearMeasurement()
             }
             .buttonStyle(.borderedProminent)
+            .tint(UllimColor.referenceFill)
         }
     }
 
@@ -189,6 +191,7 @@ struct BaselineMeasureView: View {
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
+            .tint(UllimColor.referenceFill)
             .controlSize(.large)
 
             Button("다시 재기") {

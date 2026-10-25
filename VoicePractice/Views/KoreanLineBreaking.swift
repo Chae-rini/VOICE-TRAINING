@@ -23,9 +23,13 @@ struct WordWrappedText: UIViewRepresentable {
 
     func updateUIView(_ label: UILabel, context: Context) {
         // 글자 크기 설정(다이내믹 타입)을 따르면서 굵기만 바꾼다.
-        let baseSize = UIFont.preferredFont(forTextStyle: textStyle).pointSize
+        // 기본 글자 크기(.large)에서 시작해 지금 설정만큼 한 번만 키운다. 이미 커진 크기를 다시 키우면 두 번 커진다.
+        // 지금 설정은 SwiftUI 환경에서 읽어야, 앱이 켜진 채로 설정을 바꿔도 다시 그려진다.
+        let traits = UITraitCollection(preferredContentSizeCategory: UIContentSizeCategory(context.environment.dynamicTypeSize))
+        let baseSize = UIFont.preferredFont(forTextStyle: textStyle,
+                                            compatibleWith: UITraitCollection(preferredContentSizeCategory: .large)).pointSize
         let font = UIFontMetrics(forTextStyle: textStyle)
-            .scaledFont(for: .systemFont(ofSize: baseSize, weight: weight))
+            .scaledFont(for: .systemFont(ofSize: baseSize, weight: weight), compatibleWith: traits)
 
         let paragraph = NSMutableParagraphStyle()
         paragraph.lineSpacing = lineSpacing

@@ -13,6 +13,9 @@ enum UllimColor {
     static let target = Color.accentColor
     /// 내 기준 (보라): 기준 목소리 점선, 내 모음 지도, 내 목소리 재기, 두 녹음 비교의 A
     static let reference = Color(.ullimPurple)
+    /// 흰 글자가 얹히는 보라 채운 버튼(borderedProminent)용. 어두운 모드의 `reference`는 연해서 흰 글자가 안 읽히므로,
+    /// 두 모드 모두 진한 보라를 쓴다 (강조색 파랑도 같은 이유로 어두운 모드에서 진하다).
+    static let referenceFill = Color(.ullimPurpleFill)
     /// 기록·저장 (초록): 연습 시간 막대, 저장 완료 안내, 두 녹음 비교의 B
     static let record = Color(.ullimGreen)
     /// 목표 밖의 점, 지나간 꼬리

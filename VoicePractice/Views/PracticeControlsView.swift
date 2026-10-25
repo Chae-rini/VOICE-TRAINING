@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// 화면 아래 고정 영역: 연습 시간, 지금 단계와 시간, 단계별 버튼.
+/// 화면 아래 고정 영역: 지금 단계와 시간(쉬는 중에는 안내 문구와 ‘들려줄 길이’ 버튼), 단계별 버튼.
+/// 화면 위쪽(그래프·문장 카드)이 넉넉하게 보이도록 되도록 낮게 둔다.
 ///
 /// 버튼은 단계마다 바뀐다.
 /// - 쉬는 중: [녹음 불러오기] [▶ 마지막 녹음] [반복 루프 재생] → 정지할 때까지 녹음이 이어진다
@@ -17,8 +18,6 @@ struct PracticeControlsView: View {
 
     var body: some View {
         VStack(spacing: 10) {
-            PracticeDurationView(seconds: $practiceDuration, isLocked: audio.isRunning)
-
             status
 
             if let message = audio.restMessage {
@@ -73,6 +72,9 @@ struct PracticeControlsView: View {
         .padding(.horizontal)
         .padding(.vertical, 12)
         .background(.bar)
+        // 화면 아래 고정 영역이라 글자를 끝없이 키우면 화면 대부분을 덮고 버튼 글자가 한 글자씩 꺾인다.
+        // 탭 막대처럼 커지는 한계를 둔다 (그래프·문장 카드 등 스크롤되는 내용은 그대로 커진다).
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     }
 
     private func mainButton(_ title: String, systemImage: String, action: @escaping () -> Void) -> some View {
@@ -95,9 +97,25 @@ struct PracticeControlsView: View {
         .tint(.red)
     }
 
-    /// 지금 단계와 시간(녹음은 녹음한 시간, 나머지는 남은 시간). 연습 중이 아니면 안내·오류 문구.
+    /// 지금 단계와 시간(녹음은 녹음한 시간, 나머지는 남은 시간).
+    /// 연습 중이 아니면 왼쪽에 안내·오류 문구, 오른쪽에 ‘들려줄 길이’ 버튼 (연습 중에는 바꿀 수 없으므로 숨긴다).
     @ViewBuilder
     private var status: some View {
+        if case .idle = audio.loop.phase {
+            // 문구가 없을 때도 버튼이 오른쪽에 있도록 Spacer로 민다 (빈 문구는 자리를 차지하지 않는다).
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                idleMessage
+                Spacer(minLength: 8)
+                PracticeDurationView(seconds: $practiceDuration, isLocked: audio.isRunning || audio.isAnalyzingFile)
+                    .fixedSize()
+            }
+        } else {
+            phaseStatus
+        }
+    }
+
+    @ViewBuilder
+    private var phaseStatus: some View {
         switch audio.loop.phase {
         case .recording(let round):
             phaseRow(icon: "record.circle", tint: .red, text: "녹음 중 · \(round)번째")
@@ -111,21 +129,27 @@ struct PracticeControlsView: View {
             phaseRow(icon: "waveform", tint: UllimColor.reference,
                      text: audio.measuringVowel.map { "‘\($0.rawValue)’ 길게 내는 중" } ?? "내 목소리 재는 중")
         case .idle:
-            if audio.isAnalyzingFile {
-                HStack(spacing: 8) {
-                    ProgressView()
-                    Text("녹음을 분석하는 중…")
-                }
-                .font(.subheadline)
-            } else if let message = audio.errorMessage {
-                Text(message)
-                    .font(.footnote)
-                    .foregroundStyle(.red)
-            } else if let message = audio.infoMessage {
-                Text(message)
-                    .font(.footnote)
-                    .foregroundStyle(UllimColor.record)
+            EmptyView()
+        }
+    }
+
+    /// 쉬는 중의 안내·오류 문구 (없으면 빈칸)
+    @ViewBuilder
+    private var idleMessage: some View {
+        if audio.isAnalyzingFile {
+            HStack(spacing: 8) {
+                ProgressView()
+                Text("녹음을 분석하는 중…")
             }
+            .font(.subheadline)
+        } else if let message = audio.errorMessage {
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(.red)
+        } else if let message = audio.infoMessage {
+            Text(message)
+                .font(.footnote)
+                .foregroundStyle(UllimColor.record)
         }
     }
 

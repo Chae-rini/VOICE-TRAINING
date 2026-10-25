@@ -44,6 +44,13 @@ struct UllimThemeTests {
         #expect(contrast(color, card) >= 4.5)
     }
 
+    @Test("흰 글자가 얹히는 채운 버튼(파랑 강조색, 보라 채움)은 두 모드 모두 흰 글자 4.5:1 이상",
+          arguments: ["AccentColor", "UllimPurpleFill"])
+    func filledButtons(name: String) throws {
+        #expect(contrast(try resolved(name, .light), .white) >= 4.5)
+        #expect(contrast(try resolved(name, .dark), .white) >= 4.5)
+    }
+
     @Test("강조색(파랑) 버튼 위의 흰 글자는 두 모드 모두 4.5:1 이상, 어두운 바탕 위 파랑 글자는 3:1 이상")
     func accent() throws {
         let light = try resolved("AccentColor", .light)

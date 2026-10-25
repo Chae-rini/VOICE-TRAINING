@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// 대본 낭독 화면 조각. 종류·길이로 거르고, 스크롤해서 읽고, 연습 시간을 대본 길이에 맞출 수 있다.
+/// 대본 낭독 화면 조각. 종류·길이로 거르고, 스크롤해서 읽고, 들려줄 길이를 대본 길이에 맞출 수 있다.
 struct ScriptReaderView: View {
-    /// 연습 중에는 연습 시간을 바꾸지 못하게 한다.
+    /// 연습 중에는 들려줄 길이를 바꾸지 못하게 한다.
     let isPracticing: Bool
 
     private static let anyCategory = "전체"
@@ -141,7 +141,7 @@ struct ScriptReaderView: View {
                 practiceDuration = suggested
             } label: {
                 // "30초로", "1분으로"처럼 받침에 맞는 조사를 고른다.
-                Label(KoreanParticle.resolve(in: "연습 시간을 \(PracticeDuration.label(for: suggested))(으)로 맞추기"),
+                Label(KoreanParticle.resolve(in: "들려줄 길이를 \(PracticeDuration.label(for: suggested))(으)로 맞추기"),
                       systemImage: "timer")
             }
             .font(.footnote)
