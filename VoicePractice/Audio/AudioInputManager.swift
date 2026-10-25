@@ -38,6 +38,8 @@ final class AudioInputManager {
     private(set) var finishedTakeCount = 0
     /// 쉬어 가기 안내를 할 때마다 1씩 늘어난다. 화면이 이 값을 보고 진동을 울린다.
     private(set) var restReminderCount = 0
+    /// 연습 기록을 하나 남길 때마다 1씩 늘어난다. 화면이 이 값을 보고 오늘의 연습 알림을 거둔다.
+    private(set) var savedSessionCount = 0
     /// 다시 들을 수 있는 마지막 녹음이 있는지.
     private(set) var hasLastTake = false
     /// 마지막 녹음의 이름("방금 녹음" 또는 불러온 파일 이름)
@@ -378,6 +380,16 @@ final class AudioInputManager {
         return take.playbackGain == 1 ? boosted : vDSP.divide(boosted, take.playbackGain)
     }
 
+    /// 공유용 WAV 파일 이름의 앞부분. 예: "Ullim-20261025T061230.wav"
+    static let exportFilePrefix = "Ullim-"
+    /// 앱 이름을 "울림"으로 바꾸기 전(2026-10-25)의 앞부분. 그때 만든 임시 파일도 함께 지운다.
+    static let legacyExportFilePrefixes = ["VoicePractice-"]
+
+    /// 지난번에 공유하려고 만든 임시 파일인지 (지금 이름과 예전 이름 모두)
+    static func isExportFile(named name: String) -> Bool {
+        ([exportFilePrefix] + legacyExportFilePrefixes).contains { name.hasPrefix($0) }
+    }
+
     /// 마지막 녹음의 원래 소리를 공유용 WAV 파일로 임시 폴더에 만든다. 다 쓰면 지워도 된다.
     func exportLastTake() throws -> URL {
         guard let lastTake, let original = originalSamples(of: lastTake) else {
@@ -387,7 +399,7 @@ final class AudioInputManager {
         let directory = FileManager.default.temporaryDirectory
         // 지난번에 공유하려고 만든 파일은 지운다 (임시 폴더라 iOS도 때때로 비운다).
         if let oldFiles = try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil) {
-            for file in oldFiles where file.lastPathComponent.hasPrefix("VoicePractice-") {
+            for file in oldFiles where Self.isExportFile(named: file.lastPathComponent) {
                 try? FileManager.default.removeItem(at: file)
             }
         }
@@ -395,7 +407,7 @@ final class AudioInputManager {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withYear, .withMonth, .withDay, .withTime]  // 예: 20261025T061230
         formatter.timeZone = .current
-        let url = directory.appendingPathComponent("VoicePractice-\(formatter.string(from: .now)).wav")
+        let url = directory.appendingPathComponent("\(Self.exportFilePrefix)\(formatter.string(from: .now)).wav")
         try AudioFileAnalyzer.writeWAV(samples: original, sampleRate: lastTake.buffer.format.sampleRate, to: url)
         return url
     }
@@ -426,6 +438,7 @@ final class AudioInputManager {
         // 목표 범위는 연습 중에도 옮길 수 있으므로, 정지한 때의 값과 비교한다.
         guard let summary = log.finish(at: .now, target: TargetRangeStore.savedTarget(in: .standard)) else { return }
         archive.saveSession(summary)
+        savedSessionCount += 1
         infoMessage = "연습 기록을 남겼어요 · \(PitchSummary.durationLabel(summary.pitch.duration))"
     }
 

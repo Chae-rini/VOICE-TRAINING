@@ -1,6 +1,9 @@
-# 프로젝트: 한국어 화자 기준 보이스 트레이닝 iOS 앱 (가칭 VoicePractice)
+# 프로젝트: 울림 (Ullim) — 한국어 화자 기준 보이스 트레이닝 iOS 앱
 
 ## 목적
+앱 이름은 **울림**(로마자 Ullim, 2026-10-25 정함). 울림은 공명(resonance)의 우리말로,
+이 앱의 핵심 방향인 모음별 공명을 담았다. 사용자에게 보이는 이름만 울림이고, 내부 프로젝트 이름은 VoicePractice다.
+
 원하는 목소리를 찾는 모든 사람을 위한 보이스 트레이닝 iOS 앱.
 트랜스 여성만이 아니라 목소리가 낮아 고민인 사람, 더 낮고 안정된 목소리를 원하는 사람,
 발표·면접을 연습하는 사람까지 포함한다. 높이기·낮추기 어느 방향도 가정하지 않는다.
@@ -49,7 +52,8 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
    - 3-1 ✅ 저장 기반: 연습 한 번 요약 자동 저장(숫자만), ‘기록에 남기기’(소리 m4a + 요약 + 메모), 내 목소리·모음 재기 이력, 연습 언어 표시
    - 3-2 ✅ [기록] 탭(기간·언어 거르기, 연습마다 높이·날마다 연습 시간 그래프, 남긴 녹음 재생·메모·언어 고치기, 하나씩·모두 지우기)
    - 3-3 ✅ 두 녹음 비교(A·B 수치·높낮이 폭·높이 분포, 하나씩·이어 듣기)
-   - 3-4 연습 알림(로컬 알림, 기본 꺼짐) / 3-5 아이폰 확인
+   - 3-4 ✅ 연습 알림(로컬 알림, 기본 꺼짐, 오후 8시, 연습한 날 건너뜀, 14일치 예약)
+   - 3-5 아이폰 확인
    - 점수·등급·향상률·연속 기록(스트릭)은 쓰지 않는다. 숫자와 그래프만 보여 준다
 
 그 뒤 (순서 미정)
@@ -66,7 +70,25 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - 프로젝트 설정 파일(.xcodeproj)을 직접 수정해야 하면, 먼저 사용자에게 Xcode에서 할 수 있는 방법을 안내한다.
 - 세션이 끝날 때 PROGRESS.md에 "완료한 것 / 다음 할 일 / 알려진 문제"를 갱신한다.
 
+## 색 (2026-10-25, 아이콘의 네 색)
+화면은 색 이름 대신 역할 이름(`UllimColor`, `Views/UllimTheme.swift`)을 쓴다. 색 값은 `Assets.xcassets`의 색 세트에 있다.
+| 역할 | 색 | 쓰는 곳 |
+|---|---|---|
+| `voice` 지금 내 목소리 | 분홍 (아이콘의 파형) | 피치 꺾은선(목표 안), 지금 높이 숫자, 모음 지도의 지금 점, [기록] 그래프의 점, 듣는 중 |
+| `target` 강조색·목표 범위 | 파랑 (가장 큰 원) = `AccentColor` | 버튼·슬라이더·탭, 목표 범위 띠 |
+| `reference` 내 기준 | 보라 | 기준 목소리 점선, 내 모음 지도, 내 목소리 재기 화면·버튼, 두 녹음 비교의 A |
+| `record` 기록·저장 | 초록 | 연습 시간 막대, 저장 완료 안내, ‘기록에 남기기’, 두 녹음 비교의 B |
+| `inactive` | 회색 | 목표 밖의 점, 꼬리 |
+- 빨강(녹음 중·정지)과 주황(주의)은 시스템 색 그대로.
+- 분홍과 파랑은 성별과 묶여 읽히기 쉬워서 "높은 쪽/낮은 쪽", "전/후" 짝으로 쓰지 않는다 (원칙 3). 분홍은 목표가 어디든 늘 "지금 내 목소리"다.
+- 밝은 모드 값은 아이콘 색과 같은 색상에서 밝기만 낮춰 흰 바탕·카드 바탕 대비 4.5:1 이상, 어두운 모드 값은 아이콘 색 그대로. 강조색은 흰 글자가 얹히므로 어두운 모드에서도 진한 파랑(#0F7AC0). `UllimThemeTests`가 대비를 확인한다.
+- 언어 구분은 색 대신 점 모양(원·네모·세모·마름모)으로 한다.
+
 ## 개발 메모 (빌드·테스트 명령)
+- 내부 프로젝트 이름은 VoicePractice로 유지한다. Xcode 프로젝트·타깃·스킴·폴더·소스의 타입 이름(`VoicePracticeApp` 등)과 번들 ID는 바꾸지 않는다 (바꾸면 빌드 설정이 깨지기 쉽다). 사용자에게 보이는 이름만 "울림"이다.
+  - 홈 화면 이름: 빌드 설정 `INFOPLIST_KEY_CFBundleDisplayName = "울림"` (Xcode에서는 타깃 → General → Identity → Display Name과 같은 값)
+  - 로마자가 필요한 곳(파일 이름 등)은 "Ullim"으로 쓴다. 공유용 WAV는 `Ullim-날짜.wav`
+  - 마이크·알림 권한 창, 공유 창, 알림 배너에 나오는 앱 이름은 iOS가 Display Name을 가져다 쓰므로 따로 넣지 않는다
 - 이 Mac의 `xcode-select`는 Command Line Tools를 가리킨다. `sudo` 없이 Xcode를 쓰려면
   명령 앞에 `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer`를 붙인다.
 - 빌드: `xcodebuild -project VoicePractice.xcodeproj -scheme VoicePractice -destination 'generic/platform=iOS Simulator' build`
@@ -84,5 +106,7 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - 연습 기록은 `PracticeArchive` 한곳에서 저장한다. 숫자는 SwiftData(기본 위치 `Library/Application Support/default.store`), 직접 남긴 녹음은 `Documents/Recordings/<UUID>.m4a`(AAC 64 kbps, iOS 백업 제외). 테스트는 `PracticeArchive(inMemory: true, recordingsDirectory: 임시 폴더)`로 앱의 실제 기록을 건드리지 않는다.
 - `@MainActor` 정적 속성(예: `PracticeArchive.shared`)을 함수의 기본 인자값으로 쓰면 격리 경고가 난다. 옵셔널 인자로 받고 `?? .shared`로 채운다.
 - 시뮬레이터는 마이크 소리가 들어오지 않아 연습 기록이 생기지 않는다. [기록] 탭을 확인할 때는 Debug 빌드를 `xcrun simctl launch <기기> <번들 ID> -seedSampleHistory YES`로 실행하면 연습 기록이 없을 때만 가짜 기록(40일치)을 넣는다 (`Models/SampleHistory.swift`, Release 빌드에는 없음). 확인 뒤 [기록] 탭의 ‘모든 기록 지우기’로 지운다.
+- 시뮬레이터 앱의 설정값(UserDefaults)을 바깥에서 바꾸려면 앱을 끈 뒤 `xcrun simctl spawn <기기> defaults write <앱 데이터 폴더>/Library/Preferences/<번들 ID> <키> <값>`처럼 파일 경로로 쓴다 (번들 ID만 주면 다른 곳에 써진다). 연습 알림은 알림 시간을 몇 분 뒤로 바꾸고 앱을 다시 켠 뒤 홈 화면으로 가서 확인한다. 예약·전달 여부는 `log show`에서 SpringBoard의 "pending notification"·"Deliver local notification" 줄로 본다.
+- 시뮬레이터에서 SwiftUI 스위치(Toggle)는 도구로 탭하면 안 켜질 때가 있다. 끌면(swipe) 켜진다.
 - 시뮬레이터에서 글자 입력: 도구의 text 입력(붙여넣기)은 한글이 안 되고 영어도 들어가지 않을 때가 있다. 화면 자판의 키를 좌표로 직접 누르면 한글도 들어간다.
 - 저장된 기록을 지울 때는 `delete(model:)`(한꺼번에 지우기) 대신 하나씩 지운다. 한꺼번에 지우면 화면의 `@Query` 목록이 바로 따라 바뀌지 않는다는 보고가 있어서 피했다 (직접 재현하지는 않음).

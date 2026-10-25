@@ -83,11 +83,12 @@ struct VowelMapScreen: View {
                         .padding(.vertical, 4)
                     }
                     .buttonStyle(.bordered)
-                    .tint(vowel == selected ? .indigo : .gray)
+                    .tint(vowel == selected ? UllimColor.reference : UllimColor.inactive)
                     .accessibilityLabel("\(vowel.rawValue)\(map[vowel] == nil ? "" : ", 잼")")
                 }
             }
 
+            // 내 모음 지도는 내 기준이라 재기 버튼도 보라(지도의 원과 같은 색)
             HStack(spacing: 10) {
                 Button {
                     message = nil
@@ -108,6 +109,7 @@ struct VowelMapScreen: View {
                 .buttonStyle(.bordered)
                 .disabled(audio.isRunning || audio.isAnalyzingFile)
             }
+            .tint(UllimColor.reference)
 
             if audio.isAnalyzingFile {
                 HStack(spacing: 8) {
@@ -118,7 +120,7 @@ struct VowelMapScreen: View {
             } else if let message {
                 Text(message)
                     .font(.footnote)
-                    .foregroundStyle(messageIsWarning ? .orange : .teal)
+                    .foregroundStyle(messageIsWarning ? Color.orange : UllimColor.record)
             }
         }
         .padding()
@@ -133,7 +135,7 @@ struct VowelMapScreen: View {
             Text("목과 입안이 울리는 두 주파수(포먼트)로 지금 내는 모음의 위치를 보여 줘요. ‘아·에·이·오·우·으·어’ 중 하나를 2~3초 길게 내 보세요.")
             Text("• 가로(F2): 혀가 앞쪽일수록 왼쪽, 뒤쪽일수록 오른쪽")
             Text("• 세로(F1): 입을 좁게 열수록 위, 크게 열수록 아래")
-            Text("• 남보라 원은 내가 잰 모음이에요. 위에서 고른 모음을 쟀으면 지금 소리와의 차이가 숫자로 나와요.")
+            Text("• 분홍 점은 지금 내는 소리, 보라 원은 내가 잰 모음이에요. 위에서 고른 모음을 쟀으면 지금 소리와의 차이가 숫자로 나와요.")
             Text("같은 모음도 사람마다 위치가 달라서, 정해진 정답 위치는 없어요. 목소리가 높을수록 세로(F1)는 덜 정확하고 가로(F2)가 더 믿을 만해요. 이때는 점이 속이 빈 점선 원으로 바뀌어요.")
                 .foregroundStyle(.secondary)
         }

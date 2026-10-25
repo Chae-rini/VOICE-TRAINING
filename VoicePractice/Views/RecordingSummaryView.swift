@@ -55,6 +55,7 @@ struct RecordingSummaryView: View {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.bordered)
+            .tint(UllimColor.record)  // 기록 색(초록)
             .font(.subheadline)
             .disabled(isSaved || isSaving)
 

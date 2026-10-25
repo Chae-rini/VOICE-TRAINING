@@ -86,10 +86,10 @@ struct PitchSummary: Equatable {
             떨림·허스키함·공명 같은 음색은 수치만으로는 알 수 없으니 짐작하지 말아 주세요.
             """
         return """
-        [보이스 트레이닝 녹음 피드백 요청]
+        [울림 · 보이스 트레이닝 녹음 피드백 요청]
         녹음: \(title) (\(Self.durationLabel(duration)))
 
-        아래 수치는 연습 앱이 기기 안에서 직접 잰 값이에요. (YIN 피치 검출, 70~400 Hz)
+        아래 수치는 보이스 트레이닝 앱 ‘울림’이 기기 안에서 직접 잰 값이에요. (YIN 피치 검출, 70~400 Hz)
         - 목소리가 잡힌 시간: \(String(format: "%.1f", voicedSeconds))초
         - 피치 중앙값: \(Int(median.rounded())) Hz
         - 피치 범위(아래 10%~위 10%): \(Int(p10.rounded()))~\(Int(p90.rounded())) Hz

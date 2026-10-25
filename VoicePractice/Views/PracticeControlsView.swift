@@ -102,13 +102,13 @@ struct PracticeControlsView: View {
         case .recording(let round):
             phaseRow(icon: "record.circle", tint: .red, text: "녹음 중 · \(round)번째")
         case .listening(let round):
-            phaseRow(icon: "speaker.wave.2.fill", tint: .teal, text: "방금 녹음 듣는 중 · \(round)번째")
+            phaseRow(icon: "speaker.wave.2.fill", tint: UllimColor.voice, text: "방금 녹음 듣는 중 · \(round)번째")
         case .countdown(let nextRound):
             phaseRow(icon: "pause.circle", tint: .secondary, text: "숨 고르기 · 곧 \(nextRound)번째 녹음")
         case .replaying:
-            phaseRow(icon: "speaker.wave.2.fill", tint: .teal, text: "‘\(audio.lastTakeTitle ?? "마지막 녹음")’ 듣는 중")
+            phaseRow(icon: "speaker.wave.2.fill", tint: UllimColor.voice, text: "‘\(audio.lastTakeTitle ?? "마지막 녹음")’ 듣는 중")
         case .measuring:
-            phaseRow(icon: "waveform", tint: .indigo,
+            phaseRow(icon: "waveform", tint: UllimColor.reference,
                      text: audio.measuringVowel.map { "‘\($0.rawValue)’ 길게 내는 중" } ?? "내 목소리 재는 중")
         case .idle:
             if audio.isAnalyzingFile {
@@ -124,7 +124,7 @@ struct PracticeControlsView: View {
             } else if let message = audio.infoMessage {
                 Text(message)
                     .font(.footnote)
-                    .foregroundStyle(.teal)
+                    .foregroundStyle(UllimColor.record)
             }
         }
     }

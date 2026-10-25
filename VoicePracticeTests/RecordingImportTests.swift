@@ -85,6 +85,15 @@ struct SharedRecordingTests {
         #expect(!AudioInputManager.isInboxCopy(documents.appendingPathComponent("Inbox2/a.m4a")))
         #expect(!AudioInputManager.isInboxCopy(FileManager.default.temporaryDirectory.appendingPathComponent("a.m4a")))
     }
+
+    @Test("공유용 임시 파일 정리: 지금 이름(Ullim-)과 예전 이름(VoicePractice-)을 모두 지우고, 다른 파일은 두지 않는다")
+    func exportFileNames() {
+        #expect(AudioInputManager.exportFilePrefix == "Ullim-")
+        #expect(AudioInputManager.isExportFile(named: "Ullim-20261025T061230.wav"))
+        #expect(AudioInputManager.isExportFile(named: "VoicePractice-20261025T061230.wav"))
+        #expect(!AudioInputManager.isExportFile(named: "새로운 녹음.m4a"))
+        #expect(!AudioInputManager.isExportFile(named: "ullim-소문자.wav"))
+    }
 }
 
 @MainActor
@@ -123,6 +132,17 @@ struct PitchSummaryTests {
         let text = summary.feedbackRequest(title: "방금 녹음", includesAudio: true)
         #expect(text.contains("내 목표 범위: 아직 정하지 않음"))
         #expect(text.contains("높이거나 낮추는 방향은 가정하지 말아 주세요"))
+    }
+
+    @Test("요청문은 앱을 ‘울림’으로 소개한다 (내부 이름 VoicePractice는 쓰지 않는다)")
+    func requestNamesApp() throws {
+        let summary = try #require(PitchSummary(readings: readings, duration: 3, target: 180...220))
+        for includesAudio in [true, false] {
+            let text = summary.feedbackRequest(title: "방금 녹음", includesAudio: includesAudio)
+            #expect(text.hasPrefix("[울림 · 보이스 트레이닝 녹음 피드백 요청]"))
+            #expect(text.contains("보이스 트레이닝 앱 ‘울림’이 기기 안에서 직접 잰 값"))
+            #expect(!text.contains("VoicePractice"))
+        }
     }
 
     @Test("녹음 길이 표시", arguments: [(45.0, "45초"), (60.0, "1분"), (83.4, "1분 23초")])

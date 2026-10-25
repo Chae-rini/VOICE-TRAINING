@@ -2,7 +2,7 @@ import SwiftUI
 
 /// 모음 지도: 가로 F2(왼쪽이 혀 앞쪽), 세로 F1(위가 입을 좁게).
 /// 지금 내는 소리를 큰 점으로, 최근 1.5초를 흐린 꼬리로 보여 준다. 녹음을 다시 들을 때는 재생 위치를 따라간다.
-/// 내가 잰 모음(내 모음 지도)은 남보라 원과 글자로 표시한다. 성별 평균 같은 기준 위치는 그리지 않는다 (원칙 3).
+/// 내가 잰 모음(내 모음 지도)은 보라 원과 글자로 표시한다. 성별 평균 같은 기준 위치는 그리지 않는다 (원칙 3).
 struct VowelChartView: View {
     let history: PitchHistory
     let clock: GraphClock
@@ -17,10 +17,11 @@ struct VowelChartView: View {
     private let currentWindow: TimeInterval = 0.3
     /// [s] 꼬리 길이
     private let trailWindow: TimeInterval = 1.5
-    private let pointColor = Color.teal
-    private let trailColor = Color.gray
-    /// 내 기준(내 모음 지도) 색. [높이] 탭의 기준 목소리 점선과 같은 색이다.
-    private let markerColor = Color.indigo
+    /// 지금 내는 소리 (목소리 색, 분홍)
+    private let pointColor = UllimColor.voice
+    private let trailColor = UllimColor.inactive
+    /// 내 기준(내 모음 지도) 색. [높이] 탭의 기준 목소리 점선과 같은 보라다.
+    private let markerColor = UllimColor.reference
 
     var body: some View {
         // 녹음 중이거나 다시 듣는 중에만 초당 30번 다시 그린다.
@@ -118,7 +119,7 @@ struct VowelChartView: View {
         context.draw(label("F2", bold: true), at: CGPoint(x: plot.midX, y: plot.maxY + 22), anchor: .top)
         context.draw(label("혀 뒤쪽 →"), at: CGPoint(x: plot.maxX, y: plot.maxY + 22), anchor: .topTrailing)
 
-        // 내 모음 지도: 잰 모음마다 남보라 원과 글자. 길게 내는 동안 흔들린 범위(25%~75%)는 옅은 십자로.
+        // 내 모음 지도: 잰 모음마다 보라 원과 글자. 길게 내는 동안 흔들린 범위(25%~75%)는 옅은 십자로.
         // 잴 때 F1이 불확실했으면 원을 점선으로 그린다.
         for vowel in KoreanVowel.allCases {
             guard let entry = map[vowel] else { continue }

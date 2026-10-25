@@ -333,6 +333,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "VoicePractice-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "울림";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "목소리의 높이를 분석하기 위해 마이크를 사용합니다. 녹음은 직접 공유할 때만 기기 밖으로 나갑니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
@@ -365,6 +366,7 @@
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = "VoicePractice-Info.plist";
+				INFOPLIST_KEY_CFBundleDisplayName = "울림";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "목소리의 높이를 분석하기 위해 마이크를 사용합니다. 녹음은 직접 공유할 때만 기기 밖으로 나갑니다.";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;

@@ -2,7 +2,8 @@ import Charts
 import SwiftUI
 
 /// [기록] 탭의 그래프 두 개: 연습마다 목소리 높이(중앙값 점 + 아래 10%~위 10% 세로줄), 날마다 연습한 시간(막대).
-/// 청록 띠는 지금 목표 범위, 남보라 점선은 지금 기준 목소리다 ([높이] 탭과 같은 색).
+/// 점은 목소리 색(분홍), 파란 띠는 지금 목표 범위, 보라 점선은 지금 기준 목소리, 막대는 기록 색(초록)이다 ([높이] 탭과 같은 색).
+/// 언어는 색이 아니라 점 모양으로 나눈다 (색은 역할마다 하나씩만 쓰려고).
 /// 좋아졌다·나빠졌다 같은 판정은 하지 않고 숫자의 흐름만 보여 준다.
 struct HistoryChartView: View {
     let points: [SessionPoint]
@@ -36,16 +37,16 @@ struct HistoryChartView: View {
                         yStart: .value("목표 하한", target.lowerBound),
                         yEnd: .value("목표 상한", target.upperBound)
                     )
-                    .foregroundStyle(Color.teal.opacity(0.12))
+                    .foregroundStyle(UllimColor.target.opacity(UllimColor.bandOpacity))
                 }
                 if let baseline {
                     RuleMark(y: .value("기준", baseline))
-                        .foregroundStyle(Color.indigo)
+                        .foregroundStyle(UllimColor.reference)
                         .lineStyle(StrokeStyle(lineWidth: 1.5, dash: [5, 4]))
                         .annotation(position: .top, alignment: .leading) {
                             Text("기준")
                                 .font(.caption2)
-                                .foregroundStyle(Color.indigo)
+                                .foregroundStyle(UllimColor.reference)
                         }
                 }
                 ForEach(points) { point in
@@ -54,27 +55,47 @@ struct HistoryChartView: View {
                         yStart: .value("아래 10%", point.low),
                         yEnd: .value("위 10%", point.high)
                     )
-                    .foregroundStyle(by: .value("언어", point.language.label))
+                    .foregroundStyle(UllimColor.voice.opacity(0.35))
                     .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
-                    .opacity(0.35)
                     PointMark(
                         x: .value("날짜", point.startedAt),
                         y: .value("중앙값", point.median)
                     )
-                    .foregroundStyle(by: .value("언어", point.language.label))
-                    .symbolSize(40)
+                    .foregroundStyle(UllimColor.voice)
+                    .symbol(by: .value("언어", point.language.label))
+                    .symbolSize(44)
                 }
             }
-            .chartForegroundStyleScale(domain: languages.map(\.label), range: languages.map(\.color))
+            .chartSymbolScale(domain: languages.map(\.label), range: languages.map(\.chartSymbol))
             .chartXScale(domain: dateDomain)
             .chartYScale(domain: pitchDomain)
             .chartXAxis { dateAxis }
-            .chartLegend(languages.count > 1 ? .visible : .hidden)
+            // 기본 범례는 강조색(파랑)으로 그려져 분홍 점과 어긋나므로 직접 그린다.
+            .chartLegend(.hidden)
             .frame(height: 220)
-            Text("점은 연습 한 번의 중앙값, 세로줄은 아래 10%~위 10%예요. 청록 띠는 지금 목표 범위, 점선은 지금 기준 목소리예요.")
+            if languages.count > 1 {
+                languageLegend
+            }
+            Text("점은 연습 한 번의 중앙값, 세로줄은 아래 10%~위 10%예요. 파란 띠는 지금 목표 범위, 보라 점선은 지금 기준 목소리예요.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    /// 언어별 점 모양 (그래프의 점과 같은 분홍)
+    private var languageLegend: some View {
+        HStack(spacing: 12) {
+            ForEach(languages) { language in
+                HStack(spacing: 4) {
+                    Image(systemName: language.symbolName)
+                        .font(.system(size: 8))
+                        .foregroundStyle(UllimColor.voice)
+                    Text(language.label)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .font(.caption)
     }
 
     private var practiceChart: some View {
@@ -86,7 +107,7 @@ struct HistoryChartView: View {
                     x: .value("날", day.day, unit: .day),
                     y: .value("분", day.minutes)
                 )
-                .foregroundStyle(Color.teal.opacity(0.7))
+                .foregroundStyle(UllimColor.record.opacity(0.8))
             }
             .chartXScale(domain: dateDomain)
             .chartXAxis { dateAxis }
@@ -104,13 +125,23 @@ struct HistoryChartView: View {
 }
 
 extension PracticeLanguage {
-    /// 그래프에서 언어를 구분하는 색. 남보라(내 기준)와 겹치지 않게 고른다.
-    var color: Color {
+    /// 그래프에서 언어를 구분하는 점 모양. 색은 모두 목소리 색(분홍)이다.
+    var chartSymbol: BasicChartSymbolShape {
         switch self {
-        case .korean: .teal
-        case .english: .orange
-        case .japanese: .green
-        case .other: .gray
+        case .korean: .circle
+        case .english: .square
+        case .japanese: .triangle
+        case .other: .diamond
+        }
+    }
+
+    /// 목록의 언어 표시에 쓰는 같은 모양의 SF Symbol
+    var symbolName: String {
+        switch self {
+        case .korean: "circle.fill"
+        case .english: "square.fill"
+        case .japanese: "triangle.fill"
+        case .other: "diamond.fill"
         }
     }
 }

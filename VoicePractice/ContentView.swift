@@ -65,16 +65,27 @@ struct ContentView: View {
                 }
             }
         }
+        .onAppear {
+            PracticeReminder.refresh(using: audio.archive)
+        }
         .onChange(of: scenePhase) { _, phase in
             switch phase {
             case .active:
                 audio.refreshPermission()
+                // 날이 바뀌었을 수 있으니 앞으로 14일치 알림을 다시 채운다.
+                PracticeReminder.refresh(using: audio.archive)
             case .background:
                 // 백그라운드에서는 마이크와 스피커를 쓰지 않는다.
                 audio.stop()
+                // 방금 멈춘 연습이 기록에 남았으면 오늘 알림을 거둔다 (앱이 곧 멈출 수 있어 여기서 바로).
+                PracticeReminder.refresh(using: audio.archive)
             default:
                 break
             }
+        }
+        // 오늘 연습 기록이 남으면 오늘 알림은 보내지 않는다.
+        .onChange(of: audio.savedSessionCount) {
+            PracticeReminder.refresh(using: audio.archive)
         }
         .sensoryFeedback(.impact(weight: .light), trigger: audio.finishedTakeCount)
         .sensoryFeedback(.impact(weight: .heavy), trigger: audio.restReminderCount)

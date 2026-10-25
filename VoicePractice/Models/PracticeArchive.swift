@@ -82,6 +82,16 @@ final class PracticeArchive {
         recordingsDirectory.appending(path: recording.fileName)
     }
 
+    /// 그날 연습 기록이 남았는지 (연습 알림을 건너뛸지 정할 때). 자정을 넘겨 끝난 연습은 끝난 날에도 연습한 것으로 본다.
+    func hasPractice(on date: Date, calendar: Calendar = .current) -> Bool {
+        let start = calendar.startOfDay(for: date)
+        guard let end = calendar.date(byAdding: .day, value: 1, to: start) else { return false }
+        let descriptor = FetchDescriptor<PracticeSession>(
+            predicate: #Predicate { $0.endedAt >= start && $0.startedAt < end }
+        )
+        return ((try? context.fetchCount(descriptor)) ?? 0) > 0
+    }
+
     // MARK: - 지우기
 
     /// 남긴 녹음 하나를 소리 파일과 함께 지운다.

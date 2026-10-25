@@ -19,8 +19,9 @@ struct RecordingCompareView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
 
-    private let colorA = Color.orange
-    private let colorB = Color.blue
+    /// A는 내 기준 색(보라), B는 기록 색(초록). 분홍·파랑을 전/후 짝으로 쓰지 않는다 (UllimColor 참고).
+    private let colorA = UllimColor.reference
+    private let colorB = UllimColor.record
 
     init(recordings: [SavedRecording], initialA: SavedRecording, initialB: SavedRecording,
          archive: PracticeArchive, audio: AudioInputManager) {
@@ -234,7 +235,7 @@ struct RecordingCompareView: View {
         } header: {
             Text("높이 분포")
         } footer: {
-            Text("목소리가 잡힌 시간 중 각 높이(5 Hz 간격)에 머문 비율이에요. 점선은 각 녹음의 중앙값, 청록 띠는 지금 목표 범위예요.")
+            Text("목소리가 잡힌 시간 중 각 높이(5 Hz 간격)에 머문 비율이에요. 점선은 각 녹음의 중앙값, 파란 띠는 지금 목표 범위예요.")
         }
     }
 
@@ -269,7 +270,7 @@ struct RecordingCompareView: View {
                 yStart: .value("아래", 0.0),
                 yEnd: .value("위", yMax)
             )
-            .foregroundStyle(Color.teal.opacity(0.12))
+            .foregroundStyle(UllimColor.target.opacity(UllimColor.bandOpacity))
         }
     }
 

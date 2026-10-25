@@ -22,10 +22,13 @@ struct PitchGraphView: View {
     private let axisRange = PitchDetector.frequencyRange  // [Hz] 세로축 70~400
     private let gridStep = 50.0                            // [Hz] 눈금 간격
     private let minimumGap = 10.0                          // [Hz] 하한과 상한의 최소 간격
-    private let inRangeColor = Color.teal
-    private let outOfRangeColor = Color.gray
-    /// 기준선 색. 목표 범위 띠(청록 채움)와 확실히 다르게 보이도록 다른 색의 점선으로 그린다.
-    private let baselineColor = Color.indigo
+    /// 목표 범위 안의 목소리 (분홍). 목표 범위 밖은 회색.
+    private let inRangeColor = UllimColor.voice
+    private let outOfRangeColor = UllimColor.inactive
+    /// 목표 범위 띠 (파랑 채움)
+    private let targetColor = UllimColor.target
+    /// 기준선 색. 목표 범위 띠(파랑 채움)와 확실히 다르게 보이도록 보라 점선으로 그린다.
+    private let baselineColor = UllimColor.reference
 
     /// 저장된 목표 범위. 아직 없으면 nil.
     private var target: ClosedRange<Double>? {
@@ -92,7 +95,7 @@ struct PitchGraphView: View {
         if let target {
             let band = CGRect(x: plot.minX, y: y(target.upperBound), width: plot.width,
                               height: y(target.lowerBound) - y(target.upperBound))
-            context.fill(Path(band), with: .color(inRangeColor.opacity(0.18)))
+            context.fill(Path(band), with: .color(targetColor.opacity(UllimColor.bandOpacity)))
         }
 
         // 50Hz 간격 눈금 (100, 150, …, 400) + 아래 경계 70
@@ -133,7 +136,7 @@ struct PitchGraphView: View {
         }
 
         // 피치 꺾은선: 오른쪽이 지금, 왼쪽으로 갈수록 과거. 무음 구간은 선을 끊어 빈칸으로 남긴다.
-        // 선분마다 두 끝점의 가운데 높이가 목표 범위 안이면 청록, 밖이면 회색으로 칠한다.
+        // 선분마다 두 끝점의 가운데 높이가 목표 범위 안이면 분홍(목소리 색), 밖이면 회색으로 칠한다.
         func point(_ reading: PitchReading) -> CGPoint? {
             guard let frequency = reading.frequency else { return nil }
             let age = endTime - reading.time  // [s] 몇 초 전인지
@@ -191,7 +194,7 @@ struct PitchGraphView: View {
                 if let target {
                     Text("\(Int(target.lowerBound)) – \(Int(target.upperBound)) Hz")
                         .monospacedDigit()
-                        .foregroundStyle(inRangeColor)
+                        .foregroundStyle(targetColor)
                 }
             }
             .font(.subheadline.weight(.medium))
@@ -222,6 +225,7 @@ struct PitchGraphView: View {
             }
             .font(.footnote)
             .buttonStyle(.bordered)
+            .tint(baselineColor)  // 내 기준 색(보라): 기준 점선과 같은 색
             .disabled(!canMeasure)
         }
     }

@@ -42,6 +42,8 @@ struct BaselineMeasureView: View {
                 }
             }
         }
+        // 내 기준 목소리를 재는 화면이라 버튼·스위치를 내 기준 색(보라)으로
+        .tint(UllimColor.reference)
         .interactiveDismissDisabled(isMeasuring)
         .fileImporter(isPresented: $isImporting, allowedContentTypes: [.audio]) { result in
             if case .success(let url) = result {

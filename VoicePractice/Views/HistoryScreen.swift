@@ -20,6 +20,8 @@ struct HistoryScreen: View {
     @State private var language: PracticeLanguage?
     @State private var isConfirmingDeleteAll = false
     @State private var comparePair: ComparePair?
+    @State private var isShowingReminder = false
+    @AppStorage(PracticeReminder.enabledKey) private var isReminderEnabled = false
 
     private let calendar = Calendar.current
 
@@ -55,6 +57,23 @@ struct HistoryScreen: View {
             }
             .navigationTitle("기록")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                // 기록이 없을 때도 알림은 켤 수 있게 목록 밖(위 막대)에 둔다.
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        isShowingReminder = true
+                    } label: {
+                        Label("연습 알림", systemImage: isReminderEnabled ? "bell.fill" : "bell")
+                    }
+                }
+            }
+            .sheet(isPresented: $isShowingReminder) {
+                ReminderSettingsView(archive: audio.archive)
+            }
+        }
+        // 오늘 연습 기록을 지웠으면 오늘 알림을 다시 넣는다.
+        .onChange(of: sessions.count) {
+            PracticeReminder.refresh(using: audio.archive)
         }
     }
 
@@ -262,16 +281,22 @@ struct HistoryScreen: View {
             Text("중앙 \(Int(baseline.medianHz.rounded())) Hz · \(Int(baseline.lowHz.rounded()))–\(Int(baseline.highHz.rounded())) Hz")
                 .font(.footnote)
                 .monospacedDigit()
-                .foregroundStyle(Color.indigo)
+                .foregroundStyle(UllimColor.reference)
         }
     }
 
+    /// 언어 표시: 그래프 점과 같은 모양(분홍) + 언어 이름
     private func languageTag(_ language: PracticeLanguage) -> some View {
-        Text(language.label)
-            .font(.caption2.weight(.medium))
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .foregroundStyle(language.color)
-            .background(language.color.opacity(0.12), in: Capsule())
+        HStack(spacing: 3) {
+            Image(systemName: language.symbolName)
+                .font(.system(size: 7))
+                .foregroundStyle(UllimColor.voice)
+            Text(language.label)
+                .foregroundStyle(.secondary)
+        }
+        .font(.caption2.weight(.medium))
+        .padding(.horizontal, 6)
+        .padding(.vertical, 2)
+        .background(Color(.tertiarySystemFill), in: Capsule())
     }
 }
