@@ -58,7 +58,7 @@
 - 그래프: SwiftUI Canvas + TimelineView (실시간), Swift Charts ([기록] 탭)
 - 저장: SwiftData(숫자 기록) + 앱 Documents 폴더(직접 남긴 녹음, iOS 백업 제외)
 - 외부 패키지 없음
-- 웹·안드로이드 버전(만드는 중, `web/`): TypeScript + Svelte + Vite. 분석 코드는 iOS와 같은 방법을 옮겼고, iOS가 만든 정답표와 같은 숫자를 내는지 테스트로 확인한다. 지금은 [높이] 화면(실시간 그래프·목표 범위·내 목소리 재기·문장·대본)까지 있고, 녹음 → 듣기 반복은 아직 없다. 계획: [Docs/WEB_PLAN.md](Docs/WEB_PLAN.md)
+- 웹·안드로이드 버전(만드는 중, `web/`): TypeScript + Svelte + Vite. 분석 코드는 iOS와 같은 방법을 옮겼고, iOS가 만든 정답표와 같은 숫자를 내는지 테스트로 확인한다. 지금은 [높이] 화면(실시간 그래프·목표 범위·내 목소리 재기·문장·대본)과 반복 루프(녹음 → 듣기), 녹음 파일 불러오기, 요약 카드(WAV 저장·AI 공유·요약 복사)까지 있다. [모음]·[기록]은 아직 없다. 계획: [Docs/WEB_PLAN.md](Docs/WEB_PLAN.md)
 
 ## 빌드 방법
 필요한 것: Xcode (Xcode 27.1과 iOS 27 시뮬레이터에서 확인했다. 더 낮은 버전은 확인하지 않았다), 실기기에 설치하려면 Apple 개발자 계정.

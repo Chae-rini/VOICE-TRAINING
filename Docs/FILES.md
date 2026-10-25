@@ -101,7 +101,12 @@
 | `web/src/components/BaselineSheet.svelte` | 내 목소리 재기 창: 10초 재기, 결과(중앙·범위·F2), 목표 범위를 기준에 맞추기, 저장 |
 | `web/src/components/SentenceCards.svelte`, `ScriptReader.svelte` | 문장 카드(내 문장·자동 생성, 밀어서 넘기기)와 대본 읽기(종류·길이 거르기, 다른 대본, 들려줄 길이 맞추기) |
 | `web/src/components/DurationControl.svelte` | ‘들려줄 길이’ 버튼과 조정 창 (10초~3분) |
-| `web/src/practice/session.svelte.ts` | 마이크 켜고 끄기, 그래프 시계(흐름·멈춤), 내 목소리 재기 10초, 15분 쉬어 가기 안내 |
+| `web/src/practice/session.svelte.ts` | 연습 흐름: 반복 루프(녹음 → 지금 들어보기 → 숨 고르기 → 다시 녹음), 마지막 녹음 다시 듣기, 파일 불러오기, 내 목소리 재기(마이크·파일), 그래프 시계, 15분 쉬어 가기 |
+| `web/src/practice/loop.ts` | 연습 순서표(지금 어느 단계인지, iOS `PracticeLoop`) |
+| `web/src/practice/takeRecorder.ts` | 최근 N초만 남기는 고리 모양 녹음 통 (iOS `TakeRecorder`) |
+| `web/src/practice/take.ts` | 녹음 묶음: 소리와 같은 구간의 점만 담고, 요약·F2·가로축·다시 듣기 기록을 낸다 (iOS `RecordedTake`) |
+| `web/src/practice/sharing.ts` | 파일로 저장(WAV 내려받기), AI에게 피드백 받기(브라우저 공유 창, 없으면 복사), 요약 복사 |
+| `web/src/components/SummaryCard.svelte` | 마지막 녹음 요약 카드: 중앙·범위·목표 범위 안 비율과 저장·공유·복사 버튼 |
 | `web/src/graph/pitchGraph.ts` | 그래프 그리기(목표 띠·눈금·기준선·시작선·꺾은선·축 밖 점선·다시 듣기)와 그래프 높이 규칙. 꺾은선 나누기는 순수 함수라 테스트한다 |
 | `web/src/graph/descriptions.ts` | 그래프·막대를 말로 바꾼 설명(iOS와 같은 문장), 쉬어 가기 안내 문구 |
 | `web/src/model/practice.ts` | 들려줄 길이, 내 기준 목소리 재기·처음 목표 범위·먼 범위 판정, 목표 범위 슬라이더 규칙 |
@@ -117,11 +122,12 @@
 | `web/src/dsp/pitchSummary.ts` | 요약 수치(중앙값·10%·90%·목표 안 비율)와 AI 피드백 요청문 |
 | `web/src/dsp/analysis.ts` | 소리 전체를 연습과 같은 방식으로 분석, 다시 듣기 배율, 녹음 묶음에 넣을 점 고르기 |
 | `web/src/dsp/streamAnalyzer.ts` | 마이크에서 조각조각 들어오는 소리를 창(2048샘플, 절반씩 밀기)으로 분석 (iOS `PitchTapProcessor`). 조각 크기와 상관없이 파일 분석과 같은 점 |
-| `web/src/audio/micInput.ts` | 마이크 켜기·끄기: 마이크 → 소리 받기(AudioWorklet) → 분석 스레드(Web Worker) → 화면. 못 켠 까닭별 안내, 개발용 테스트 음 |
+| `web/src/audio/micInput.ts` | 소리 장치(`AudioEngine`): 소리 시계 하나로 마이크 켜기·녹음 시작·멈추고 소리 받기·다시 듣기 재생·녹음 파일 읽고 분석. 못 켠 까닭별 안내, 개발용 테스트 음, 개발 서버의 `?mute` |
 | `web/src/audio/captureProcessor.ts`, `worklet-globals.d.ts` | 소리 받기(오디오 스레드): 128샘플씩 받아 1024샘플로 모아 분석 스레드로 바로 보낸다 |
-| `web/src/audio/analysisWorker.ts` | 분석 스레드: 조각을 받아 높이·포먼트·크기를 재고 점을 화면으로 보낸다 |
+| `web/src/audio/analysisWorker.ts` | 분석 스레드: 녹음 중에는 조각을 분석해 점을 보내고 최근 N초를 녹음 통에 남긴다(듣는 동안은 버림). 불러온 녹음 전체 분석 |
+| `web/src/audio/wav.ts` | WAV 만들기(16비트 모노), 저장 파일 이름(Ullim-날짜-시각.wav), 여러 채널 합치기·5분 자르기 |
 | `web/src/audio/messages.ts` | 소리 받기·분석 스레드·화면이 주고받는 메시지 모양 |
 | `web/src/audio/processing.ts` | 브라우저의 자동 음량 조절·잡음 제거·에코 제거를 끄는 조건, 실제로 꺼졌는지 읽어 안내하기 |
-| `web/test/*.test.ts` | iOS 테스트를 옮긴 웹 시험지 + `golden.test.ts`(iOS 정답표와 숫자 비교), `streamAnalyzer.test.ts`(조각 분석 = 파일 분석), `processing.test.ts`(자동 처리 안내), `sentences.test.ts`(문장 데이터가 iOS와 같은지, 조사·모음·자동 생성·대본), `practice.test.ts`(들려줄 길이·기준·목표 범위·설정 저장), `graph.test.ts`(그래프 크기·꺾은선 나누기·설명 문장) |
+| `web/test/*.test.ts` | iOS 테스트를 옮긴 웹 시험지 + `golden.test.ts`(iOS 정답표와 숫자 비교), `streamAnalyzer.test.ts`(조각 분석 = 파일 분석), `processing.test.ts`(자동 처리 안내), `sentences.test.ts`(문장 데이터가 iOS와 같은지, 조사·모음·자동 생성·대본), `practice.test.ts`(들려줄 길이·기준·목표 범위·설정 저장), `graph.test.ts`(그래프 크기·꺾은선 나누기·설명 문장), `loop.test.ts`(연습 순서·녹음 통·녹음 묶음·WAV·내보내기) |
 | `web/test/signals.ts` | 웹 테스트용 합성 신호 (iOS 테스트·`Tools/WebGolden`과 같은 식) |
 | `web/test/golden/swift-golden.json` | `Tools/WebGolden`이 만든 정답표. 손으로 고치지 않는다 |

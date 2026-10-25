@@ -19,7 +19,15 @@
   let frequency: number | null = $state(null)
   let animationFrame = 0
 
-  const isMeasuring = $derived(session.phase === 'measuring' || (session.phase === 'starting' && open))
+  const isMeasuring = $derived(session.phase.kind === 'measuring' || (session.busy === 'starting' && open))
+  const isAnalyzing = $derived(session.busy === 'analyzing')
+  let fileInput: HTMLInputElement
+
+  function onFileChosen() {
+    const file = fileInput.files?.[0]
+    fileInput.value = ''
+    if (file) void session.measureFromFile(file)
+  }
   const measurement = $derived(session.measurement)
 
   $effect(() => {
@@ -34,7 +42,7 @@
   onMount(() => {
     // 재는 동안 지금 높이를 보여 준다
     const tick = () => {
-      frequency = session.phase === 'measuring' ? session.measuringHistory.frequencyAt(session.now()) : null
+      frequency = session.phase.kind === 'measuring' ? session.measuringHistory.frequencyAt(session.now()) : null
       animationFrame = requestAnimationFrame(tick)
     }
     animationFrame = requestAnimationFrame(tick)
@@ -88,11 +96,13 @@
     {#if isMeasuring}
       <div class="measuring">
         <p class="number"><span>{frequency === null ? '–' : Math.round(frequency)}</span> <small>Hz</small></p>
-        <progress max={Baseline.recordingSeconds} value={Baseline.recordingSeconds - session.measuringRemaining}
-          aria-label="녹음 중"></progress>
-        <p class="secondary small">녹음 중 · {Math.ceil(session.measuringRemaining)}초 남음</p>
+        <progress max={Baseline.recordingSeconds} value={Baseline.recordingSeconds - session.remaining} aria-label="녹음 중"
+        ></progress>
+        <p class="secondary small">녹음 중 · {Math.ceil(session.remaining)}초 남음</p>
         <button class="plain" onclick={() => session.cancelMeasuring()}>그만두기</button>
       </div>
+    {:else if isAnalyzing}
+      <p class="secondary">녹음을 분석하는 중…</p>
     {:else if measurement?.kind === 'tooLittleVoice'}
       <div class="result">
         <h3>ⓘ 목소리가 거의 잡히지 않았어요.</h3>
@@ -126,6 +136,7 @@
     {:else}
       <div class="start">
         <button class="fill" onclick={() => start({ kind: 'mic' })} disabled={session.isRunning}>🎙 10초 재기</button>
+        <button onclick={() => fileInput.click()} disabled={session.isRunning}>📁 녹음 파일로 재기</button>
         {#if isDev}
           <button onclick={() => start({ kind: 'testTone', testToneHz: 180 })} disabled={session.isRunning}>
             테스트 음 180 Hz로 재기 (개발용)
@@ -140,6 +151,7 @@
       </div>
     {/if}
   </div>
+  <input bind:this={fileInput} type="file" accept="audio/*" hidden onchange={onFileChosen} />
 </dialog>
 
 <style>
