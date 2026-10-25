@@ -58,6 +58,7 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
    - 점수·등급·향상률·연속 기록(스트릭)은 쓰지 않는다. 숫자와 그래프만 보여 준다
 
 그 뒤 (순서 미정)
+- 웹(PWA)·안드로이드(APK) 버전 (2026-10-25 시작, 계획은 `Docs/WEB_PLAN.md`): W0 준비 ✅ / W1 분석 코드 ✅ / W2 마이크 입력 / A1 APK 시험판 / W3 [높이] 화면 / W4 연습 흐름 / W5 PWA·배포 / A2 APK 완성
 - 5단계: 문장 단위 억양 곡선
 - 외국어 연습 (2026-10-25 아이디어: 외국어로 말할 때 피치가 많이 달라진다): 영어 발표·일본어 스피치 연습 문장과 대본, 언어별 기준 목소리, 일본어 5모음 지도, 언어별 억양(5단계와 이어짐). 화면 글자는 한국어 그대로
 
@@ -135,3 +136,14 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - m4a로 저장할 때 형식은 `UTType.mpeg4Audio`가 아니라 `com.apple.m4a-audio`(`AudioFileDocument.contentType`)를 쓴다. `mpeg4Audio`로 두면 파일 저장 창이 확장자를 .mp4로 붙인다 (2026-10-25 시뮬레이터에서 확인).
 - SwiftUI `Path.currentPoint`는 Float 정밀도로 돌아와서 `CGPoint`와 `==`로 비교하면 같은 점도 다르다고 나온다. 이어 그릴지 판단하려면 끝점을 따로 기억한다 (`PitchGraphView`의 세로축 밖 점선).
 - 저장된 기록을 지울 때는 `delete(model:)`(한꺼번에 지우기) 대신 하나씩 지운다. 한꺼번에 지우면 화면의 `@Query` 목록이 바로 따라 바뀌지 않는다는 보고가 있어서 피했다 (직접 재현하지는 않음).
+
+## 웹 버전 메모 (`web/`, 2026-10-25~)
+- 명령 (저장소 맨 위에서): 테스트 `npm --prefix web test`, 타입 검사 `npm --prefix web run check`(경고도 실패), 빌드 `npm --prefix web run build`, 개발 서버 `npm --prefix web run dev`
+- 분석 코드(`web/src/dsp/`)는 iOS 코드를 줄 단위로 옮긴 것이다. **iOS의 분석 코드(PitchDetector·FormantAnalyzer·PitchScale·GraphWindow·PitchHistory·VoiceMeters·PitchSummary)를 고치면 웹도 같이 고치고**, 정답표를 다시 만든다:
+  `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swiftc -O VoicePractice/Audio/PitchDetector.swift VoicePractice/Audio/FormantAnalyzer.swift VoicePracticeTests/SyntheticVowel.swift Tools/WebGolden/main.swift -o <임시 폴더>/web-golden` → `<임시 폴더>/web-golden web/test/golden/swift-golden.json`
+- `web/test/golden.test.ts`가 정답표와 비교한다. 목소리 있음/없음은 하나도 달라서는 안 되고, 숫자는 갈래마다 허용 오차 안이어야 한다 (2026-10-25: 높이 최대 3e-12 Hz, F1·F2 최대 0.002 Hz). 차이표는 `npx vitest run test/golden.test.ts --silent=false`로 본다.
+- iOS의 vDSP 계산은 반복문으로 옮겼다. Hamming 창은 iOS와 같은 `0.54 − 0.46·cos(2πn/N)`(N으로 나눔), 표본 줄이기 결과 길이는 `⌊(N − 탭 수)/D⌋ + 1` (정답표로 확인).
+- 패키지는 정확한 버전으로 고정하고(`--save-exact`), 나온 지 2주가 지난 버전을 쓴다. TypeScript는 6.x (svelte-check가 7을 아직 지원하지 않음).
+- 이 Mac의 Node는 25(홀수, 장기 지원판 아님)다. Vitest 5가 지원 목록에 22·24·26만 적어 설치 때 경고가 나지만, 테스트·빌드는 돈다 (2026-10-25). 문제가 생기면 Node 24 LTS를 설치한다(승인 받기).
+- 원칙 2: 외부 폰트·CDN·분석 도구를 쓰지 않는다. `web/index.html`의 CSP가 앱 자신의 파일 말고는 연결을 막는다.
+- 브라우저 미리보기: `.claude/launch.json`(깃에 올리지 않음)의 `web-preview`(빌드 결과, 4173)·`web-dev`(5173).

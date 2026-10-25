@@ -77,6 +77,7 @@
 | `VoicePracticeTests/SentenceGeneratorTests.swift` | 조사·말투·중복·모음 균형과 패턴 오타, 연습 시간 규칙을 확인하는 시험지. 패턴을 고친 뒤 ⌘U로 돌려 보면 된다 |
 | `Tools/PitchValidation/main.swift` | 앱의 피치 계산기를 녹음 파일에 돌려 Praat 결과와 비교하는 검사 도구. 앱에는 들어가지 않는다 |
 | `Tools/PitchValidation/plot.py` | 검사 결과를 그림으로 그리는 스크립트 |
+| `Tools/WebGolden/main.swift` | 앱의 피치·포먼트 계산기에 합성 신호를 넣어 웹 버전이 비교할 정답표(`web/test/golden/swift-golden.json`)를 만드는 도구. 앱에는 들어가지 않는다 |
 | `Validation/YIN_vs_Praat.md`, `Validation/figures/` | 검증 보고서와 그림. **본인 피치 자료가 들어 있어 GitHub에 올리지 않는다** (`.gitignore`) |
 | `Docs/script_samples.md` | 대본 샘플 10개 (확인용) |
 | `VoicePractice.xcodeproj` | Xcode가 여는 프로젝트 파일. 어떤 파일을 어떻게 빌드할지 적혀 있다 |
@@ -89,3 +90,19 @@
 | `Docs/FILES.md` | 지금 이 파일. 무엇을 하는 파일인지 한 줄씩 |
 | `Docs/DEVICE_TEST.md` | 아이폰에서 직접 확인할 목록 (화면 순서대로, 약 35분) |
 | `Docs/screenshots/` | README에 붙인 화면 캡처 (시뮬레이터, 합성음·가짜 기록) |
+| `Docs/WEB_PLAN.md` | 웹(PWA)·안드로이드(APK) 계획: 정한 것, 단계(W0~W5, A1·A2)와 상태, iOS와 다른 점 |
+| `web/package.json`, `web/package-lock.json` | 웹 버전이 쓰는 도구와 정확한 버전, 명령(`dev`·`build`·`test`·`check`) |
+| `web/vite.config.ts`, `web/tsconfig.json` | 웹 빌드·테스트 설정 (상대 경로로 빌드: GitHub Pages·APK 어디서나 열리게) |
+| `web/index.html` | 웹 첫 페이지. 앱 자신의 파일 말고는 연결하지 못하게 막는 CSP (원칙 2) |
+| `web/src/main.ts`, `web/src/App.svelte`, `web/src/app.css` | 웹 화면 시작점. 지금은 분석 코드가 도는지만 보여 주는 자리표시 화면 |
+| `web/src/dsp/pitchDetector.ts` | YIN 피치 검출 (iOS `PitchDetector.swift`를 그대로 옮김) |
+| `web/src/dsp/formantAnalyzer.ts` | LPC 포먼트(F1·F2) 분석 (iOS `FormantAnalyzer.swift`) |
+| `web/src/dsp/pitchScale.ts`, `web/src/dsp/range.ts` | 반음 눈금, 세로축 범위(목표 ±50 Hz), 축 밖 판정, 눈금 숫자 |
+| `web/src/dsp/graphWindow.ts` | 가로축 구간(오른쪽 끝 = 지금), 시작·n번째 선, 시간 눈금 |
+| `web/src/dsp/pitchHistory.ts` | 피치 점 기록, 끊김·픽셀 열 묶기, 그래프 시계(녹음 중·멈춤·다시 듣기) |
+| `web/src/dsp/voiceMeters.ts`, `web/src/dsp/vowelSpace.ts` | 음량(dBFS) 막대, 공명 밝기(F2) 막대, F1 불확실 규칙 |
+| `web/src/dsp/pitchSummary.ts` | 요약 수치(중앙값·10%·90%·목표 안 비율)와 AI 피드백 요청문 |
+| `web/src/dsp/analysis.ts` | 소리 전체를 연습과 같은 방식으로 분석, 다시 듣기 배율, 녹음 묶음에 넣을 점 고르기 |
+| `web/test/*.test.ts` | iOS 테스트를 옮긴 웹 시험지 + `golden.test.ts`(iOS 정답표와 숫자 비교) |
+| `web/test/signals.ts` | 웹 테스트용 합성 신호 (iOS 테스트·`Tools/WebGolden`과 같은 식) |
+| `web/test/golden/swift-golden.json` | `Tools/WebGolden`이 만든 정답표. 손으로 고치지 않는다 |

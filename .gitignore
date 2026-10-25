@@ -9,3 +9,17 @@ Validation/
 
 # 실제 번들 ID·팀 ID (이름이 드러남) — Signing.xcconfig 설명 참고
 Signing.local.xcconfig
+
+# 웹 버전: 설치한 패키지와 빌드 결과 (package-lock.json은 올린다)
+web/node_modules/
+web/dist/
+# 테스트 도구가 남기는 결과 파일 (컴퓨터의 전체 경로가 들어 있다)
+web/.vitest/
+
+# APK 서명 키 — 공개 저장소에 올리지 않는다
+*.jks
+*.keystore
+keystore.properties
+
+# Claude 세션용 미리보기 설정
+.claude/

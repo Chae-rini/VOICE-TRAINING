@@ -1,0 +1,22 @@
+/* 색은 iOS 앱의 역할 이름(UllimColor)을 따른다. 값은 Assets.xcassets의 색 세트와 같게 맞출 예정 (W3). */
+:root {
+  color-scheme: light dark;
+  --background: #ffffff;
+  --text: #1c1c1e;
+  --secondary: #6c6c70;
+  font-family: -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Noto Sans KR', 'Malgun Gothic', sans-serif;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #000000;
+    --text: #f2f2f7;
+    --secondary: #a1a1a6;
+  }
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--text);
+}

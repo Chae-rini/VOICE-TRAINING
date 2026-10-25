@@ -58,6 +58,7 @@
 - 그래프: SwiftUI Canvas + TimelineView (실시간), Swift Charts ([기록] 탭)
 - 저장: SwiftData(숫자 기록) + 앱 Documents 폴더(직접 남긴 녹음, iOS 백업 제외)
 - 외부 패키지 없음
+- 웹·안드로이드 버전(만드는 중, `web/`): TypeScript + Svelte + Vite. 분석 코드는 iOS와 같은 방법을 옮겼고, iOS가 만든 정답표와 같은 숫자를 내는지 테스트로 확인한다. 아직 화면은 없다. 계획: [Docs/WEB_PLAN.md](Docs/WEB_PLAN.md)
 
 ## 빌드 방법
 필요한 것: Xcode (Xcode 27.1과 iOS 27 시뮬레이터에서 확인했다. 더 낮은 버전은 확인하지 않았다), 실기기에 설치하려면 Apple 개발자 계정.
@@ -89,6 +90,7 @@ xcodebuild -project VoicePractice.xcodeproj -scheme VoicePractice -destination '
 - [Docs/CHANGELOG.md](Docs/CHANGELOG.md) — 날짜별 작업 기록
 - [Docs/FILES.md](Docs/FILES.md) — 파일마다 하는 일
 - [Docs/DEVICE_TEST.md](Docs/DEVICE_TEST.md) — 아이폰 확인 목록
+- [Docs/WEB_PLAN.md](Docs/WEB_PLAN.md) — 웹(PWA)·안드로이드(APK) 계획과 진행 상태
 
 ## 의료 기기가 아닙니다
 울림은 목소리 연습을 돕는 도구이며 **의료 기기가 아니다.** 목소리 문제를 진단하거나 치료·재활 효과를 주지 않는다. 화면의 수치는 자동 측정이라 오차가 있다. 목이 아프거나 쉰 목소리가 오래가면 연습을 멈추고 이비인후과나 음성 언어 전문가와 상담하길 권한다.
