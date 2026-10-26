@@ -1,6 +1,6 @@
 import { Directory, Filesystem } from '@capacitor/filesystem'
 import { Share } from '@capacitor/share'
-import { APP_RECORD_FOLDER_NAME, APP_RECORD_ROOT, writeNativeBytes } from '../storage/nativeFolder'
+import { activeAppRecordRoot, appRecordFolderName, writeNativeBytes } from '../storage/nativeFolder'
 
 /**
  * 안드로이드 앱에서 파일로 저장·공유하기. 앱의 웹뷰는 내려받기와 공유 창(Web Share)이 안 되어서(A1 확인) 앱 기능을 쓴다.
@@ -10,11 +10,14 @@ import { APP_RECORD_FOLDER_NAME, APP_RECORD_ROOT, writeNativeBytes } from '../st
 /** ‘문서/울림’ 안에서 ‘파일로 저장’·‘기록 파일로 저장’이 쓰는 폴더 */
 export const EXPORT_DIRECTORY = '내보낸 파일'
 
-/** 파일을 휴대폰의 ‘문서/울림/내보낸 파일’에 저장하고, 화면에 보일 위치를 돌려준다. 같은 이름이 있으면 바꿔 쓴다 */
+/**
+ * 파일을 휴대폰의 ‘문서/울림/내보낸 파일’(다시 설치한 뒤면 ‘울림-2’ 등 지금 쓰는 기록 폴더 안)에 저장하고,
+ * 화면에 보일 위치를 돌려준다. 같은 이름이 있으면 바꿔 쓴다
+ */
 export async function saveToAppDocuments(file: File): Promise<string> {
-  const path = `${APP_RECORD_ROOT}/${EXPORT_DIRECTORY}/${file.name}`
-  await writeNativeBytes(Filesystem, path, Directory.Documents, new Uint8Array(await file.arrayBuffer()))
-  return `${APP_RECORD_FOLDER_NAME}/${EXPORT_DIRECTORY}/${file.name}`
+  const root = activeAppRecordRoot()
+  await writeNativeBytes(Filesystem, `${root}/${EXPORT_DIRECTORY}/${file.name}`, Directory.Documents, new Uint8Array(await file.arrayBuffer()))
+  return `${appRecordFolderName(root)}/${EXPORT_DIRECTORY}/${file.name}`
 }
 
 export type AppShareResult = 'shared' | 'cancelled' | 'failed'

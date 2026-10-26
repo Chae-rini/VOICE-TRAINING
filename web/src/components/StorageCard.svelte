@@ -24,7 +24,7 @@
     // 지금 값이 파일의 것으로 바뀌므로, 잃을 것이 있으면 먼저 묻는다
     const question =
       status.kind === 'connected'
-        ? `고른 폴더의 ‘울림-설정.json’과 ‘울림-기록.json’이 ‘${file.name}’의 내용으로 바뀌어요. 계속할까요?`
+        ? `‘${status.folderName}’ 폴더의 ‘울림-설정.json’과 ‘울림-기록.json’이 ‘${file.name}’의 내용으로 바뀌어요. 계속할까요?`
         : store.unsaved
           ? `아직 저장하지 않은 바뀐 내용은 사라지고 ‘${file.name}’의 기록으로 바뀌어요. 계속할까요?`
           : null
@@ -49,9 +49,15 @@
         <p class="secondary small">마지막 저장 {savedTime}</p>
       {/if}
       <p class="secondary small">
-        파일 앱의 ‘문서 › 울림’에서 볼 수 있고, 앱을 지워도 남아요. 앱을 다시 설치하면 예전 파일을 바로 읽지 못하니, 미리 ‘기록
-        파일로 저장’해 두었다가 ‘기록 파일 불러오기’로 열어 주세요.
+        파일 앱의 ‘{status.folderName.replace('/', ' › ')}’에서 볼 수 있고, 앱을 지워도 남아요. 앱을 다시 설치하면 예전 파일을 바로
+        읽지 못하니, 미리 ‘기록 파일로 저장’해 두었다가 ‘기록 파일 불러오기’로 열어 주세요.
       </p>
+      {#if status.folderName !== '문서/울림'}
+        <p class="warn small">
+          앱을 다시 설치해서 예전 ‘문서/울림’의 파일은 이 앱이 열 수 없어요. 그래서 ‘{status.folderName}’에 새로 저장하고 있어요.
+          예전 기록은 그때 저장해 둔 기록 파일(‘문서/울림/내보낸 파일’의 zip)을 아래 ‘기록 파일 불러오기’로 가져오세요.
+        </p>
+      {/if}
     {:else}
       <p class="state warn">휴대폰의 ‘문서/울림’ 폴더를 아직 열지 못했어요</p>
       <div class="buttons">
@@ -114,7 +120,7 @@
   </div>
   {#if store.isApp}
     <p class="secondary small">
-      기록 파일은 ‘문서/울림/내보낸 파일’에 저장돼요. 다른 기기(아이폰 사파리 등)로 옮기거나 앱을 다시 설치할 때 써요.
+      기록 파일은 ‘{store.appExportFolder}’에 저장돼요. 다른 기기(아이폰 사파리 등)로 옮기거나 앱을 다시 설치할 때 써요.
     </p>
   {:else if status.kind !== 'memory'}
     <p class="secondary small">기록 파일은 다른 기기(아이폰 사파리 등)로 옮기거나 따로 보관할 때 써요.</p>

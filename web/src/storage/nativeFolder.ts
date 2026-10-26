@@ -4,7 +4,7 @@ import { splitPath, type RecordFolder } from './recordFolder'
 /** 쓰는 파일 시스템 기능만 (시험할 때 가짜를 끼운다) */
 export type NativeFilesystem = Pick<
   FilesystemPlugin,
-  'readFile' | 'writeFile' | 'appendFile' | 'deleteFile' | 'readdir' | 'stat' | 'rename'
+  'readFile' | 'writeFile' | 'appendFile' | 'deleteFile' | 'readdir' | 'stat'
 >
 
 /**
@@ -15,10 +15,55 @@ export const NATIVE_CHUNK_BYTES = 768 * 1024
 
 /** 휴대폰의 기록 폴더: 공용 ‘문서’ 폴더 안의 ‘울림’ (파일 앱에서 보이고, 앱을 지워도 남는다) */
 export const APP_RECORD_ROOT = '울림'
-export const APP_RECORD_FOLDER_NAME = '문서/울림'
+/** ‘울림’을 쓰지 못할 때 차례로 써 볼 폴더 수 (‘울림-2’ … ‘울림-9’) */
+const MAX_APP_RECORD_ROOTS = 9
 
-/** 쓰다가 멈춰도 원래 파일이 남게, 임시 파일에 다 쓴 뒤 바꿔 넣는다 */
-const TEMP_SUFFIX = '.tmp'
+/** 화면에 보일 이름. 예: ‘울림-2’ → ‘문서/울림-2’ */
+export function appRecordFolderName(root: string): string {
+  return `문서/${root}`
+}
+
+/**
+ * 앱을 지웠다 다시 깔면, 새 앱은 예전 앱이 만든 파일을 열지도 같은 이름으로 쓰지도 못한다 (안드로이드 11 이상, A3 확인).
+ * 그래서 ‘울림’을 쓰지 못하면 ‘울림-2’, ‘울림-3’…에 새로 쓴다. 마지막으로 쓴 폴더(`remembered`)를 먼저 열어 본다.
+ */
+export function appRecordRoots(remembered: string | null): string[] {
+  const roots = [APP_RECORD_ROOT]
+  for (let n = 2; n <= MAX_APP_RECORD_ROOTS; n++) roots.push(`${APP_RECORD_ROOT}-${n}`)
+  return remembered !== null && roots.includes(remembered) ? [remembered, ...roots.filter((root) => root !== remembered)] : roots
+}
+
+/** 폴더 하나를 열어 본 결과: 연결함 / 파일 내용을 읽지 못함(망가짐·더 새 판, 덮어쓰지 않고 멈춘다) / 쓰지 못함(다음 폴더로) */
+export type AppFolderAttempt = 'connected' | 'unreadable' | 'writeFailed'
+
+/**
+ * 후보 폴더를 차례로 열어 본다. 쓰지 못한 폴더만 건너뛰고, 내용을 읽지 못한 폴더에서는 멈춘다
+ * (다른 폴더로 넘어가면 망가진 기록을 알아채지 못하므로). 모두 쓰지 못했으면 null.
+ * `skipped`: 쓰지 못해 건너뛴 폴더 수 (1 이상이면 이번에 새 폴더로 옮겨 간 것)
+ */
+export async function openFirstUsableAppFolder(
+  roots: readonly string[],
+  attempt: (root: string) => Promise<AppFolderAttempt>,
+): Promise<{ root: string; outcome: 'connected' | 'unreadable'; skipped: number } | null> {
+  let skipped = 0
+  for (const root of roots) {
+    const outcome = await attempt(root)
+    if (outcome !== 'writeFailed') return { root, outcome, skipped }
+    skipped++
+  }
+  return null
+}
+
+/** 지금 쓰는 기록 폴더 (‘파일로 저장’도 이 폴더의 ‘내보낸 파일’에 둔다). 기록 저장소가 연결할 때 정한다 */
+let activeRoot = APP_RECORD_ROOT
+
+export function activeAppRecordRoot(): string {
+  return activeRoot
+}
+
+export function setActiveAppRecordRoot(root: string): void {
+  activeRoot = root
+}
 
 /**
  * 공용 ‘문서’ 폴더에 쓸 권한. 안드로이드 10 이하는 저장 권한을 사용자에게 받아야 하고,
@@ -66,7 +111,7 @@ export async function writeNativeBytes(
  * 안드로이드 11 이상은 이 앱이 만든 파일만 읽을 수 있어서, 앱을 지웠다 다시 깔면 예전 파일은 ‘기록 파일 불러오기’로 연다.
  */
 export class NativeFolder implements RecordFolder {
-  readonly name = APP_RECORD_FOLDER_NAME
+  readonly name: string
   readonly #fs: NativeFilesystem
   readonly #directory: Directory
   readonly #root: string
@@ -75,6 +120,12 @@ export class NativeFolder implements RecordFolder {
     this.#fs = fs
     this.#directory = directory
     this.#root = root
+    this.name = appRecordFolderName(root)
+  }
+
+  /** ‘문서’ 안의 폴더 이름 (‘울림’, ‘울림-2’ …) */
+  get root(): string {
+    return this.#root
   }
 
   #full(path: string): string {
@@ -99,14 +150,15 @@ export class NativeFolder implements RecordFolder {
     return typeof data === 'string' ? new Blob([base64ToBytes(data)]) : data
   }
 
+  /**
+   * 같은 이름의 파일에 바로 덮어쓴다. 공용 ‘문서’ 폴더에서는 “임시 파일에 쓰고 → 원래 파일 지우고 → 이름 바꾸기”를 하면
+   * 안드로이드의 미디어 목록(MediaProvider)이 뒤늦게 따라오다 어긋나서, 이 앱도 열 수 없는(EACCES) 파일이 생긴다 (2026-10-26 에뮬레이터 확인).
+   * 기록 JSON은 작아 한 번에 쓰고, 녹음 WAV는 늘 새 이름에 쓴 뒤에야 기록에 올리므로, 중간에 멈춰도 기록이 반쪽이 되지 않는다.
+   * 다시 설치한 뒤 예전 앱의 파일과 이름이 겹치면 여기서 오류가 난다 (기록 저장소가 다음 폴더를 열어 본다).
+   */
   async write(path: string, data: Blob | string): Promise<void> {
-    const full = this.#full(path)
     const bytes = typeof data === 'string' ? new TextEncoder().encode(data) : new Uint8Array(await data.arrayBuffer())
-    const temp = full + TEMP_SUFFIX
-    await writeNativeBytes(this.#fs, temp, this.#directory, bytes)
-    // 이름 바꾸기가 있는 파일을 덮어쓰는지는 기기마다 달라서, 원래 파일을 지운 뒤 바꾼다 (그 사이에 멈추면 임시 파일이 남는다)
-    if (await this.#exists(full)) await this.#fs.deleteFile({ path: full, directory: this.#directory })
-    await this.#fs.rename({ from: temp, to: full, directory: this.#directory, toDirectory: this.#directory })
+    await writeNativeBytes(this.#fs, this.#full(path), this.#directory, bytes)
   }
 
   async remove(path: string): Promise<void> {
@@ -118,6 +170,6 @@ export class NativeFolder implements RecordFolder {
     const full = this.#full(directory)
     if (!(await this.#exists(full))) return []
     const { files } = await this.#fs.readdir({ path: full, directory: this.#directory })
-    return files.filter((file) => file.type === 'file' && !file.name.endsWith(TEMP_SUFFIX)).map((file) => file.name)
+    return files.filter((file) => file.type === 'file').map((file) => file.name)
   }
 }

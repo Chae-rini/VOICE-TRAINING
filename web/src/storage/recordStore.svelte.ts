@@ -20,7 +20,17 @@ import {
   type RecordsData,
 } from './archive'
 import { loadFolderHandle, saveFolderHandle } from './handleStore'
-import { ensureNativeStoragePermission, NativeFolder } from './nativeFolder'
+import { browserStorage, loadAppRecordRoot, saveValue, SettingKeys } from '../model/settingsStorage'
+import {
+  APP_RECORD_ROOT,
+  appRecordFolderName,
+  appRecordRoots,
+  ensureNativeStoragePermission,
+  NativeFolder,
+  openFirstUsableAppFolder,
+  setActiveAppRecordRoot,
+  type AppFolderAttempt,
+} from './nativeFolder'
 import { copyRecordFolder, copyRecordings, openRecordFolder } from './openFolder'
 import { DirectoryFolder, MemoryFolder, type RecordFolder } from './recordFolder'
 import { packRecordFolder, recordFileName, unpackRecordFile } from './recordZip'
@@ -70,6 +80,13 @@ class RecordStore {
   savedAt: Date | null = $state(null)
   /** 이번에 기록 파일을 불러오거나 저장했는지 (폴더를 고를 수 없는 브라우저에서 불러오기 안내를 그만 보이게) */
   usedRecordFile = $state(false)
+  /** 앱: 다시 설치해서 ‘문서/울림’을 쓰지 못해 이번에 새 폴더로 옮겨 갔으면 그 이름 (예: ‘문서/울림-2’) */
+  movedAppFolder: string | null = $state(null)
+
+  /** 앱: ‘파일로 저장’·‘기록 파일로 저장’이 쓰는 곳 (지금 기록 폴더 안의 ‘내보낸 파일’) */
+  get appExportFolder(): string {
+    return `${this.status.kind === 'connected' ? this.status.folderName : appRecordFolderName(APP_RECORD_ROOT)}/내보낸 파일`
+  }
   /** 연습 기록·남긴 녹음·재기 이력 (항목 모양은 `model/records.ts`) */
   records: RecordsData = $state.raw(EMPTY_RECORDS)
 
@@ -128,7 +145,11 @@ class RecordStore {
 
   // MARK: - 기록 폴더
 
-  /** 앱: 휴대폰의 ‘문서/울림’을 기록 폴더로 연다 (앱을 켤 때, 열지 못했으면 ‘다시 열기’ 버튼으로) */
+  /**
+   * 앱: 휴대폰의 ‘문서/울림’을 기록 폴더로 연다 (앱을 켤 때, 열지 못했으면 ‘다시 열기’ 버튼으로).
+   * 앱을 지웠다 다시 깔면 새 앱은 예전 앱이 만든 ‘울림’의 파일을 쓰지 못해서, ‘울림-2’, ‘울림-3’…에 새로 쓴다 (2026-10-26 사용자 결정).
+   * 마지막으로 쓴 폴더는 화면 설정에 기억해 두고 먼저 열어 본다. 예전 기록은 기록 파일(zip)로 불러온다.
+   */
   async connectAppFolder(): Promise<void> {
     if (!this.isApp || this.busy) return
     this.#clearMessages()
@@ -137,7 +158,19 @@ class RecordStore {
       return
     }
     await this.#flush()
-    await this.#connectFolder(new NativeFolder(), null)
+    const storage = browserStorage()
+    const opened = await openFirstUsableAppFolder(appRecordRoots(loadAppRecordRoot(storage)), (root) =>
+      this.#connectFolder(new NativeFolder(undefined, undefined, root), null),
+    )
+    if (opened === null) {
+      this.errorMessage = '휴대폰의 문서 폴더에 저장하지 못했어요. 저장 공간을 확인해 주세요.'
+      return
+    }
+    // 내용을 읽지 못한 폴더면 #connectFolder가 까닭을 알렸다 (덮어쓰지 않고 멈춘다)
+    if (opened.outcome !== 'connected') return
+    setActiveAppRecordRoot(opened.root)
+    saveValue(storage, SettingKeys.appRecordRoot, opened.root)
+    this.movedAppFolder = opened.skipped > 0 && opened.root !== APP_RECORD_ROOT ? appRecordFolderName(opened.root) : null
   }
 
   /** 폴더 고르기 창을 띄워 기록 폴더를 정한다 (버튼을 누른 그때 불러야 한다) */
@@ -189,18 +222,21 @@ class RecordStore {
   }
 
   async #connect(handle: FileSystemDirectoryHandle): Promise<boolean> {
-    return this.#connectFolder(new DirectoryFolder(handle), handle)
+    return (await this.#connectFolder(new DirectoryFolder(handle), handle)) === 'connected'
   }
 
-  /** 기록 폴더를 열어 화면의 값·기록과 합친다. 고른 폴더면 그 핸들도 기억한다 (앱의 ‘문서/울림’은 핸들이 없다) */
-  async #connectFolder(folder: RecordFolder, handle: FileSystemDirectoryHandle | null): Promise<boolean> {
+  /**
+   * 기록 폴더를 열어 화면의 값·기록과 합친다. 고른 폴더면 그 핸들도 기억한다 (앱의 ‘문서/울림’은 핸들이 없다).
+   * 파일 내용을 읽지 못하면 'unreadable'(덮어쓰지 않는다), 쓰지 못하면 'writeFailed' (앱은 다음 폴더를 열어 본다)
+   */
+  async #connectFolder(folder: RecordFolder, handle: FileSystemDirectoryHandle | null): Promise<AppFolderAttempt> {
     this.busy = true
     this.errorMessage = null
     try {
       const result = await openRecordFolder(folder, settings.voiceSettings, this.#changed, this.records)
       if (!result.ok) {
         this.errorMessage = result.message
-        return false
+        return 'unreadable'
       }
       // 폴더를 고르기 전에 담아 둔 녹음 소리도 폴더로 옮긴다 (기록은 위에서 합쳤다)
       await copyRecordings(this.#memory, folder)
@@ -215,10 +251,10 @@ class RecordStore {
       this.unsaved = false
       this.savedAt = new Date()
       this.status = { kind: 'connected', folderName: folder.name }
-      return true
+      return 'connected'
     } catch (error) {
       this.errorMessage = isPermissionError(error) ? '폴더를 쓸 수 있게 허락해야 기록이 남아요.' : writeErrorMessage(error)
-      return false
+      return 'writeFailed'
     } finally {
       this.busy = false
     }

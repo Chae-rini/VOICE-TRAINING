@@ -130,7 +130,7 @@
     <button onclick={saveFile} disabled={hasSound === false}>⤓ 파일로 저장</button>
     <p class="note">
       {store.isApp
-        ? 'WAV 파일을 휴대폰의 ‘문서/울림/내보낸 파일’에 저장해요.'
+        ? `WAV 파일을 휴대폰의 ‘${store.appExportFolder}’에 저장해요.`
         : 'WAV 파일을 이 기기에 내려받아요 (브라우저에 따라 저장할 곳을 물어요).'}
     </p>
     {#if savedPath !== null}
