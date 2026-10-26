@@ -36,11 +36,29 @@
 <section class="card" aria-labelledby="storage-title">
   <h2 id="storage-title">내 기록 저장 위치</h2>
   <p class="secondary">
-    목표 범위·내 기준 목소리·내 모음 지도와 연습 기록은 이 웹사이트가 아니라 내가 고른 곳에 파일로 남아요. 울림은 기록을 어디로도
-    보내지 않아요.
+    {store.isApp
+      ? '목표 범위·내 기준 목소리·내 모음 지도와 연습 기록은 휴대폰의 ‘문서/울림’ 폴더에 파일로 남아요. 울림은 기록을 어디로도 보내지 않아요.'
+      : '목표 범위·내 기준 목소리·내 모음 지도와 연습 기록은 이 웹사이트가 아니라 내가 고른 곳에 파일로 남아요. 울림은 기록을 어디로도 보내지 않아요.'}
   </p>
 
-  {#if status.kind === 'connected'}
+  {#if store.isApp}
+    <!-- 안드로이드 앱: 폴더를 고르지 않고 ‘문서/울림’에 바로 쓴다 (A2) -->
+    {#if status.kind === 'connected'}
+      <p class="state ok">✓ 휴대폰의 ‘{status.folderName}’ 폴더에 저장하고 있어요</p>
+      {#if savedTime !== null}
+        <p class="secondary small">마지막 저장 {savedTime}</p>
+      {/if}
+      <p class="secondary small">
+        파일 앱의 ‘문서 › 울림’에서 볼 수 있고, 앱을 지워도 남아요. 앱을 다시 설치하면 예전 파일을 바로 읽지 못하니, 미리 ‘기록
+        파일로 저장’해 두었다가 ‘기록 파일 불러오기’로 열어 주세요.
+      </p>
+    {:else}
+      <p class="state warn">휴대폰의 ‘문서/울림’ 폴더를 아직 열지 못했어요</p>
+      <div class="buttons">
+        <button class="fill" onclick={() => store.connectAppFolder()} disabled={store.busy}>📁 다시 열기</button>
+      </div>
+    {/if}
+  {:else if status.kind === 'connected'}
     <p class="state ok">✓ ‘{status.folderName}’ 폴더에 저장하고 있어요</p>
     {#if savedTime !== null}
       <p class="secondary small">마지막 저장 {savedTime}</p>
@@ -78,7 +96,13 @@
   {#if store.unsaved && status.kind !== 'connected'}
     <p class="warn" role="status">
       ⚠︎ 아직 파일로 남기지 않은 바뀐 내용이 있어요.
-      {status.kind === 'memory' ? '기록 파일로 저장해 주세요.' : status.kind === 'none' ? '기록 폴더를 고르면 저장돼요.' : '다시 연결하면 저장돼요.'}
+      {store.isApp
+        ? '폴더를 다시 열면 저장돼요.'
+        : status.kind === 'memory'
+          ? '기록 파일로 저장해 주세요.'
+          : status.kind === 'none'
+            ? '기록 폴더를 고르면 저장돼요.'
+            : '다시 연결하면 저장돼요.'}
     </p>
   {/if}
 
@@ -88,7 +112,11 @@
     </button>
     <button onclick={chooseImport} disabled={store.busy}>⬆︎ 기록 파일 불러오기</button>
   </div>
-  {#if status.kind !== 'memory'}
+  {#if store.isApp}
+    <p class="secondary small">
+      기록 파일은 ‘문서/울림/내보낸 파일’에 저장돼요. 다른 기기(아이폰 사파리 등)로 옮기거나 앱을 다시 설치할 때 써요.
+    </p>
+  {:else if status.kind !== 'memory'}
     <p class="secondary small">기록 파일은 다른 기기(아이폰 사파리 등)로 옮기거나 따로 보관할 때 써요.</p>
   {/if}
 

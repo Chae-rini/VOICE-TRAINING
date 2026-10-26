@@ -10,6 +10,9 @@ const config: CapacitorConfig = {
   appId: 'io.github.chae_rini.ullim',
   appName: '울림',
   webDir: 'dist',
+  // 디버그 빌드는 앱 기능을 부를 때마다 주고받은 값을 로그에 찍는데, 녹음 파일 내용(base64)까지 통째로 남는다 (A2 확인).
+  // 개인 녹음이 로그에 남지 않게, 그리고 큰 녹음에서 느려지지 않게 끈다. 앱 안 화면은 adb + DevTools로 들여다본다.
+  loggingBehavior: 'none',
 }
 
 export default config

@@ -8,6 +8,7 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:usesCleartextTraffic="false"
+        android:requestLegacyExternalStorage="true"
         android:theme="@style/AppTheme">
 
         <activity
@@ -42,4 +43,7 @@
     <!-- 마이크: 웹 화면이 마이크를 켜면 Capacitor가 이 둘을 사용자에게 묻는다 (BridgeWebChromeClient) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- 기록을 공용 ‘문서/울림’에 쓴다. 안드로이드 10 이하만 저장 권한이 필요하다 (11 이상은 이 앱이 만든 파일이면 권한 없이) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
 </manifest>

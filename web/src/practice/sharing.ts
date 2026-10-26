@@ -1,11 +1,14 @@
 import { encodeWav, exportFileName } from '../audio/wav'
 import type { PhraseEndingAnalysis } from '../dsp/phraseEnding'
 import type { PitchSummary } from '../dsp/pitchSummary'
+import { isNativeApp } from '../platform/app'
+import { saveToAppDocuments, shareWithApp } from '../platform/nativeShare'
 import type { RecordedTake } from './take'
 
 /**
  * 마지막 녹음 내보내기: 파일로 저장(WAV 내려받기), AI에게 피드백 받기(브라우저 공유 창), 요약 복사.
  * 앱은 인터넷으로 아무것도 보내지 않는다. 보낼 곳·저장할 곳은 사용자가 고른다 (원칙 2).
+ * 안드로이드 앱은 내려받기·공유 창이 안 되어서 휴대폰의 ‘문서/울림/내보낸 파일’에 저장하고, 안드로이드 공유 창을 쓴다 (A2).
  */
 
 /** 원래 소리(키우기 전)로 만든 WAV 파일 */
@@ -13,9 +16,19 @@ export function takeWavFile(take: RecordedTake): File {
   return new File([encodeWav(take.samples, take.sampleRate)], exportFileName(take.recordedAt), { type: 'audio/wav' })
 }
 
-/** WAV 파일을 이 기기에 내려받는다 (브라우저에 따라 저장할 곳을 묻거나 다운로드 폴더에 둔다). */
-export function downloadTake(take: RecordedTake): void {
-  downloadFile(takeWavFile(take))
+/** 녹음을 WAV 파일로 저장한다. 앱이면 저장한 위치를, 웹(내려받기)이면 null을 돌려준다 */
+export function saveTake(take: RecordedTake): Promise<string | null> {
+  return saveFile(takeWavFile(take))
+}
+
+/**
+ * 파일(녹음 WAV, 기록 파일 zip)을 이 기기에 저장한다.
+ * 웹은 내려받기(브라우저에 따라 저장할 곳을 묻거나 다운로드 폴더에 둔다)라 null, 앱은 ‘문서/울림/내보낸 파일’의 위치를 돌려준다.
+ */
+export async function saveFile(file: File): Promise<string | null> {
+  if (isNativeApp()) return saveToAppDocuments(file)
+  downloadFile(file)
+  return null
 }
 
 /** 파일을 이 기기에 내려받는다 (녹음 WAV, 기록 파일 zip) */
@@ -44,6 +57,7 @@ export type ShareResult = 'shared' | 'cancelled' | 'copied' | 'failed'
 
 /** 글(연습 기록 요약 등)을 브라우저 공유 창에 넘긴다. 공유 창이 없으면 복사한다 */
 export async function shareText(text: string): Promise<ShareResult> {
+  if (isNativeApp()) return shareWithApp(text, null)
   if (typeof navigator.share === 'function') {
     try {
       await navigator.share({ text })
@@ -65,6 +79,10 @@ export async function shareFeedback(
   includesAudio: boolean,
   phraseEndings: PhraseEndingAnalysis | null = null,
 ): Promise<ShareResult> {
+  if (isNativeApp()) {
+    const wav = includesAudio ? takeWavFile(take) : null
+    return shareWithApp(summary.feedbackRequest(take.title, wav !== null, phraseEndings), wav)
+  }
   const file = includesAudio ? takeWavFile(take) : null
   const canShareFile = file !== null && typeof navigator.canShare === 'function' && navigator.canShare({ files: [file] })
   const text = summary.feedbackRequest(take.title, canShareFile, phraseEndings)

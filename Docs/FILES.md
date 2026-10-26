@@ -104,6 +104,10 @@
 | `web/capacitor.config.ts` | 안드로이드 앱(APK) 설정: 앱 ID·이름·웹 빌드 위치. 원격 주소는 쓰지 않는다 |
 | `web/android/` | Capacitor가 만든 안드로이드 프로젝트. 고친 곳은 `app/src/main/AndroidManifest.xml`(마이크 권한, 평문 통신 끄기)뿐 |
 | `web/scripts/gradle.sh` | 안드로이드 빌드 도구(Gradle)를 JDK 21·Android Studio SDK로 돌리는 스크립트 (`npm run apk:debug`가 쓴다) |
+| `web/src/platform/app.ts` | 안드로이드 앱 안인지 (`isNativeApp`). 앱이면 저장·공유를 앱 기능으로 바꾼다 |
+| `web/src/platform/nativeShare.ts` | 앱에서 파일로 저장(‘문서/울림/내보낸 파일’)과 안드로이드 공유 창으로 보내기 |
+| `web/src/storage/nativeFolder.ts` | 앱의 기록 폴더(휴대폰의 ‘문서/울림’): 웹 기록 폴더와 같은 읽기·쓰기·지우기·목록, base64로 나눠 쓰기, 저장 권한 |
+| `web/test/nativeFolder.test.ts` | 앱 기록 폴더 시험지 (Capacitor 파일 시스템처럼 동작하는 가짜로) |
 | `web/src/main.ts`, `web/src/App.svelte`, `web/src/app.css` | 웹 화면 시작점과 공통 모양. App은 화면 셋([높이]·[모음]·[기록])을 숨기기만 하며 바꾸고(문장 위치·스크롤 유지), 그 아래 연습 조작과 탭 막대. 색은 iOS 색 세트와 같은 값(밝은·어두운 모드) |
 | `web/src/components/TabBar.svelte`, `navigation.svelte.ts` | 아래 탭 막대(높이·모음·기록)와 화면끼리 함께 보는 상태(지금 탭, 내 목소리 재기 창이 열렸는지) |
 | `web/src/components/PracticeControls.svelte` | 화면 아래 연습 조작: 단계 표시·남은 시간, 반복 루프 재생·지금 들어보기·건너뛰기·정지, 녹음 불러오기, 마지막 녹음 듣기, 들려줄 길이. [높이]·[모음]이 함께 쓴다 |

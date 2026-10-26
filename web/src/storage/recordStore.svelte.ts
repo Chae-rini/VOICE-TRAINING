@@ -1,7 +1,8 @@
 import type { RecordItems } from '../model/records'
 import { settings } from '../model/settings.svelte'
 import { EMPTY_VOICE_SETTINGS, type VoiceSettingField, type VoiceSettings } from '../model/voiceSettings'
-import { downloadFile } from '../practice/sharing'
+import { isNativeApp } from '../platform/app'
+import { saveFile } from '../practice/sharing'
 import {
   EMPTY_RECORDS,
   encodeRecordsFile,
@@ -19,6 +20,7 @@ import {
   type RecordsData,
 } from './archive'
 import { loadFolderHandle, saveFolderHandle } from './handleStore'
+import { ensureNativeStoragePermission, NativeFolder } from './nativeFolder'
 import { copyRecordFolder, copyRecordings, openRecordFolder } from './openFolder'
 import { DirectoryFolder, MemoryFolder, type RecordFolder } from './recordFolder'
 import { packRecordFolder, recordFileName, unpackRecordFile } from './recordZip'
@@ -28,7 +30,8 @@ export type AddResult = 'saved' | 'pending' | 'failed'
 
 /**
  * 내 기록이 어디에 남는지: 브라우저가 아니라 내가 고른 폴더, 또는 내가 저장하는 기록 파일 (W6, 사용자 결정).
- * - none: 폴더를 고를 수 있는 브라우저인데 아직 고르지 않음 (바꾼 값은 페이지를 닫으면 사라진다)
+ * 안드로이드 앱은 폴더를 고르지 않고 휴대폰의 ‘문서/울림’에 바로 쓴다 (A2, 사용자 결정).
+ * - none: 폴더를 고를 수 있는 브라우저인데 아직 고르지 않음 (바꾼 값은 페이지를 닫으면 사라진다). 앱은 ‘문서/울림’을 열기 전이나 열지 못했을 때
  * - needsPermission: 전에 고른 폴더가 있지만 브라우저가 다시 허락을 받으라고 함 (버튼을 눌러야 물을 수 있다)
  * - connected: 고른 폴더에 바로 쓰는 중
  * - memory: 폴더를 고를 수 없는 브라우저(사파리·Firefox). 기록 파일(zip)로 저장하고 다음에 불러온다
@@ -52,6 +55,8 @@ function isPermissionError(error: unknown): boolean {
 }
 
 class RecordStore {
+  /** 안드로이드 앱 안인지. 앱은 폴더를 고르지 않고 ‘문서/울림’에 바로 쓴다 */
+  readonly isApp: boolean
   /** 이 브라우저가 폴더를 고를 수 있는지 (개발 서버에서 주소 끝에 `?nofolder`를 붙이면 사파리처럼 동작한다) */
   readonly canPickFolder: boolean
   status: StorageStatus = $state({ kind: 'none' })
@@ -84,9 +89,14 @@ class RecordStore {
 
   constructor() {
     const forceMemory = import.meta.env.DEV && new URLSearchParams(globalThis.location?.search).has('nofolder')
+    this.isApp = isNativeApp()
+    // 앱의 웹뷰에도 폴더 고르기 함수는 있지만, 부르면 창 없이 바로 취소된다 (A1 확인)
     this.canPickFolder =
-      !forceMemory && typeof globalThis.window?.showDirectoryPicker === 'function' && globalThis.isSecureContext === true
-    this.status = this.canPickFolder ? { kind: 'none' } : { kind: 'memory' }
+      !this.isApp &&
+      !forceMemory &&
+      typeof globalThis.window?.showDirectoryPicker === 'function' &&
+      globalThis.isSecureContext === true
+    this.status = this.canPickFolder || this.isApp ? { kind: 'none' } : { kind: 'memory' }
   }
 
   /** 앱을 열 때 한 번: 전에 고른 폴더가 있으면 다시 연결한다 (허락이 남아 있을 때만 바로) */
@@ -103,6 +113,10 @@ class RecordStore {
       // 폴더에 쓰지 못한 바뀐 내용이 있으면 브라우저가 떠나기 전에 한 번 묻게 한다
       if (this.unsaved) event.preventDefault()
     })
+    if (this.isApp) {
+      await this.connectAppFolder()
+      return
+    }
     if (!this.canPickFolder) return
     const handle = await loadFolderHandle()
     if (handle === null) return
@@ -114,10 +128,22 @@ class RecordStore {
 
   // MARK: - 기록 폴더
 
+  /** 앱: 휴대폰의 ‘문서/울림’을 기록 폴더로 연다 (앱을 켤 때, 열지 못했으면 ‘다시 열기’ 버튼으로) */
+  async connectAppFolder(): Promise<void> {
+    if (!this.isApp || this.busy) return
+    this.#clearMessages()
+    if (!(await ensureNativeStoragePermission())) {
+      this.errorMessage = '휴대폰의 문서 폴더에 저장할 수 있게 허락해야 기록이 남아요.'
+      return
+    }
+    await this.#flush()
+    await this.#connectFolder(new NativeFolder(), null)
+  }
+
   /** 폴더 고르기 창을 띄워 기록 폴더를 정한다 (버튼을 누른 그때 불러야 한다) */
   async chooseFolder(): Promise<void> {
     const picker = globalThis.window?.showDirectoryPicker
-    if (picker === undefined || this.busy) return
+    if (picker === undefined || this.busy || this.isApp) return
     this.#clearMessages()
     let handle: FileSystemDirectoryHandle
     try {
@@ -163,10 +189,14 @@ class RecordStore {
   }
 
   async #connect(handle: FileSystemDirectoryHandle): Promise<boolean> {
+    return this.#connectFolder(new DirectoryFolder(handle), handle)
+  }
+
+  /** 기록 폴더를 열어 화면의 값·기록과 합친다. 고른 폴더면 그 핸들도 기억한다 (앱의 ‘문서/울림’은 핸들이 없다) */
+  async #connectFolder(folder: RecordFolder, handle: FileSystemDirectoryHandle | null): Promise<boolean> {
     this.busy = true
     this.errorMessage = null
     try {
-      const folder = new DirectoryFolder(handle)
       const result = await openRecordFolder(folder, settings.voiceSettings, this.#changed, this.records)
       if (!result.ok) {
         this.errorMessage = result.message
@@ -184,7 +214,7 @@ class RecordStore {
       this.#changed.clear()
       this.unsaved = false
       this.savedAt = new Date()
-      this.status = { kind: 'connected', folderName: handle.name }
+      this.status = { kind: 'connected', folderName: folder.name }
       return true
     } catch (error) {
       this.errorMessage = isPermissionError(error) ? '폴더를 쓸 수 있게 허락해야 기록이 남아요.' : writeErrorMessage(error)
@@ -361,7 +391,8 @@ class RecordStore {
       const file = new File([(await packRecordFolder(source, now)) as Uint8Array<ArrayBuffer>], recordFileName(now), {
         type: 'application/zip',
       })
-      downloadFile(file)
+      // 앱은 내려받기가 안 되어서 ‘문서/울림/내보낸 파일’에 저장한다 (그 위치를 돌려받는다)
+      const savedPath = await saveFile(file)
       this.usedRecordFile = true
       if (this.#folder === null) {
         this.#changed.clear()
@@ -372,9 +403,11 @@ class RecordStore {
       }
       // 파일 이름이 늘 .zip(‘집’)으로 끝나서 조사는 ‘으로’
       this.infoMessage =
-        this.#folder === null
-          ? `‘${file.name}’으로 저장했어요. 다음에 열 때 이 파일을 불러오면 돼요.`
-          : `‘${file.name}’으로 저장했어요. 다른 기기에서 ‘기록 파일 불러오기’로 열 수 있어요.`
+        savedPath !== null
+          ? `‘${savedPath}’에 저장했어요. 다른 기기나 다시 설치한 앱에서 ‘기록 파일 불러오기’로 열 수 있어요.`
+          : this.#folder === null
+            ? `‘${file.name}’으로 저장했어요. 다음에 열 때 이 파일을 불러오면 돼요.`
+            : `‘${file.name}’으로 저장했어요. 다른 기기에서 ‘기록 파일 불러오기’로 열 수 있어요.`
     } catch {
       this.errorMessage = '기록 파일을 만들지 못했어요. 저장 공간을 확인해 주세요.'
     } finally {

@@ -2,7 +2,7 @@
   import { PitchSummary } from '../dsp/pitchSummary'
   import { PRACTICE_LANGUAGES, recordingDisplayTitle, type PracticeLanguage, type RecordingRecord } from '../model/records'
   import { session } from '../practice/session.svelte'
-  import { downloadFile } from '../practice/sharing'
+  import { saveFile as saveToDevice } from '../practice/sharing'
   import { store } from '../storage/recordStore.svelte'
   import { formatFullDateTime } from '../text/dates'
   import { navigation } from './navigation.svelte'
@@ -15,6 +15,8 @@
   let memo = $state('')
   let hasSound: boolean | null = $state(null)
   let message: string | null = $state(null)
+  /** 앱에서 ‘파일로 저장’한 위치 (웹은 내려받기라 없다) */
+  let savedPath: string | null = $state(null)
 
   // 다른 녹음을 열면 메모 칸과 소리 파일 확인을 새로 한다
   $effect(() => {
@@ -22,6 +24,7 @@
     memo = record.memo
     hasSound = null
     message = null
+    savedPath = null
     void store.readRecording(fileName).then((blob) => {
       if (record.fileName === fileName) hasSound = blob !== null
     })
@@ -59,7 +62,11 @@
       hasSound = false
       return
     }
-    downloadFile(new File([sound], record.fileName, { type: 'audio/wav' }))
+    try {
+      savedPath = await saveToDevice(new File([sound], record.fileName, { type: 'audio/wav' }))
+    } catch {
+      message = '파일로 저장하지 못했어요. 저장 공간을 확인해 주세요.'
+    }
   }
 
   async function remove() {
@@ -121,7 +128,14 @@
           : '[높이]로 가서 재생하며 그때의 곡선을 다시 그려요.'}
     </p>
     <button onclick={saveFile} disabled={hasSound === false}>⤓ 파일로 저장</button>
-    <p class="note">WAV 파일을 이 기기에 내려받아요 (브라우저에 따라 저장할 곳을 물어요).</p>
+    <p class="note">
+      {store.isApp
+        ? 'WAV 파일을 휴대폰의 ‘문서/울림/내보낸 파일’에 저장해요.'
+        : 'WAV 파일을 이 기기에 내려받아요 (브라우저에 따라 저장할 곳을 물어요).'}
+    </p>
+    {#if savedPath !== null}
+      <p class="saved" role="status">‘{savedPath}’에 저장했어요.</p>
+    {/if}
   </section>
 
   {#if message !== null}
@@ -201,6 +215,11 @@
     margin: 0;
     color: var(--warning);
     font-size: 0.85rem;
+  }
+  .saved {
+    margin: 0;
+    color: var(--record);
+    font-size: 0.8rem;
   }
   .danger {
     background: color-mix(in srgb, #ff3b30 14%, transparent);

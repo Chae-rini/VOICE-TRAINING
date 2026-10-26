@@ -2,7 +2,7 @@
   import type { PhraseEndingAnalysis } from '../dsp/phraseEnding'
   import { PitchSummary } from '../dsp/pitchSummary'
   import { session } from '../practice/session.svelte'
-  import { copyText, downloadTake, shareFeedback } from '../practice/sharing'
+  import { copyText, saveTake, shareFeedback } from '../practice/sharing'
   import type { RecordedTake } from '../practice/take'
   import { store } from '../storage/recordStore.svelte'
   import PhraseEndingList from './PhraseEndingList.svelte'
@@ -61,6 +61,16 @@
           : null
   }
 
+  /** 녹음을 WAV로 저장한다 (웹은 내려받기, 앱은 ‘문서/울림/내보낸 파일’) */
+  async function saveWav() {
+    try {
+      const savedPath = await saveTake(take)
+      message = savedPath === null ? null : `‘${savedPath}’에 저장했어요.`
+    } catch {
+      message = '파일로 저장하지 못했어요. 저장 공간을 확인해 주세요.'
+    }
+  }
+
   async function copy() {
     didCopy = await copyText(summary.feedbackRequest(take.title, false, phraseEndings))
     message = didCopy ? null : '복사하지 못했어요. 브라우저가 붙여 넣기 권한을 막았을 수 있어요.'
@@ -88,7 +98,7 @@
     <button class="record" onclick={askMemo} disabled={session.isLastTakeSaved || session.savingTake}>
       {session.savingTake ? '남기는 중…' : isPending ? '✓ 기록에 담았어요' : session.isLastTakeSaved ? '✓ 기록에 남겼어요' : '🗂 기록에 남기기'}
     </button>
-    <button onclick={() => downloadTake(take)}>⤓ 파일로 저장</button>
+    <button onclick={saveWav}>⤓ 파일로 저장</button>
   </div>
 
   <div class="actions">
@@ -142,7 +152,10 @@
 
   <p class="caption">
     ‘녹음 파일과 함께’는 파일을 받는 앱만 보여요. 원하는 앱이 없으면 ‘요약 복사’ 후 붙여 넣으세요. 보낸 내용은 고른 앱으로
-    전송돼요. ‘파일로 저장’은 WAV 파일을 이 기기에 내려받아요 (브라우저에 따라 저장할 곳을 물어요).
+    전송돼요.
+    {store.isApp
+      ? '‘파일로 저장’은 WAV 파일을 휴대폰의 ‘문서/울림/내보낸 파일’에 저장해요.'
+      : '‘파일로 저장’은 WAV 파일을 이 기기에 내려받아요 (브라우저에 따라 저장할 곳을 물어요).'}
   </p>
 </section>
 
