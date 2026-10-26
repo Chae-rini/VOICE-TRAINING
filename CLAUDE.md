@@ -159,7 +159,8 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
   - 패키지 설치는 `--ignore-scripts`로 했다 (Capacitor 패키지에는 설치 스크립트가 없다)
   - JDK 21은 Homebrew `openjdk@21`(keg-only, `/opt/homebrew/opt/openjdk@21`)로 설치했다(2026-10-26). `gradle.sh`가 먼저 찾는다. Android Studio에서 빌드할 때는 Gradle JDK를 이 경로로 정한다
   - 에뮬레이터(사용자가 만든 `Medium_Phone_API_37.0`, Android 17): 이미 켜져 있으면 같은 에뮬레이터를 또 띄우지 않는다(실패한다). 설치·실행 `~/Library/Android/sdk/platform-tools/adb install -r web/android/app/build/outputs/apk/debug/app-debug.apk` → `adb shell am start -n io.github.chae_rini.ullim/.MainActivity`. 화면은 `adb exec-out screencap -p`, 누르기는 `adb shell input tap x y`(기기 픽셀), 버튼 위치는 `adb shell uiautomator dump`
-  - 에뮬레이터 마이크: `adb emu avd hostmicon`으로 Mac 마이크를 넘기고, macOS가 에뮬레이터(Android Studio)에 마이크를 허락해야 소리가 들어온다(시스템 설정은 사용자가 직접)
+  - 에뮬레이터 마이크: `adb emu avd hostmicon`으로 Mac 마이크를 넘기고, macOS가 에뮬레이터(Android Studio)에 마이크를 허락해야 소리가 들어온다(시스템 설정은 사용자가 직접, 허락 뒤 에뮬레이터를 **새로** 켜야 적용). Android Studio 안에 끼워 켠 에뮬레이터는 Android Studio를 꺼도 화면 없이 남는다 → `adb emu kill`로 끈다. 2026-10-26 확인: 에뮬레이터로 들어온 마이크 소리가 약 8 ms마다 끊겨 높이를 잴 수 없었다(맥북 덮개를 닫아 블루투스 스피커 마이크가 입력). 실제 마이크 높이는 실제 폰이나 Mac Chrome의 웹으로 확인한다
+  - 반복 루프에서 다 들은 뒤에는 자동으로 다음 녹음이 시작되므로, 그때 ‘정지’를 누르면 빈 새 녹음이 ‘마지막 녹음’이 된다. 확인 중 방금 녹음을 보려면 다시 듣는 동안 정지하거나, 디버깅 연결로 `session.lastTake`를 먼저 붙잡아 둔다
   - 앱 안 웹 화면 들여다보기: `adb shell cat /proc/net/unix`에서 `webview_devtools_remote_<pid>`를 찾아 `adb forward tcp:9333 localabstract:…` → `curl localhost:9333/json`의 웹소켓 주소로 Chrome DevTools Protocol(`Runtime.evaluate`, `userGesture: true`면 누른 것처럼). 디버그 빌드만 된다. 콘솔은 `adb logcat`의 `Capacitor`·`chromium`
   - 안드로이드 웹뷰에서 안 되는 것(A1 확인): 파일 내려받기(아무 일도 없음), Web Share(없음), `showDirectoryPicker`(있지만 바로 AbortError). 복사(`navigator.clipboard`)·파일 선택 창(`<input type=file>`)은 된다
 - 브라우저 미리보기: `.claude/launch.json`(깃에 올리지 않음)의 `web-preview`(빌드 결과, 4173)·`web-dev`(5173). Claude의 미리보기 브라우저는 마이크를 막는다 → 개발 서버에서만 보이는 ‘테스트 음 180 Hz (개발용)’ 버튼으로 흐름 전체를 확인하고, 실제 목소리는 사용자가 확인한다 (`Docs/WEB_PLAN.md` 직접 확인)
