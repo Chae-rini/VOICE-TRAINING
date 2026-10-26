@@ -725,3 +725,11 @@ iOS 3-3(두 녹음 비교)을 웹으로 옮겨 [모음]·[기록]을 웹으로 �
 - A0: Android Studio 2026.2.1을 Homebrew cask로 설치. 그런데 안에 든 JDK가 25라서, Capacitor 템플릿의 Gradle 8.14.3이 돌지 않는다(Gradle 공식 호환 표: Gradle 8.14는 Java 24까지, Java 25는 Gradle 9.1부터) → JDK 21을 Android Studio 설정에서 받기로 했다. SDK·에뮬레이터는 설치 마법사에서(라이선스 동의는 사용자가 직접)
 - A1 준비: `@capacitor/core`·`android`·`cli` 8.5.3을 정확한 버전으로 추가(`--ignore-scripts`, 설치 스크립트 없음, 취약점 0). `web/capacitor.config.ts`(앱 ID `io.github.chae_rini.ullim`, 이름 울림, 웹 빌드 `dist`, 원격 주소 없음), `npx cap add android`로 `web/android/` 생성(minSdk 24, target·compile 36). `AndroidManifest.xml`에 마이크 권한 두 개와 `usesCleartextTraffic="false"`. `npm run apk:debug`와 `web/scripts/gradle.sh`(JDK 21·SDK 위치를 찾고, 없으면 무엇을 하라고 알림)
 - 확인: 웹 테스트 278개 통과, svelte-check 오류·경고 0, 웹 빌드·`cap sync` 성공, `gradle.sh`가 JDK 21이 없을 때 안내를 내고 멈추는 것. APK 빌드·에뮬레이터는 SDK·JDK 21 준비 뒤에
+
+## 안드로이드 APK A0 마무리·A1 시험판 (2026-10-26)
+- A0: 사용자가 Android Studio 설치 마법사(SDK API 37·에뮬레이터, 라이선스 동의)와 에뮬레이터(`Medium_Phone_API_37.0`, Android 17)를 마쳤다. JDK 21은 Android Studio에서 받아지지 않아 Homebrew `openjdk@21`로 설치했고, `web/scripts/gradle.sh`가 이를 먼저 찾게 했다. 첫 빌드 때 Gradle이 SDK Platform 36·Build-Tools 35를 스스로 받았다(설치 마법사에서 동의한 라이선스로). 저장소를 연 Android Studio가 만든 `.idea/`는 `.gitignore`에 넣었다
+- A1: `npm --prefix web run apk:debug` 성공(1분 9초, APK 4.3 MB) → 에뮬레이터에 설치·실행. 확인한 것은 `Docs/WEB_PLAN.md` ‘A1 결과’
+  - 된다: 앱 실행, 마이크 허용 창 → 녹음 시작·정지, AudioWorklet·Worker·48 kHz, 자동 처리 끄기 설정, 파일 불러오기(안드로이드 파일 선택 창) → 요약 카드·문장 끝 칸(iOS·웹과 같은 숫자: 문장 끝 4개 중 2개, 평균 1.7반음, 긁혔을 수도 있는 곳 1개), 복사, 콘솔 오류 없음
+  - 안 된다(→ A2): 파일 내려받기, Web Share, 폴더 고르기(함수는 있으나 바로 AbortError)
+  - 확인 못 함: 실제 마이크 소리(Mac 스피커 시험음이 −86 dBFS로 안 들어옴 → macOS가 에뮬레이터에 마이크를 허락해야 함), 마이크를 켠 채 다시 들을 때 음량. 마이크 허용 창 뒤 반복 루프가 ‘2번째’ 녹음부터 시작한 것도 실제 폰에서 다시 볼 것
+- 앱 안 웹 화면은 adb로 Chrome DevTools Protocol에 연결해 기능을 직접 물어보며 확인했다 (CLAUDE.md 안드로이드 메모)

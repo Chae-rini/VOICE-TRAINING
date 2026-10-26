@@ -23,3 +23,6 @@ keystore.properties
 
 # Claude 세션용 미리보기 설정
 .claude/
+
+# Android Studio가 저장소를 열 때 만드는 작업 폴더
+.idea/
