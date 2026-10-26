@@ -103,7 +103,9 @@
 | `web/index.html` | 웹 첫 페이지. 앱 자신의 파일 말고는 연결하지 못하게 막는 CSP (원칙 2) |
 | `web/capacitor.config.ts` | 안드로이드 앱(APK) 설정: 앱 ID·이름·웹 빌드 위치. 원격 주소는 쓰지 않는다 |
 | `web/android/` | Capacitor가 만든 안드로이드 프로젝트. 고친 곳은 `app/src/main/AndroidManifest.xml`(마이크 권한, 평문 통신 끄기)뿐 |
-| `web/scripts/gradle.sh` | 안드로이드 빌드 도구(Gradle)를 JDK 21·Android Studio SDK로 돌리는 스크립트 (`npm run apk:debug`가 쓴다) |
+| `web/scripts/gradle.sh` | 안드로이드 빌드 도구(Gradle)를 JDK 21·Android Studio SDK로 돌리는 스크립트 (`npm run apk:debug`·`apk:release`가 쓴다) |
+| `web/scripts/android-icons.sh` | iOS 앱 아이콘 하나로 안드로이드 아이콘(예전용·모양 맞춤)과 시작 화면 그림을 만드는 스크립트 |
+| `web/android/app/build.gradle` | 안드로이드 앱 빌드 설정: 버전(versionCode·versionName), 완성 APK 서명(저장소 밖 `~/Documents/울림-서명키`를 읽는다) |
 | `web/src/platform/app.ts` | 안드로이드 앱 안인지 (`isNativeApp`). 앱이면 저장·공유를 앱 기능으로 바꾼다 |
 | `web/src/platform/nativeShare.ts` | 앱에서 파일로 저장(‘문서/울림/내보낸 파일’)과 안드로이드 공유 창으로 보내기 |
 | `web/src/storage/nativeFolder.ts` | 앱의 기록 폴더(휴대폰의 ‘문서/울림’): 웹 기록 폴더와 같은 읽기·쓰기·지우기·목록, base64로 나눠 쓰기, 저장 권한 |

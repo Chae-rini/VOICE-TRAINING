@@ -152,6 +152,9 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - 원칙 2: 외부 폰트·CDN·분석 도구를 쓰지 않는다. `web/index.html`의 CSP가 앱 자신의 파일 말고는 연결을 막는다.
 - 안드로이드 앱(APK, 2026-10-26~, 계획은 `Docs/WEB_PLAN.md` ‘APK 계획’): Capacitor 8.5.3이 웹 빌드(`web/dist`)를 앱 안에 넣는다. 설정 `web/capacitor.config.ts`(앱 ID `io.github.chae_rini.ullim`), 안드로이드 프로젝트 `web/android/`
   - 명령: 디버그 APK `npm --prefix web run apk:debug` (웹 빌드 → `cap sync android` → `web/scripts/gradle.sh assembleDebug`). 웹 코드를 고친 뒤에는 꼭 다시 `cap sync`해야 앱에 들어간다
+  - 완성 APK `npm --prefix web run apk:release` → `web/android/app/build/outputs/apk/release/app-release.apk`. 서명 키는 저장소 밖 `~/Documents/울림-서명키/`(`ULLIM_SIGNING_DIR`로 바꿈, 깃에 올리지 않음, 비밀번호를 화면·문서에 적지 않음). 새로 내놓을 때마다 `web/android/app/build.gradle`의 `versionCode`를 1씩 올린다. 서명 확인은 `apksigner verify --print-certs`(build-tools, JDK 21)
+  - 개발용(디버그 키)과 완성(울림 키) 앱은 앱 ID가 같아 서로 덮어 설치되지 않는다 → 지우고 깔아야 하고, 그러면 ‘다시 설치 문제’(새 앱이 예전 ‘문서/울림’ 파일을 못 씀)가 생긴다. 에뮬레이터에서 바꿔 깔 때는 예전 폴더를 `adb shell mv`로 비켜 둔다
+  - 앱 아이콘·시작 화면은 `sh web/scripts/android-icons.sh`로 iOS 아이콘에서 만든다 (손으로 고치지 않는다)
   - **JDK 21이 필요하다**: Gradle 8.14.3(Capacitor 템플릿)은 Java 24까지만 돈다. Android Studio 2026.2에 든 JDK 25로는 안 된다 → Android Studio의 Gradle JDK를 21로, CLI는 `gradle.sh`가 `/usr/libexec/java_home -v 21`로 찾는다
   - 안드로이드 SDK는 `~/Library/Android/sdk`(Android Studio 기본). SDK 라이선스 동의는 사용자가 직접 한다
   - 마이크 권한(`RECORD_AUDIO`·`MODIFY_AUDIO_SETTINGS`)은 `AndroidManifest.xml`에 있다. 평문 통신은 끈다(`usesCleartextTraffic="false"`). 원격 주소(`server.url`)는 쓰지 않는다
