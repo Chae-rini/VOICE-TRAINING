@@ -717,3 +717,11 @@ iOS 3-3(두 녹음 비교)을 웹으로 옮겨 [모음]·[기록]을 웹으로 �
   - 웹 미리보기(375×812, 밝은·어두운 모드)와 iOS 시뮬레이터(iPhone 17e)에서 합성 녹음으로 확인: 계단 모양 끝 4개(3.9반음 내려감·6.2반음 크게 내려감·3.2반음 올라감·안정 + 끝 90 Hz) → "문장 끝 4개 중 2개가 3반음 넘게 내려갔어요", 평균 1.7반음, 긁혔을 수도 있는 곳 1개, 화살표 색 4가지. 두 쪽 숫자가 같았다. 웹 요청문 전체도 확인. 콘솔 오류 없음
   - 알게 된 것: 끝 300 ms 동안 미끄러지듯 내려가는 합성음(200 → 150 Hz)은 끝 중앙값이 하강의 가운데(175 Hz)라 2.3반음 ‘안정’으로 나온다. 바닥(156 Hz, 목표 하한 아래)으로는 잡힌다. 실제 목소리에서 문제가 되는지 볼 것 (PROGRESS 다음 할 일)
   - 확인 못 한 것: 실제 목소리, 아주 큰 글자, VoiceOver로 읽기
+
+## 안드로이드 APK A0·A1 준비 (2026-10-26)
+사용자 결정: 웹 배포(W10)보다 APK를 먼저 한다. 안드로이드 폰이 없어 에뮬레이터로 확인하고, 기록은 폰의 ‘문서/울림’에 둔다. 계획은 `Docs/WEB_PLAN.md` ‘APK 계획’(A0 설치 → A1 시험판 → A2 저장·공유 → A3 서명·설치, A4 알림은 선택).
+- 버전·요구사항은 Capacitor 공식 문서와 npm에서 확인했다: Capacitor 8.5.3(2026-10-07), Node 22 이상, Android Studio 2025.2.1 이상, API 24 이상. `@capacitor/filesystem`은 8.1.5가 2주가 안 돼 A2에서 8.1.4를 쓴다
+- Capacitor 소스(`BridgeWebChromeClient`)에서 웹 화면이 마이크를 켜면 `RECORD_AUDIO`·`MODIFY_AUDIO_SETTINGS`를 묻고, `<input type=file>`의 파일 선택 창도 지원하는 것을 확인했다
+- A0: Android Studio 2026.2.1을 Homebrew cask로 설치. 그런데 안에 든 JDK가 25라서, Capacitor 템플릿의 Gradle 8.14.3이 돌지 않는다(Gradle 공식 호환 표: Gradle 8.14는 Java 24까지, Java 25는 Gradle 9.1부터) → JDK 21을 Android Studio 설정에서 받기로 했다. SDK·에뮬레이터는 설치 마법사에서(라이선스 동의는 사용자가 직접)
+- A1 준비: `@capacitor/core`·`android`·`cli` 8.5.3을 정확한 버전으로 추가(`--ignore-scripts`, 설치 스크립트 없음, 취약점 0). `web/capacitor.config.ts`(앱 ID `io.github.chae_rini.ullim`, 이름 울림, 웹 빌드 `dist`, 원격 주소 없음), `npx cap add android`로 `web/android/` 생성(minSdk 24, target·compile 36). `AndroidManifest.xml`에 마이크 권한 두 개와 `usesCleartextTraffic="false"`. `npm run apk:debug`와 `web/scripts/gradle.sh`(JDK 21·SDK 위치를 찾고, 없으면 무엇을 하라고 알림)
+- 확인: 웹 테스트 278개 통과, svelte-check 오류·경고 0, 웹 빌드·`cap sync` 성공, `gradle.sh`가 JDK 21이 없을 때 안내를 내고 멈추는 것. APK 빌드·에뮬레이터는 SDK·JDK 21 준비 뒤에

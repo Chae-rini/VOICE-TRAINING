@@ -150,6 +150,13 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - 패키지는 정확한 버전으로 고정하고(`--save-exact`), 나온 지 2주가 지난 버전을 쓴다. TypeScript는 6.x (svelte-check가 7을 아직 지원하지 않음).
 - 이 Mac의 Node는 25(홀수, 장기 지원판 아님)다. Vitest 5가 지원 목록에 22·24·26만 적어 설치 때 경고가 나지만, 테스트·빌드는 돈다 (2026-10-25). 문제가 생기면 Node 24 LTS를 설치한다(승인 받기).
 - 원칙 2: 외부 폰트·CDN·분석 도구를 쓰지 않는다. `web/index.html`의 CSP가 앱 자신의 파일 말고는 연결을 막는다.
+- 안드로이드 앱(APK, 2026-10-26~, 계획은 `Docs/WEB_PLAN.md` ‘APK 계획’): Capacitor 8.5.3이 웹 빌드(`web/dist`)를 앱 안에 넣는다. 설정 `web/capacitor.config.ts`(앱 ID `io.github.chae_rini.ullim`), 안드로이드 프로젝트 `web/android/`
+  - 명령: 디버그 APK `npm --prefix web run apk:debug` (웹 빌드 → `cap sync android` → `web/scripts/gradle.sh assembleDebug`). 웹 코드를 고친 뒤에는 꼭 다시 `cap sync`해야 앱에 들어간다
+  - **JDK 21이 필요하다**: Gradle 8.14.3(Capacitor 템플릿)은 Java 24까지만 돈다. Android Studio 2026.2에 든 JDK 25로는 안 된다 → Android Studio의 Gradle JDK를 21로, CLI는 `gradle.sh`가 `/usr/libexec/java_home -v 21`로 찾는다
+  - 안드로이드 SDK는 `~/Library/Android/sdk`(Android Studio 기본). SDK 라이선스 동의는 사용자가 직접 한다
+  - 마이크 권한(`RECORD_AUDIO`·`MODIFY_AUDIO_SETTINGS`)은 `AndroidManifest.xml`에 있다. 평문 통신은 끈다(`usesCleartextTraffic="false"`). 원격 주소(`server.url`)는 쓰지 않는다
+  - 자동으로 만들어지는 `android/app/src/main/assets/public`·`capacitor.config.json`과 빌드 결과물은 깃에 올리지 않는다 (`web/android/.gitignore`). 서명 키(`*.jks`·`*.keystore`)도 올리지 않는다 (맨 위 `.gitignore`)
+  - 패키지 설치는 `--ignore-scripts`로 했다 (Capacitor 패키지에는 설치 스크립트가 없다)
 - 브라우저 미리보기: `.claude/launch.json`(깃에 올리지 않음)의 `web-preview`(빌드 결과, 4173)·`web-dev`(5173). Claude의 미리보기 브라우저는 마이크를 막는다 → 개발 서버에서만 보이는 ‘테스트 음 180 Hz (개발용)’ 버튼으로 흐름 전체를 확인하고, 실제 목소리는 사용자가 확인한다 (`Docs/WEB_PLAN.md` 직접 확인)
 - 마이크 흐름(W2): 마이크 → 소리 받기 AudioWorklet(`captureProcessor.ts`, 1024샘플씩) → MessageChannel로 분석 Worker에 바로 → 점을 화면으로. 오디오 스레드에서는 분석하지 않는다. 워크릿은 `?worker&url`로, 워커는 `new Worker(new URL(..., import.meta.url), { type: 'module' })`로 불러온다 (Vite 문서 확인)
   - 점의 시각은 AudioContext 시계(`startFrame / sampleRate`), 화면의 지금은 `context.currentTime` — 같은 시계다

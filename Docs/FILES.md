@@ -101,6 +101,9 @@
 | `web/package.json`, `web/package-lock.json` | 웹 버전이 쓰는 도구와 정확한 버전, 명령(`dev`·`build`·`test`·`check`) |
 | `web/vite.config.ts`, `web/tsconfig.json` | 웹 빌드·테스트 설정 (상대 경로로 빌드: GitHub Pages·APK 어디서나 열리게). 개발 서버가 내줄 파일을 `web/`과 대본 JSON으로 좁히고, `dev:lan`일 때만 와이파이에 HTTPS로 연다 |
 | `web/index.html` | 웹 첫 페이지. 앱 자신의 파일 말고는 연결하지 못하게 막는 CSP (원칙 2) |
+| `web/capacitor.config.ts` | 안드로이드 앱(APK) 설정: 앱 ID·이름·웹 빌드 위치. 원격 주소는 쓰지 않는다 |
+| `web/android/` | Capacitor가 만든 안드로이드 프로젝트. 고친 곳은 `app/src/main/AndroidManifest.xml`(마이크 권한, 평문 통신 끄기)뿐 |
+| `web/scripts/gradle.sh` | 안드로이드 빌드 도구(Gradle)를 JDK 21·Android Studio SDK로 돌리는 스크립트 (`npm run apk:debug`가 쓴다) |
 | `web/src/main.ts`, `web/src/App.svelte`, `web/src/app.css` | 웹 화면 시작점과 공통 모양. App은 화면 셋([높이]·[모음]·[기록])을 숨기기만 하며 바꾸고(문장 위치·스크롤 유지), 그 아래 연습 조작과 탭 막대. 색은 iOS 색 세트와 같은 값(밝은·어두운 모드) |
 | `web/src/components/TabBar.svelte`, `navigation.svelte.ts` | 아래 탭 막대(높이·모음·기록)와 화면끼리 함께 보는 상태(지금 탭, 내 목소리 재기 창이 열렸는지) |
 | `web/src/components/PracticeControls.svelte` | 화면 아래 연습 조작: 단계 표시·남은 시간, 반복 루프 재생·지금 들어보기·건너뛰기·정지, 녹음 불러오기, 마지막 녹음 듣기, 들려줄 길이. [높이]·[모음]이 함께 쓴다 |
