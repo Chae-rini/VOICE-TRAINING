@@ -8,7 +8,11 @@
 | `VoicePractice/Audio/TakeRecorder.swift` | 녹음 중 들어온 소리 중 최근 N초만 메모리에 남기는 고리 모양 통 (다시 듣기용) |
 | `VoicePractice/Audio/AudioFileAnalyzer.swift` | 녹음 파일(음성 메모 등)을 읽어 피치를 미리 계산하고, 공유용 WAV·기록용 m4a 파일을 만드는 도구 |
 | `VoicePractice/Models/PitchSummary.swift` | 녹음의 요약 수치(중앙값·범위·목표 범위 안 비율)와 AI에게 보낼 피드백 요청문 |
-| `VoicePractice/Views/RecordingSummaryView.swift` | 그래프 아래 요약 카드와 "기록에 남기기"(메모 창)·"AI에게 피드백 받기"·"요약 복사" 버튼, iOS 공유 창 |
+| `VoicePractice/Models/PhraseEndingAnalysis.swift` | 구절별 문장 끝 분석: 무성음 250 ms로 구절을 나누고, 구절마다 끝 300 ms가 몇 반음 내려갔는지·끝 바닥·긁히는 소리 가능성, 녹음 전체 요약 (화면과 상관없는 계산만) |
+| `VoicePractice/Models/PhraseEndingRules.json` | 문장 끝 분석의 기준값(구절 나누기·끝 길이·하강 폭 경계·fry 기준). iOS와 웹이 이 파일 하나를 같이 읽는다. 값마다 뜻을 `notes`에 적었다 |
+| `VoicePractice/Views/RecordingSummaryView.swift` | 그래프 아래 요약 카드와 "기록에 남기기"(메모 창)·"AI에게 피드백 받기"·"요약 복사" 버튼, iOS 공유 창. 숫자 아래에 문장 끝 칸 |
+| `VoicePractice/Views/PhraseEndingListView.swift` | 요약 카드 안의 문장 끝 칸: 요약 한 줄·숫자·안내 문구, 펼치면 구절 목록(화살표·종류·중앙값 → 끝 Hz·하강 반음), 종류별 색 |
+| `VoicePractice/Models/PhraseEndingText.swift` | 문장 끝 분석을 글로 바꾸기: 요약 한 줄, 숫자 줄, 안내 문구, AI 요청문 단락, 구절 한 줄 (웹 `text/phraseEnding.ts`와 같은 글) |
 | `VoicePractice/Models/PracticeRecord.swift` | 기록의 모양: 말하는 언어, 연습 한 번 모으기 규칙(30초·5초 기준), 저장하는 기록 4가지(연습 요약, 남긴 녹음, 기준 목소리 이력, 모음 이력) |
 | `VoicePractice/Models/PracticeArchive.swift` | 기록 저장소: 숫자는 SwiftData, 남긴 녹음은 m4a 파일(백업 제외). 저장·하나 지우기·모두 지우기를 한곳에서 하고, 저장에 실패하면 되돌린 뒤 오류를 알린다 |
 | `VoicePractice/Models/RecordedTake.swift` | 녹음 한 번의 묶음: 소리, 시작 시각·길이, 그 구간의 피치·포먼트 점, 남긴 기록의 ID. 요약·저장·공유·다시 듣기는 이것만 쓴다 |
@@ -63,6 +67,8 @@
 | `VoicePracticeTests/AudioFileExportTests.swift` | 파일 이름·확장자(.m4a), 마지막 녹음 m4a 만들기·다시 재기·임시 파일 정리, 그래프 높이를 확인하는 시험지 |
 | `VoicePractice/Models/VoiceMeters.swift` | [높이] 탭 음량 막대(dBFS, 0.3초 평활, 큰 소리 3초 지속 판정)와 공명 밝기 막대(최근 2.5초 F2 중앙값, 기준 대비 위치) 계산 |
 | `VoicePracticeTests/VoiceMetersTests.swift` | 음량·평활·큰 소리 판정, F2 이동 중앙값, 기준 대비 위치, F2 저장을 확인하는 시험지 |
+| `VoicePracticeTests/PhraseEndingAnalysisTests.swift` | 구절별 문장 끝 분석의 시험지: 기준값 파일, 종류 경계, fry 연속 기준 환산, 합성 피치 9가지 (웹 테스트와 같은 입력 파일) |
+| `VoicePracticeTests/PhraseEndingCases.json` | 문장 끝 분석의 합성 피치 입력과 손으로 셈한 기대값. iOS·웹 테스트가 같이 읽는다. `Tools/PhraseEndingCases/make_cases.py`가 만들므로 손으로 고치지 않는다 |
 | `VoicePractice/Models/GraphWindow.swift` | 피치 그래프 가로축 계산: 보이는 시간 구간(오른쪽 끝 = 지금), 시간 눈금 간격·글자, 시작선 |
 | `VoicePracticeTests/GraphWindowTests.swift` | 그래프 구간·시간 눈금·시작선·점 묶기를 확인하는 시험지 |
 | `VoicePractice/Models/PitchScale.swift` | 반음 눈금 계산: 두 높이의 반음 거리, 반음만큼 옮기기, 그래프 위치(로그 눈금), [높이] 세로축 범위(목표 ±50 Hz)와 축 밖 판정, 눈금 숫자 고르기 |
@@ -78,6 +84,7 @@
 | `Tools/PitchValidation/main.swift` | 앱의 피치 계산기를 녹음 파일에 돌려 Praat 결과와 비교하는 검사 도구. 앱에는 들어가지 않는다 |
 | `Tools/PitchValidation/plot.py` | 검사 결과를 그림으로 그리는 스크립트 |
 | `Tools/WebGolden/main.swift` | 앱의 피치·포먼트 계산기에 합성 신호를 넣어 웹 버전이 비교할 정답표(`web/test/golden/swift-golden.json`)를 만드는 도구. 앱에는 들어가지 않는다 |
+| `Tools/PhraseEndingCases/make_cases.py` | 문장 끝 분석의 테스트 입력 파일(`VoicePracticeTests/PhraseEndingCases.json`)을 만드는 스크립트. 경우마다 기대값을 어떻게 셈했는지 주석에 있다 |
 | `Validation/YIN_vs_Praat.md`, `Validation/figures/` | 검증 보고서와 그림. **본인 피치 자료가 들어 있어 GitHub에 올리지 않는다** (`.gitignore`) |
 | `Docs/script_samples.md` | 대본 샘플 10개 (확인용) |
 | `VoicePractice.xcodeproj` | Xcode가 여는 프로젝트 파일. 어떤 파일을 어떻게 빌드할지 적혀 있다 |
@@ -94,6 +101,19 @@
 | `web/package.json`, `web/package-lock.json` | 웹 버전이 쓰는 도구와 정확한 버전, 명령(`dev`·`build`·`test`·`check`) |
 | `web/vite.config.ts`, `web/tsconfig.json` | 웹 빌드·테스트 설정 (상대 경로로 빌드: GitHub Pages·APK 어디서나 열리게). 개발 서버가 내줄 파일을 `web/`과 대본 JSON으로 좁히고, `dev:lan`일 때만 와이파이에 HTTPS로 연다 |
 | `web/index.html` | 웹 첫 페이지. 앱 자신의 파일 말고는 연결하지 못하게 막는 CSP (원칙 2) |
+| `web/capacitor.config.ts` | 안드로이드 앱(APK) 설정: 앱 ID·이름·웹 빌드 위치. 원격 주소는 쓰지 않는다 |
+| `web/android/` | Capacitor가 만든 안드로이드 프로젝트. 고친 곳: `app/src/main/AndroidManifest.xml`(마이크·저장 권한, 평문 통신 끄기), `app/build.gradle`(아래), `app/src/main/res/`의 아이콘·시작 화면 그림, 테마 아이콘 단색 층 `drawable/ic_launcher_monochrome.xml`(손으로 그린 선 그림), 다크 모드 시작 화면 바탕 `values-night/styles.xml` |
+| `web/scripts/gradle.sh` | 안드로이드 빌드 도구(Gradle)를 JDK 21·Android Studio SDK로 돌리는 스크립트 (`npm run apk:debug`·`apk:release`가 쓴다) |
+| `web/scripts/android-icons.sh` | iOS 앱 아이콘 하나로 안드로이드 아이콘(예전용·모양 맞춤)과 시작 화면 그림을 만드는 스크립트 |
+| `web/android/app/build.gradle` | 안드로이드 앱 빌드 설정: 버전(versionCode·versionName), 완성 APK 서명(저장소 밖 `~/Documents/울림-서명키`를 읽는다) |
+| `web/src/platform/app.ts` | 안드로이드 앱 안인지 (`isNativeApp`). 앱이면 저장·공유를 앱 기능으로 바꾼다 |
+| `web/src/platform/nativeShare.ts` | 앱에서 파일로 저장(‘문서/울림/내보낸 파일’)과 안드로이드 공유 창으로 보내기 |
+| `web/src/platform/nativeApp.ts` | 앱을 휴대폰 앱처럼: `html.app` 스타일·확대 막기, 뒤로 버튼(열린 창 → 화면 조각 → [높이] → 앱 뒤로 보내기), 화면이 가려지면 연습 정지 |
+| `web/src/platform/backButton.ts` | 뒤로 버튼을 먼저 받는 화면 조각 목록(`onBack`, 나중에 건 것부터)과 열린 창 닫기 |
+| `web/src/platform/haptics.ts` | 짧은 진동(앱에서만): 녹음이 끝날 때 약하게, 쉬어 가기 안내 때 강하게 |
+| `web/test/backButton.test.ts` | 뒤로 버튼 처리 순서와 열린 창 닫기 시험지 |
+| `web/src/storage/nativeFolder.ts` | 앱의 기록 폴더(휴대폰의 ‘문서/울림’): 웹 기록 폴더와 같은 읽기·쓰기·지우기·목록, base64로 나눠 쓰기, 저장 권한 |
+| `web/test/nativeFolder.test.ts` | 앱 기록 폴더 시험지 (Capacitor 파일 시스템처럼 동작하는 가짜로) |
 | `web/src/main.ts`, `web/src/App.svelte`, `web/src/app.css` | 웹 화면 시작점과 공통 모양. App은 화면 셋([높이]·[모음]·[기록])을 숨기기만 하며 바꾸고(문장 위치·스크롤 유지), 그 아래 연습 조작과 탭 막대. 색은 iOS 색 세트와 같은 값(밝은·어두운 모드) |
 | `web/src/components/TabBar.svelte`, `navigation.svelte.ts` | 아래 탭 막대(높이·모음·기록)와 화면끼리 함께 보는 상태(지금 탭, 내 목소리 재기 창이 열렸는지) |
 | `web/src/components/PracticeControls.svelte` | 화면 아래 연습 조작: 단계 표시·남은 시간, 반복 루프 재생·지금 들어보기·건너뛰기·정지, 녹음 불러오기, 마지막 녹음 듣기, 들려줄 길이. [높이]·[모음]이 함께 쓴다 |
@@ -112,7 +132,9 @@
 | `web/src/practice/takeRecorder.ts` | 최근 N초만 남기는 고리 모양 녹음 통 (iOS `TakeRecorder`) |
 | `web/src/practice/take.ts` | 녹음 묶음: 소리와 같은 구간의 점만 담고, 요약·F2·가로축·다시 듣기 기록을 낸다 (iOS `RecordedTake`) |
 | `web/src/practice/sharing.ts` | 파일로 저장(WAV 내려받기), AI에게 피드백 받기(브라우저 공유 창, 없으면 복사), 요약 복사 |
-| `web/src/components/SummaryCard.svelte` | 마지막 녹음 요약 카드: 중앙·범위·목표 범위 안 비율, 기록에 남기기(메모 창)·파일로 저장·공유·복사 버튼 |
+| `web/src/components/SummaryCard.svelte` | 마지막 녹음 요약 카드: 중앙·범위·목표 범위 안 비율, 문장 끝 칸, 기록에 남기기(메모 창)·파일로 저장·공유·복사 버튼 |
+| `web/src/components/PhraseEndingList.svelte` | 요약 카드 안의 문장 끝 칸 (iOS `PhraseEndingSection`) |
+| `web/src/text/phraseEnding.ts` | 문장 끝 분석을 글로 바꾸기 (iOS `PhraseEndingText.swift`와 같은 글) |
 | `web/src/graph/pitchGraph.ts` | 그래프 그리기(목표 띠·눈금·기준선·시작선·꺾은선·축 밖 점선·다시 듣기)와 그래프 높이 규칙. 꺾은선 나누기는 순수 함수라 테스트한다 |
 | `web/src/graph/descriptions.ts` | 그래프·막대를 말로 바꾼 설명(iOS와 같은 문장), 쉬어 가기 안내 문구 |
 | `web/src/model/practice.ts` | 들려줄 길이, 내 기준 목소리 재기·처음 목표 범위·먼 범위 판정, 목표 범위 슬라이더 규칙 |
@@ -148,6 +170,7 @@
 | `web/src/dsp/pitchHistory.ts` | 피치 점 기록, 끊김·픽셀 열 묶기, 그래프 시계(녹음 중·멈춤·다시 듣기) |
 | `web/src/dsp/voiceMeters.ts`, `web/src/dsp/vowelSpace.ts` | 음량(dBFS) 막대, 공명 밝기(F2) 막대, 모음 지도 규칙(F1·F2 범위·눈금·지금 점·위치, F1 불확실) |
 | `web/src/dsp/pitchSummary.ts` | 요약 수치(중앙값·10%·90%·목표 안 비율)와 AI 피드백 요청문 |
+| `web/src/dsp/phraseEnding.ts` | 구절별 문장 끝 분석 (iOS `PhraseEndingAnalysis.swift`를 줄 단위로 옮김, 기준값은 iOS의 `PhraseEndingRules.json`을 그대로 읽는다) |
 | `web/src/dsp/analysis.ts` | 소리 전체를 연습과 같은 방식으로 분석, 다시 듣기 배율, 녹음 묶음에 넣을 점 고르기 |
 | `web/src/dsp/streamAnalyzer.ts` | 마이크에서 조각조각 들어오는 소리를 창(2048샘플, 절반씩 밀기)으로 분석 (iOS `PitchTapProcessor`). 조각 크기와 상관없이 파일 분석과 같은 점 |
 | `web/src/audio/micInput.ts` | 소리 장치(`AudioEngine`): 소리 시계 하나로 마이크 켜기·녹음 시작·멈추고 소리 받기·다시 듣기 재생·녹음 파일 읽고 분석. 못 켠 까닭별 안내, 개발용 테스트 음·테스트 모음(배음 크기를 공명 모양으로), 개발 서버의 `?mute` |
@@ -159,3 +182,4 @@
 | `web/test/*.test.ts` | iOS 테스트를 옮긴 웹 시험지 + `golden.test.ts`(iOS 정답표와 숫자 비교), `streamAnalyzer.test.ts`(조각 분석 = 파일 분석), `processing.test.ts`(자동 처리 안내), `sentences.test.ts`(문장 데이터가 iOS와 같은지, 조사·모음·자동 생성·대본), `practice.test.ts`(들려줄 길이·기준·목표 범위·설정 저장), `graph.test.ts`(그래프 크기·꺾은선 나누기·설명 문장), `loop.test.ts`(연습 순서·녹음 통·녹음 묶음·WAV·내보내기), `vowelMap.test.ts`(모음 지도 규칙·내 모음 지도·저장·지도 글자), `storage.test.ts`(기록 폴더 파일 모양·합치기·열기·옮기기·기록 파일 zip), `records.test.ts`(연습 한 번의 기록·기록 모양·기록 합치기·녹음 파일 이름·말하는 언어), `history.test.ts`([기록] 계산·연습 기록 요청문·그래프 자리·가짜 기록), `comparison.test.ts`(두 녹음 비교 계산) |
 | `web/test/signals.ts` | 웹 테스트용 합성 신호 (iOS 테스트·`Tools/WebGolden`과 같은 식) |
 | `web/test/golden/swift-golden.json` | `Tools/WebGolden`이 만든 정답표. 손으로 고치지 않는다 |
+| `web/test/phraseEnding.test.ts` | 구절별 문장 끝 분석의 시험지 (iOS `PhraseEndingAnalysisTests`와 같은 입력·기대값 파일을 읽는다) |

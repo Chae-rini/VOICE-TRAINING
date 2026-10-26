@@ -5,6 +5,7 @@
   import { medianDifferenceText, rangeSemitones } from '../model/comparison'
   import { languageLabel, recordingDisplayTitle, type RecordingRecord } from '../model/records'
   import { settings } from '../model/settings.svelte'
+  import { isNativeApp } from '../platform/app'
   import { ComparePlayer, type CompareSide } from '../practice/comparePlayer.svelte'
   import { session } from '../practice/session.svelte'
   import { store } from '../storage/recordStore.svelte'
@@ -57,14 +58,21 @@
     if (session.isRunning || navigation.tab !== 'history') untrack(() => player.stop())
   })
 
+  // 앱에서는 다른 앱으로 가거나 전화가 와서 화면이 가려지면 멈춘다 (연습은 nativeApp이 멈춘다)
+  const stopWhenHidden = () => {
+    if (isNativeApp() && document.visibilityState === 'hidden') player.stop()
+  }
+
   onMount(() => {
     const tick = () => {
       remaining = player.playing === null ? 0 : Math.max(0, player.endsAt - session.now())
     }
     ticker = window.setInterval(tick, 200)
+    document.addEventListener('visibilitychange', stopWhenHidden)
   })
   onDestroy(() => {
     clearInterval(ticker)
+    document.removeEventListener('visibilitychange', stopWhenHidden)
     player.stop()
   })
 

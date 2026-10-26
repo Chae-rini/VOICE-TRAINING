@@ -54,6 +54,8 @@ export const SettingKeys = {
   selectedVowel: 'selectedVowel',
   practiceLanguage: 'practiceLanguage',
   historyPeriod: 'historyPeriod',
+  /** 안드로이드 앱이 마지막으로 쓴 기록 폴더 이름 (‘울림’, 다시 설치한 뒤면 ‘울림-2’ 등) */
+  appRecordRoot: 'appRecordRoot',
 } as const
 
 /** W3~W5에서 이 브라우저에 두었던 내 기준 값의 키 (옮긴 뒤 지운다) */
@@ -121,6 +123,11 @@ export function loadSettings(storage: KeyValueStorage | null): StoredSettings {
     practiceLanguage: isPracticeLanguage(language) ? language : 'ko',
     historyPeriod: isHistoryPeriod(period) ? period : 'month',
   }
+}
+
+/** 안드로이드 앱이 마지막으로 쓴 기록 폴더 이름. 없으면 null */
+export function loadAppRecordRoot(storage: KeyValueStorage | null): string | null {
+  return read(storage, SettingKeys.appRecordRoot)
 }
 
 /** W3~W5에서 이 브라우저에 저장한 내 기준 값. 하나도 없으면 null */

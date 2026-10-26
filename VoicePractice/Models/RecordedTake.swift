@@ -65,6 +65,11 @@ struct RecordedTake {
         PitchSummary(readings: readings, duration: duration, target: target)
     }
 
+    /// 이 녹음의 구절별 문장 끝 분석 (요약과 같은 목표 범위로). 기준값 파일을 읽지 못했으면 nil.
+    func phraseEndings(target: ClosedRange<Double>?) -> PhraseEndingAnalysis? {
+        PhraseEndingRules.standard.map { PhraseEndingAnalysis(readings: readings, target: target, rules: $0) }
+    }
+
     /// [Hz] 녹음 전체의 F2 중앙값 (공명 밝기). 포먼트가 충분히 잡히지 않았으면 nil.
     var f2Median: Double? {
         ResonanceMeter.median(readings)

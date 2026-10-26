@@ -1,19 +1,28 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
+  import type { PhraseEndingAnalysis } from '../dsp/phraseEnding'
   import { PitchSummary } from '../dsp/pitchSummary'
+  import { onBack } from '../platform/backButton'
   import { session } from '../practice/session.svelte'
-  import { copyText, downloadTake, shareFeedback } from '../practice/sharing'
+  import { copyText, saveTake, shareFeedback } from '../practice/sharing'
   import type { RecordedTake } from '../practice/take'
   import { store } from '../storage/recordStore.svelte'
+  import PhraseEndingList from './PhraseEndingList.svelte'
 
   /**
    * 마지막 녹음(방금 녹음 또는 불러온 파일)의 피치 요약 카드 (iOS `RecordingSummaryView`).
    * "AI에게 피드백 받기"는 요약(원하면 녹음 파일도)을 브라우저 공유 창에 넘기고, 보낼 앱은 사용자가 고른다.
    * "파일로 저장"은 녹음을 WAV로 이 기기에 내려받는다. "기록에 남기기"는 소리와 요약·메모를 내 기록 폴더(또는 기록 파일)에 남긴다.
-   * 앱 자체는 인터넷으로 아무것도 보내지 않는다.
+   * 앱 자체는 인터넷으로 아무것도 보내지 않는다. 숫자 아래에는 구절별 문장 끝 요약(`PhraseEndingList`)을 둔다.
    */
-  let { take, summary }: { take: RecordedTake; summary: PitchSummary } = $props()
+  let {
+    take,
+    summary,
+    phraseEndings,
+  }: { take: RecordedTake; summary: PitchSummary; phraseEndings: PhraseEndingAnalysis } = $props()
 
   let isShareMenuOpen = $state(false)
+  let shareMenu: HTMLDivElement
   let message: string | null = $state(null)
   let didCopy = $state(false)
   let memoDialog: HTMLDialogElement
@@ -23,6 +32,15 @@
   const connectedFolder = $derived(store.status.kind === 'connected' ? store.status.folderName : null)
   /** 남겼지만 아직 폴더·기록 파일에 쓰지 않았는지 (폴더를 고르면 저절로 옮겨지고 이 안내도 사라진다) */
   const isPending = $derived(session.isLastTakeSaved && (connectedFolder === null || store.unsaved))
+
+  // 안드로이드 뒤로 버튼: 열린 공유 메뉴부터 닫는다 (다른 탭에 가려져 있으면 그대로 둔다)
+  onMount(() =>
+    onBack(() => {
+      if (!isShareMenuOpen || !shareMenu.checkVisibility()) return false
+      isShareMenuOpen = false
+      return true
+    }),
+  )
 
   function askMemo() {
     memo = ''
@@ -44,7 +62,7 @@
 
   async function share(includesAudio: boolean) {
     isShareMenuOpen = false
-    const result = await shareFeedback(take, summary, includesAudio)
+    const result = await shareFeedback(take, summary, includesAudio, phraseEndings)
     message =
       result === 'copied'
         ? includesAudio
@@ -55,8 +73,18 @@
           : null
   }
 
+  /** 녹음을 WAV로 저장한다 (웹은 내려받기, 앱은 ‘문서/울림/내보낸 파일’) */
+  async function saveWav() {
+    try {
+      const savedPath = await saveTake(take)
+      message = savedPath === null ? null : `‘${savedPath}’에 저장했어요.`
+    } catch {
+      message = '파일로 저장하지 못했어요. 저장 공간을 확인해 주세요.'
+    }
+  }
+
   async function copy() {
-    didCopy = await copyText(summary.feedbackRequest(take.title, false))
+    didCopy = await copyText(summary.feedbackRequest(take.title, false, phraseEndings))
     message = didCopy ? null : '복사하지 못했어요. 브라우저가 붙여 넣기 권한을 막았을 수 있어요.'
   }
 </script>
@@ -76,15 +104,17 @@
     </div>
   </dl>
 
+  <PhraseEndingList analysis={phraseEndings} takeStart={take.startTime} />
+
   <div class="actions">
     <button class="record" onclick={askMemo} disabled={session.isLastTakeSaved || session.savingTake}>
       {session.savingTake ? '남기는 중…' : isPending ? '✓ 기록에 담았어요' : session.isLastTakeSaved ? '✓ 기록에 남겼어요' : '🗂 기록에 남기기'}
     </button>
-    <button onclick={() => downloadTake(take)}>⤓ 파일로 저장</button>
+    <button onclick={saveWav}>⤓ 파일로 저장</button>
   </div>
 
   <div class="actions">
-    <div class="menu">
+    <div class="menu" bind:this={shareMenu}>
       <button class="share" onclick={() => (isShareMenuOpen = !isShareMenuOpen)} aria-expanded={isShareMenuOpen}>
         ⇪ AI에게 피드백 받기
       </button>
@@ -134,7 +164,10 @@
 
   <p class="caption">
     ‘녹음 파일과 함께’는 파일을 받는 앱만 보여요. 원하는 앱이 없으면 ‘요약 복사’ 후 붙여 넣으세요. 보낸 내용은 고른 앱으로
-    전송돼요. ‘파일로 저장’은 WAV 파일을 이 기기에 내려받아요 (브라우저에 따라 저장할 곳을 물어요).
+    전송돼요.
+    {store.isApp
+      ? `‘파일로 저장’은 WAV 파일을 휴대폰의 ‘${store.appExportFolder}’에 저장해요.`
+      : '‘파일로 저장’은 WAV 파일을 이 기기에 내려받아요 (브라우저에 따라 저장할 곳을 물어요).'}
   </p>
 </section>
 

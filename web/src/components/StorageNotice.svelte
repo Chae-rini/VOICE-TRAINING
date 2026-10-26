@@ -24,6 +24,16 @@
     <p>{store.errorMessage}</p>
     <button class="small" onclick={() => (navigation.tab = 'history')}>[기록]에서 보기</button>
   </div>
+{:else if store.movedAppFolder !== null && !store.usedRecordFile}
+  <div class="notice quiet">
+    <p>앱을 다시 설치해서 이제 ‘{store.movedAppFolder}’에 저장해요. 예전 기록은 [기록]에서 기록 파일로 불러올 수 있어요.</p>
+    <button class="small" onclick={() => (navigation.tab = 'history')}>[기록]으로</button>
+  </div>
+{:else if store.isApp && status.kind === 'none' && (store.unsaved || hasValues)}
+  <div class="notice">
+    <p>휴대폰의 ‘문서/울림’ 폴더를 열지 못해서, 목표 범위·기준·모음 지도가 앱을 닫으면 사라져요.</p>
+    <button class="small" onclick={() => store.connectAppFolder()} disabled={store.busy}>다시 열기</button>
+  </div>
 {:else if status.kind === 'none' && (store.unsaved || hasValues)}
   <div class="notice">
     <p>기록 폴더를 아직 고르지 않아서, 목표 범위·기준·모음 지도는 페이지를 닫으면 사라져요.</p>

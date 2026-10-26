@@ -1,3 +1,4 @@
+import { isNativeApp } from '../platform/app'
 import { resolveParticles } from '../text/korean'
 
 /**
@@ -35,15 +36,16 @@ export function describeProcessing(settings: MediaTrackSettings): ProcessingItem
   })
 }
 
-/** 화면에 띄울 안내 한 줄. 모두 꺼졌으면 null. */
-export function processingNotice(items: readonly ProcessingItem[]): string | null {
+/** 화면에 띄울 안내 한 줄. 모두 꺼졌으면 null. 안드로이드 앱에서는 ‘브라우저’ 대신 ‘휴대폰’이라고 쓴다 */
+export function processingNotice(items: readonly ProcessingItem[], isApp = isNativeApp()): string | null {
+  const device = isApp ? '휴대폰' : '브라우저'
   const on = items.filter((item) => item.state === 'on').map((item) => item.name)
   if (on.length > 0) {
     // 을/를은 마지막 이름의 받침으로 고른다 (자동 음량 조절을, 에코 제거를)
-    return resolveParticles(`이 브라우저는 ${on.join('·')}을(를) 끄지 못했어요. 음량(dBFS)과 높이·공명 값이 조금 달라질 수 있어요.`)
+    return resolveParticles(`이 ${device}은(는) ${on.join('·')}을(를) 끄지 못했어요. 음량(dBFS)과 높이·공명 값이 조금 달라질 수 있어요.`)
   }
   if (items.some((item) => item.state === 'unknown')) {
-    return '브라우저가 마이크 설정을 알려 주지 않아, 자동 처리가 꺼졌는지 확인하지 못했어요.'
+    return resolveParticles(`${device}이(가) 마이크 설정을 알려 주지 않아, 자동 처리가 꺼졌는지 확인하지 못했어요.`)
   }
   return null
 }

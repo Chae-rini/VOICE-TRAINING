@@ -89,6 +89,7 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - 색에만 기대지 않는다: 목표 안·밖은 색과 함께 선 굵기(안 3.5pt, 밖 2pt)와 글자("· 목표 범위 안")로도 알린다. 그림(Canvas) 그래프에는 VoiceOver 설명(`accessibilityValue`)을 붙인다.
 - 큰 글자: 화면 아래 고정 영역은 xxxLarge까지, 그래프 안 글자는 xxLarge까지만 커진다. 고정 높이가 필요한 곳(넘기는 문장 카드 등)은 `@ScaledMetric`으로 높이도 같이 키운다. UIKit 글 상자(`WordWrappedText`)는 SwiftUI의 `dynamicTypeSize`를 읽어 기본 크기에서 한 번만 키운다.
 - 언어 구분은 색 대신 점 모양(원·네모·세모·마름모)으로 한다.
+- 문장 끝 종류(2026-10-26, 요약 카드의 구절 목록): 안정 회색(`inactive`), 올라감 청록(iOS `.teal`, 웹 `--ending-rise`), 내려감 연한 주황(주황 60%), 크게 내려감 주황(웹 `--warning`). 하강 폭 순서를 안정을 가운데 둔 두 갈래 색으로 보인다. 색은 화살표에만 칠하고 이름(안정·올라감·내려감·크게 내려감)을 같이 쓴다. 분홍·파랑·빨강은 쓰지 않는다.
 
 ## 높이 눈금 (2026-10-25, 반음)
 - 목소리 높이(Hz)를 그리는 그래프는 반음(로그) 눈금이다: [높이] 그래프·목표 슬라이더(Canvas, `PitchScale.position`), [기록] 그래프·두 녹음 비교 분포(Swift Charts, `.chartYScale/.chartXScale(domain:, type: .log)`). 같은 반음 흔들림이 낮은 목소리든 높은 목소리든 같은 길이로 보여야 한다 (원칙 3).
@@ -140,14 +141,42 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 ## 웹 버전 메모 (`web/`, 2026-10-25~)
 - 명령 (저장소 맨 위에서): 테스트 `npm --prefix web test`, 타입 검사 `npm --prefix web run check`(경고도 실패), 빌드 `npm --prefix web run build`, 개발 서버 `npm --prefix web run dev`(이 컴퓨터에서만)
 - 휴대폰으로 열어 보기: `npm --prefix web run dev:lan` — 같은 와이파이에서 여는 임시 HTTPS 개발 서버 (`@vitejs/plugin-basic-ssl`이 개발용 임시 인증서를 만든다, 앱에는 안 들어감). 휴대폰 브라우저는 https에서만 마이크를 켜 준다. 터미널의 ‘Network:’ 주소를 열고 인증서 경고를 넘긴다. 다 보면 Ctrl+C로 끈다
-  - 개발 서버가 내줄 수 있는 파일은 `web/`과 대본 JSON 하나뿐이다 (`vite.config.ts`의 `server.fs.allow`). 저장소 맨 위의 `Validation/`(개인 녹음 자료)·`Signing.local.xcconfig`·Swift 코드는 403으로 막힌다 (2026-10-25 확인). 이 목록을 넓히지 않는다
-- 분석 코드(`web/src/dsp/`)는 iOS 코드를 줄 단위로 옮긴 것이다. **iOS의 분석 코드(PitchDetector·FormantAnalyzer·PitchScale·GraphWindow·PitchHistory·VoiceMeters·PitchSummary)를 고치면 웹도 같이 고치고**, 정답표를 다시 만든다:
+  - 개발 서버가 내줄 수 있는 파일은 `web/`과 iOS와 같이 쓰는 JSON 두 개(대본 `PracticeScripts.json`, 문장 끝 기준값 `PhraseEndingRules.json` — 2026-10-25 사용자 승인으로 더함)뿐이다 (`vite.config.ts`의 `server.fs.allow`). 저장소 맨 위의 `Validation/`(개인 녹음 자료)·`Signing.local.xcconfig`·Swift 코드는 403으로 막힌다 (2026-10-25 확인). 이 목록을 넓히지 않는다 (꼭 필요하면 파일 하나씩, 먼저 승인)
+- 분석 코드(`web/src/dsp/`)는 iOS 코드를 줄 단위로 옮긴 것이다. **iOS의 분석 코드(PitchDetector·FormantAnalyzer·PitchScale·GraphWindow·PitchHistory·VoiceMeters·PitchSummary·PhraseEndingAnalysis)를 고치면 웹도 같이 고치고**, 정답표를 다시 만든다 (문장 끝 분석의 기준값은 `VoicePractice/Models/PhraseEndingRules.json` 한 파일을 둘이 같이 읽으므로 값만 바꿀 때는 그 파일만 고친다. 화면 글·요청문 단락은 `Models/PhraseEndingText.swift` ↔ `web/src/text/phraseEnding.ts` 두 벌이고, 두 테스트가 같은 문장을 기대한다):
   `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcrun swiftc -O VoicePractice/Audio/PitchDetector.swift VoicePractice/Audio/FormantAnalyzer.swift VoicePracticeTests/SyntheticVowel.swift Tools/WebGolden/main.swift -o <임시 폴더>/web-golden` → `<임시 폴더>/web-golden web/test/golden/swift-golden.json`
 - `web/test/golden.test.ts`가 정답표와 비교한다. 목소리 있음/없음은 하나도 달라서는 안 되고, 숫자는 갈래마다 허용 오차 안이어야 한다 (2026-10-25: 높이 최대 3e-12 Hz, F1·F2 최대 0.002 Hz). 차이표는 `npx vitest run test/golden.test.ts --silent=false`로 본다.
+- 구절별 문장 끝 분석은 정답표 대신 입력·기대값 파일 하나(`VoicePracticeTests/PhraseEndingCases.json`)를 iOS(`PhraseEndingAnalysisTests`)와 웹(`web/test/phraseEnding.test.ts`)이 같이 읽어 확인한다 (기대값은 손으로 셈한 값, 허용 오차 1e-9). 경우를 더하거나 기준값을 바꾸면 `python3 -I Tools/PhraseEndingCases/make_cases.py`를 고쳐 다시 만들고 두 테스트를 모두 돌린다. Swift 테스트는 이 파일을 `#filePath` 옆에서 읽는다(시뮬레이터는 Mac의 파일을 읽을 수 있다).
 - iOS의 vDSP 계산은 반복문으로 옮겼다. Hamming 창은 iOS와 같은 `0.54 − 0.46·cos(2πn/N)`(N으로 나눔), 표본 줄이기 결과 길이는 `⌊(N − 탭 수)/D⌋ + 1` (정답표로 확인).
 - 패키지는 정확한 버전으로 고정하고(`--save-exact`), 나온 지 2주가 지난 버전을 쓴다. TypeScript는 6.x (svelte-check가 7을 아직 지원하지 않음).
 - 이 Mac의 Node는 25(홀수, 장기 지원판 아님)다. Vitest 5가 지원 목록에 22·24·26만 적어 설치 때 경고가 나지만, 테스트·빌드는 돈다 (2026-10-25). 문제가 생기면 Node 24 LTS를 설치한다(승인 받기).
 - 원칙 2: 외부 폰트·CDN·분석 도구를 쓰지 않는다. `web/index.html`의 CSP가 앱 자신의 파일 말고는 연결을 막는다.
+- 안드로이드 앱(APK, 2026-10-26~, 계획은 `Docs/WEB_PLAN.md` ‘APK 계획’): Capacitor 8.5.3이 웹 빌드(`web/dist`)를 앱 안에 넣는다. 설정 `web/capacitor.config.ts`(앱 ID `io.github.chae_rini.ullim`), 안드로이드 프로젝트 `web/android/`
+  - 명령: 디버그 APK `npm --prefix web run apk:debug` (웹 빌드 → `cap sync android` → `web/scripts/gradle.sh assembleDebug`). 웹 코드를 고친 뒤에는 꼭 다시 `cap sync`해야 앱에 들어간다
+  - 완성 APK `npm --prefix web run apk:release` → `web/android/app/build/outputs/apk/release/app-release.apk`. 서명 키는 저장소 밖 `~/Documents/울림-서명키/`(`ULLIM_SIGNING_DIR`로 바꿈, 깃에 올리지 않음, 비밀번호를 화면·문서에 적지 않음). 새로 내놓을 때마다 `web/android/app/build.gradle`의 `versionCode`를 1씩 올린다. 서명 확인은 `apksigner verify --print-certs`(build-tools, JDK 21)
+  - 개발용(디버그 키)과 완성(울림 키) 앱은 앱 ID가 같아 서로 덮어 설치되지 않는다 → 지우고 깔아야 한다. 앱을 지웠다 깔면 새 앱은 예전 앱이 ‘문서/울림’에 만든 파일을 열지도 쓰지도 못해서(안드로이드 11 이상), ‘울림’을 쓰지 못하면 ‘울림-2’ … ‘울림-9’에 새로 쓴다(2026-10-26 사용자 결정 ①, `connectAppFolder`·`openFirstUsableAppFolder`). 쓴 폴더는 화면 설정 `ullim.appRecordRoot`에 기억하고 다음에 먼저 연다. 예전 기록은 그때 저장한 기록 파일(zip)을 ‘기록 파일 불러오기’로 가져온다(안드로이드 파일 선택 창은 예전 앱의 zip도 열 수 있다). 에뮬레이터에서 시험 폴더를 정리할 때는 지우지 말고 `adb shell mv`로 비켜 둔다
+  - 완성 앱을 들여다봐야 하면 `capacitor.config.ts`에 잠깐 `android: { webContentsDebuggingEnabled: true }`를 넣어 빌드하고(같은 키라 업데이트로 깔려 기록이 남는다), 끝나면 꼭 지우고 다시 빌드한다
+  - 앱 아이콘·시작 화면은 `sh web/scripts/android-icons.sh`로 iOS 아이콘에서 만든다 (손으로 고치지 않는다)
+  - **JDK 21이 필요하다**: Gradle 8.14.3(Capacitor 템플릿)은 Java 24까지만 돈다. Android Studio 2026.2에 든 JDK 25로는 안 된다 → Android Studio의 Gradle JDK를 21로, CLI는 `gradle.sh`가 `/usr/libexec/java_home -v 21`로 찾는다
+  - 안드로이드 SDK는 `~/Library/Android/sdk`(Android Studio 기본). SDK 라이선스 동의는 사용자가 직접 한다
+  - 마이크 권한(`RECORD_AUDIO`·`MODIFY_AUDIO_SETTINGS`)은 `AndroidManifest.xml`에 있다. 평문 통신은 끈다(`usesCleartextTraffic="false"`). 원격 주소(`server.url`)는 쓰지 않는다
+  - 자동으로 만들어지는 `android/app/src/main/assets/public`·`capacitor.config.json`과 빌드 결과물은 깃에 올리지 않는다 (`web/android/.gitignore`). 서명 키(`*.jks`·`*.keystore`)도 올리지 않는다 (맨 위 `.gitignore`)
+  - 패키지 설치는 `--ignore-scripts`로 했다 (Capacitor 패키지에는 설치 스크립트가 없다)
+  - JDK 21은 Homebrew `openjdk@21`(keg-only, `/opt/homebrew/opt/openjdk@21`)로 설치했다(2026-10-26). `gradle.sh`가 먼저 찾는다. Android Studio에서 빌드할 때는 Gradle JDK를 이 경로로 정한다
+  - 에뮬레이터(사용자가 만든 `Medium_Phone_API_37.0`, Android 17): 이미 켜져 있으면 같은 에뮬레이터를 또 띄우지 않는다(실패한다). 설치·실행 `~/Library/Android/sdk/platform-tools/adb install -r web/android/app/build/outputs/apk/debug/app-debug.apk` → `adb shell am start -n io.github.chae_rini.ullim/.MainActivity`. 화면은 `adb exec-out screencap -p`, 누르기는 `adb shell input tap x y`(기기 픽셀), 버튼 위치는 `adb shell uiautomator dump`
+  - 에뮬레이터 마이크: `adb emu avd hostmicon`으로 Mac 마이크를 넘기고, macOS가 에뮬레이터(Android Studio)에 마이크를 허락해야 소리가 들어온다(시스템 설정은 사용자가 직접, 허락 뒤 에뮬레이터를 **새로** 켜야 적용). Android Studio 안에 끼워 켠 에뮬레이터는 Android Studio를 꺼도 화면 없이 남는다 → `adb emu kill`로 끈다. 2026-10-26 확인: 에뮬레이터로 들어온 마이크 소리가 약 8 ms마다 끊겨 높이를 잴 수 없었다(맥북 덮개를 닫아 블루투스 스피커 마이크가 입력). 실제 마이크 높이는 실제 폰이나 Mac Chrome의 웹으로 확인한다
+  - 반복 루프에서 다 들은 뒤에는 자동으로 다음 녹음이 시작되므로, 그때 ‘정지’를 누르면 빈 새 녹음이 ‘마지막 녹음’이 된다. 확인 중 방금 녹음을 보려면 다시 듣는 동안 정지하거나, 디버깅 연결로 `session.lastTake`를 먼저 붙잡아 둔다
+  - 앱 안 웹 화면 들여다보기: `adb shell cat /proc/net/unix`에서 `webview_devtools_remote_<pid>`를 찾아 `adb forward tcp:9333 localabstract:…` → `curl localhost:9333/json`의 웹소켓 주소로 Chrome DevTools Protocol(`Runtime.evaluate`, `userGesture: true`면 누른 것처럼). 디버그 빌드만 된다. 콘솔은 `adb logcat`의 `Capacitor`·`chromium`
+  - 안드로이드 웹뷰에서 안 되는 것(A1 확인): 파일 내려받기(아무 일도 없음), Web Share(없음), `showDirectoryPicker`(있지만 바로 AbortError). 복사(`navigator.clipboard`)·파일 선택 창(`<input type=file>`)은 된다
+  - 앱 저장·공유(A2): `isNativeApp()`(`src/platform/app.ts`)로 가른다. 기록은 `NativeFolder`(`src/storage/nativeFolder.ts`, 공용 ‘문서/울림’)를 `recordStore`가 앱을 켤 때 자동으로 연다(`connectAppFolder`). 파일로 저장·기록 파일로 저장은 ‘문서/울림/내보낸 파일’, 공유는 `@capacitor/share`(파일은 앱 임시 폴더에 쓴 뒤) — `src/platform/nativeShare.ts`, `src/practice/sharing.ts`의 `saveFile`·`shareText`·`shareFeedback`. 화면 코드는 웹과 같고 문구만 `store.isApp`으로 바꾼다
+  - 안드로이드에는 파일 내용을 base64 글자로만 넘길 수 있다(Blob은 웹에서만). 큰 녹음은 768 KB씩 나눠 이어 쓴다(`writeNativeBytes`). 없는 파일은 앱이 기기마다 다른 문구의 오류를 내서, 먼저 `stat`으로 있는지 본다. **공용 폴더에서는 같은 이름에 바로 덮어쓴다** — “임시 파일에 쓰고 → 원래 파일 지우고 → 이름 바꾸기”를 하면 안드로이드의 미디어 목록(MediaProvider)이 뒤늦게 따라오다 어긋나, 이 앱도 열 수 없는(EACCES) 파일이 생긴다(2026-10-26 에뮬레이터에서 실제로 겪음)
+  - `capacitor.config.ts`의 `loggingBehavior: 'none'`: 디버그 빌드 로그가 녹음 파일 내용(base64)을 통째로 찍어서 껐다. 앱 안 연습 흐름을 시험할 때는 DevTools 연결에서 `Runtime.queryObjects`로 `lastTake`·`stop`이 있는 객체(session)를 찾아 쓴다(빌드된 앱이라 import로 꺼낼 수 없다)
+  - 휴대폰 앱처럼(1묶음, 2026-10-26): 앱일 때만 `main.ts`가 `installNativeApp()`(`src/platform/nativeApp.ts`)을 부른다 — `html.app` 스타일(글자 선택·누를 때 깜빡임 없음, 입력 칸만 선택), 확대 막기, 뒤로 버튼, 화면이 가려지면(`visibilitychange` hidden: 홈·다른 앱·전화) 연습 정지. 공유 창·마이크 허용 창은 가려진 것이 아니다(에뮬레이터 확인)
+    - **뒤로 버튼 순서**: 열린 `<dialog>`(‘cancel’을 보내 창 스스로 막을 수 있게) → `onBack`으로 건 처리 함수(나중에 건 것부터) → [높이] 탭으로 → [높이]에서는 `App.minimizeApp()`(앱을 끄지 않고 뒤로 보냄). 새로 여닫는 화면 조각(메뉴·자세히 화면)을 만들면 `onBack(() => …)`을 `onMount`에서 걸고, **다른 탭에 가려져 있으면 false**를 돌려준다(`checkVisibility()`나 `navigation.tab`으로)
+    - 진동은 `vibrate('light'|'heavy')`(`src/platform/haptics.ts`, 웹에서는 아무 일도 안 함): iOS `sensoryFeedback`과 같은 때(지금 들어보기로 녹음이 끝날 때 약하게, 쉬어 가기 안내 때 강하게)
+    - 앱에 보이는 문구에 ‘브라우저·페이지·새로 고침’을 쓰지 않는다: 둘 다 보일 수 있는 문구 함수는 `isApp = isNativeApp()` 인자를 받는다(`MicError.message`, `processingNotice`, `parseFailureMessage`). 웹에서만 보이는 갈래(폴더 고르기 등)는 그대로
+    - 글자 크기: 안드로이드 웹뷰가 휴대폰 글꼴 크기 설정을 이미 따른다(에뮬레이터 1.3배 → 16px이 20.8px). 따로 고치지 않는다
+    - 시스템 막대는 Capacitor 8 기본(SystemBars, 기기 밝기 모드를 따름, `viewport-fit=cover` + `env(safe-area-inset-*)`). 다크 모드 시작 화면 바탕은 `res/values-night/styles.xml`. 테마 아이콘 단색 층 `res/drawable/ic_launcher_monochrome.xml`은 손으로 그린 선 그림(`android-icons.sh`가 만들지 않음)
+    - 에뮬레이터 시험 팁: 앱을 지웠다 깔면 마이크 권한도 사라진다 → `adb shell pm grant io.github.chae_rini.ullim android.permission.RECORD_AUDIO`. 에뮬레이터 마이크로는 목소리가 안 잡혀 요약 카드가 안 생기므로, DevTools 연결에서 합성 WAV를 `DataTransfer`로 [높이] 아래 파일 칸(`main` 밖의 `input[type=file]`)에 넣고 `change`를 보낸다. 디버깅은 `capacitor.config.ts`에 `android: { webContentsDebuggingEnabled: true }`를 **잠깐** 넣어 완성 APK를 만들고, 확인 뒤 지우고 다시 빌드한다
 - 브라우저 미리보기: `.claude/launch.json`(깃에 올리지 않음)의 `web-preview`(빌드 결과, 4173)·`web-dev`(5173). Claude의 미리보기 브라우저는 마이크를 막는다 → 개발 서버에서만 보이는 ‘테스트 음 180 Hz (개발용)’ 버튼으로 흐름 전체를 확인하고, 실제 목소리는 사용자가 확인한다 (`Docs/WEB_PLAN.md` 직접 확인)
 - 마이크 흐름(W2): 마이크 → 소리 받기 AudioWorklet(`captureProcessor.ts`, 1024샘플씩) → MessageChannel로 분석 Worker에 바로 → 점을 화면으로. 오디오 스레드에서는 분석하지 않는다. 워크릿은 `?worker&url`로, 워커는 `new Worker(new URL(..., import.meta.url), { type: 'module' })`로 불러온다 (Vite 문서 확인)
   - 점의 시각은 AudioContext 시계(`startFrame / sampleRate`), 화면의 지금은 `context.currentTime` — 같은 시계다

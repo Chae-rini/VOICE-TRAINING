@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tick } from 'svelte'
+  import { onMount, tick } from 'svelte'
   import { PitchSummary } from '../dsp/pitchSummary'
   import { defaultPair } from '../model/comparison'
   import {
@@ -21,11 +21,13 @@
     type PracticeLanguage,
   } from '../model/records'
   import { settings } from '../model/settings.svelte'
+  import { onBack } from '../platform/backButton'
   import { store } from '../storage/recordStore.svelte'
   import { formatDay, formatDayTime } from '../text/dates'
   import CompareScreen from './CompareScreen.svelte'
   import HistoryCharts from './HistoryCharts.svelte'
   import LanguageTag from './LanguageTag.svelte'
+  import { navigation } from './navigation.svelte'
   import RecordingDetail from './RecordingDetail.svelte'
   import SessionDetail from './SessionDetail.svelte'
   import StorageCard from './StorageCard.svelte'
@@ -96,6 +98,15 @@
     await tick()
     screen.scrollTop = listScroll
   }
+
+  // 안드로이드 뒤로 버튼: 자세히 화면이면 목록으로 돌아간다 (앱이 닫히지 않게)
+  onMount(() =>
+    onBack(() => {
+      if (navigation.tab !== 'history' || !showsDetail) return false
+      void back()
+      return true
+    }),
+  )
 
   async function removeBaseline(id: string) {
     if (!confirm('이 기록을 지울까요? 되돌릴 수 없어요.')) return

@@ -10,9 +10,12 @@
     "build": "vite build",
     "preview": "vite preview",
     "check": "svelte-check --tsconfig ./tsconfig.json --fail-on-warnings",
-    "test": "vitest run"
+    "test": "vitest run",
+    "apk:debug": "vite build && cap sync android && sh scripts/gradle.sh assembleDebug",
+    "apk:release": "vite build && cap sync android && sh scripts/gradle.sh assembleRelease"
   },
   "devDependencies": {
+    "@capacitor/cli": "8.5.3",
     "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@vitejs/plugin-basic-ssl": "2.3.0",
     "svelte": "5.57.2",
@@ -22,6 +25,12 @@
     "vitest": "5.0.3"
   },
   "dependencies": {
+    "@capacitor/android": "8.5.3",
+    "@capacitor/app": "8.1.2",
+    "@capacitor/core": "8.5.3",
+    "@capacitor/filesystem": "8.1.4",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/share": "8.0.3",
     "fflate": "0.8.3"
   }
 }

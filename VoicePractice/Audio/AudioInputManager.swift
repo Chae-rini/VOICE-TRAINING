@@ -85,6 +85,14 @@ final class AudioInputManager {
         timeline.lastTakeSummary(target: target)
     }
 
+    /// 마지막 녹음의 구절별 문장 끝 분석 (요약 카드·AI 공유가 함께 쓴다). 녹음이 없으면 nil.
+    func lastTakePhraseEndings(target: ClosedRange<Double>?) -> PhraseEndingAnalysis? {
+        timeline.lastTakePhraseEndings(target: target)
+    }
+
+    /// [s] 마지막 녹음의 첫 샘플 시각 (구절 시작을 녹음 처음부터의 시간으로 보여 줄 때 쓴다)
+    var lastTakeStartTime: TimeInterval? { timeline.lastTake?.startTime }
+
     // 녹음과 재생은 오디오 설정이 달라서 엔진을 따로 쓰고, 단계마다 새로 만든다.
     // 설정을 바꾼 뒤에 만든 엔진은 바뀐 장치 상태를 처음부터 그대로 받아들인다.
     @ObservationIgnored private var recordingEngine: AVAudioEngine?
