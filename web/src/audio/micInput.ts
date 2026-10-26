@@ -1,4 +1,5 @@
 import type { PitchReading } from '../dsp/pitchHistory'
+import { isNativeApp } from '../platform/app'
 import captureProcessorUrl from './captureProcessor?worker&url'
 import { CAPTURE_PROCESSOR_NAME, type CaptureOptions, type WorkerCommand, type WorkerMessage } from './messages'
 import { describeProcessing, MEASUREMENT_CONSTRAINTS, type ProcessingItem } from './processing'
@@ -12,7 +13,12 @@ export class MicError extends Error {
     readonly kind: MicErrorKind,
     cause?: unknown,
   ) {
-    super(MicError.messages[kind], { cause })
+    super(MicError.message(kind), { cause })
+  }
+
+  /** 화면에 띄울 문구. 안드로이드 앱에서는 ‘페이지·브라우저’ 대신 휴대폰 앱 설정으로 안내한다 */
+  static message(kind: MicErrorKind, isApp = isNativeApp()): string {
+    return (isApp ? MicError.appMessages[kind] : undefined) ?? MicError.messages[kind]
   }
 
   static readonly messages: Record<MicErrorKind, string> = {
@@ -21,6 +27,11 @@ export class MicError extends Error {
     denied: '마이크를 쓸 수 없어요. 브라우저나 기기 설정에서 이 페이지의 마이크를 허용해 주세요.',
     notFound: '마이크를 찾지 못했어요. 마이크가 연결되어 있는지 확인해 주세요.',
     other: '마이크를 켜지 못했어요. 페이지를 새로 고친 뒤 다시 시도해 주세요.',
+  }
+
+  static readonly appMessages: Partial<Record<MicErrorKind, string>> = {
+    denied: '마이크를 쓸 수 없어요. 휴대폰 설정 › 애플리케이션 › 울림 › 권한에서 마이크를 허용해 주세요.',
+    other: '마이크를 켜지 못했어요. 다시 눌러 보고, 그래도 안 되면 울림을 완전히 닫았다가 다시 열어 주세요.',
   }
 }
 

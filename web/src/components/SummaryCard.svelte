@@ -1,6 +1,8 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import type { PhraseEndingAnalysis } from '../dsp/phraseEnding'
   import { PitchSummary } from '../dsp/pitchSummary'
+  import { onBack } from '../platform/backButton'
   import { session } from '../practice/session.svelte'
   import { copyText, saveTake, shareFeedback } from '../practice/sharing'
   import type { RecordedTake } from '../practice/take'
@@ -20,6 +22,7 @@
   }: { take: RecordedTake; summary: PitchSummary; phraseEndings: PhraseEndingAnalysis } = $props()
 
   let isShareMenuOpen = $state(false)
+  let shareMenu: HTMLDivElement
   let message: string | null = $state(null)
   let didCopy = $state(false)
   let memoDialog: HTMLDialogElement
@@ -29,6 +32,15 @@
   const connectedFolder = $derived(store.status.kind === 'connected' ? store.status.folderName : null)
   /** 남겼지만 아직 폴더·기록 파일에 쓰지 않았는지 (폴더를 고르면 저절로 옮겨지고 이 안내도 사라진다) */
   const isPending = $derived(session.isLastTakeSaved && (connectedFolder === null || store.unsaved))
+
+  // 안드로이드 뒤로 버튼: 열린 공유 메뉴부터 닫는다 (다른 탭에 가려져 있으면 그대로 둔다)
+  onMount(() =>
+    onBack(() => {
+      if (!isShareMenuOpen || !shareMenu.checkVisibility()) return false
+      isShareMenuOpen = false
+      return true
+    }),
+  )
 
   function askMemo() {
     memo = ''
@@ -102,7 +114,7 @@
   </div>
 
   <div class="actions">
-    <div class="menu">
+    <div class="menu" bind:this={shareMenu}>
       <button class="share" onclick={() => (isShareMenuOpen = !isShareMenuOpen)} aria-expanded={isShareMenuOpen}>
         ⇪ AI에게 피드백 받기
       </button>

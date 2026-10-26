@@ -1,4 +1,5 @@
 import type { Range } from '../dsp/range'
+import { isNativeApp } from '../platform/app'
 import type { VoiceBaseline } from '../model/practice'
 import type { VoiceSettings } from '../model/voiceSettings'
 import { VowelMaps } from '../model/vowelMap'
@@ -78,15 +79,17 @@ export function recordingFileName(date: Date, existing: ReadonlySet<string>): st
 export type ParseFailure = 'broken' | 'notUllim' | 'newerVersion'
 export type Parsed<T> = { readonly ok: true; readonly value: T } | { readonly ok: false; readonly reason: ParseFailure }
 
-/** 읽지 못한 까닭을 화면 문구로 */
-export function parseFailureMessage(file: string, reason: ParseFailure): string {
+/** 읽지 못한 까닭을 화면 문구로 (새 판 안내는 웹이면 새로 고침, 안드로이드 앱이면 새 APK 설치) */
+export function parseFailureMessage(file: string, reason: ParseFailure, isApp = isNativeApp()): string {
   switch (reason) {
     case 'broken':
       return `‘${file}’을 읽지 못했어요. 파일이 망가졌을 수 있어요. 덮어쓰지 않았으니 다른 폴더를 고르거나 파일을 확인해 주세요.`
     case 'notUllim':
       return `‘${file}’이 울림이 만든 파일이 아니에요. 덮어쓰지 않았으니 다른 폴더를 골라 주세요.`
     case 'newerVersion':
-      return `‘${file}’은 더 새 판의 울림이 만든 파일이에요. 덮어쓰지 않았어요. 페이지를 새로 고쳐 최신 울림으로 열어 주세요.`
+      return isApp
+        ? `‘${file}’은 더 새 판의 울림이 만든 파일이에요. 덮어쓰지 않았어요. 울림 앱을 새 판으로 설치한 뒤 다시 열어 주세요.`
+        : `‘${file}’은 더 새 판의 울림이 만든 파일이에요. 덮어쓰지 않았어요. 페이지를 새로 고쳐 최신 울림으로 열어 주세요.`
   }
 }
 

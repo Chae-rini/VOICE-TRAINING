@@ -6,6 +6,7 @@
 #   그림이 가운데 안전 구역(108dp 중 66dp)에 들어가게 80%로 줄여 바탕색 가운데에 둔다 (배경색도 같은 색, values/ic_launcher_background.xml)
 # - splash: 시작할 때 잠깐 보이는 화면. Capacitor 기본 로고 대신 바탕색 가운데에 울림 아이콘 (짧은 변의 40%)
 # 바탕색은 아이콘 바탕과 같은 #FEFEFE다 (순수한 흰색으로 채우면 아이콘 둘레에 옅은 네모가 보인다).
+# 테마 아이콘(안드로이드 13+)용 단색 층 drawable/ic_launcher_monochrome.xml은 손으로 그린 선 그림이라 이 스크립트가 만들지 않는다.
 set -e
 BACKGROUND=FEFEFE
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!-- 다크 모드에서 앱을 켤 때 시작 화면이 하얗게 번쩍이지 않게 바탕을 검게 둔다 (앱 화면의 다크 바탕 #000000과 같게).
+         안드로이드 12 이상은 이 바탕 가운데에 시스템이 앱 아이콘을 얹는다. 밝은 모드는 values/styles.xml 그대로 -->
+    <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
+        <item name="android:background">#000000</item>
+        <item name="windowSplashScreenBackground">#000000</item>
+    </style>
+</resources>

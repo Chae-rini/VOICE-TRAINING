@@ -52,6 +52,18 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+/* 안드로이드 앱에서는 웹 페이지 티를 없앤다: 길게 눌러 글자 선택·누를 때 파란 깜빡임 (입력 칸은 그대로 고칠 수 있게) */
+html.app {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+}
+html.app :is(input, textarea) {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
 button {
   font: inherit;
   border: none;

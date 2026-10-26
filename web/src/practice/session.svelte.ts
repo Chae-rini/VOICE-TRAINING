@@ -10,6 +10,7 @@ import { Baseline, type BaselineMeasurement } from '../model/practice'
 import { newRecordId, pitchNumbers, recordingDisplayTitle, type RecordingRecord } from '../model/records'
 import { settings } from '../model/settings.svelte'
 import { VowelMaps, type VowelEntry } from '../model/vowelMap'
+import { vibrate } from '../platform/haptics'
 import { store, type AddResult } from '../storage/recordStore.svelte'
 import type { KoreanVowel } from '../text/korean'
 import { COUNTDOWN_SECONDS, PracticeLoop, type LoopPhase } from './loop'
@@ -107,7 +108,7 @@ class PracticeSession {
     try {
       this.processing = await audio.openMic(source, (readings) => this.#receive(readings))
     } catch (error) {
-      this.errorMessage = error instanceof MicError ? error.message : MicError.messages.other
+      this.errorMessage = error instanceof MicError ? error.message : MicError.message('other')
       return
     } finally {
       this.busy = null
@@ -130,6 +131,7 @@ class PracticeSession {
     const take = await this.#keepTake()
     // 기다리는 사이 정지했을 수 있다 (TypeScript는 위의 확인 때문에 아직 녹음 중이라고 여겨서 다시 읽는다)
     if ((this.#loop.phase as LoopPhase).kind !== 'listening') return
+    vibrate('light')
     if (take !== null) this.#play(take)
     else this.#finishListening() // 녹음된 소리가 없으면 듣기를 건너뛴다
   }
@@ -362,7 +364,7 @@ class PracticeSession {
     try {
       await audio.openMic(source, (readings) => this.#receive(readings))
     } catch (error) {
-      this.errorMessage = error instanceof MicError ? error.message : MicError.messages.other
+      this.errorMessage = error instanceof MicError ? error.message : MicError.message('other')
       return
     } finally {
       this.busy = null
@@ -500,6 +502,7 @@ class PracticeSession {
     this.#restTimer = setInterval(() => {
       elapsed += REST_REMINDER_SECONDS
       this.restMessage = restMessage(elapsed)
+      vibrate('heavy')
     }, REST_REMINDER_SECONDS * 1000)
   }
 

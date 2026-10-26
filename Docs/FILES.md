@@ -102,12 +102,16 @@
 | `web/vite.config.ts`, `web/tsconfig.json` | 웹 빌드·테스트 설정 (상대 경로로 빌드: GitHub Pages·APK 어디서나 열리게). 개발 서버가 내줄 파일을 `web/`과 대본 JSON으로 좁히고, `dev:lan`일 때만 와이파이에 HTTPS로 연다 |
 | `web/index.html` | 웹 첫 페이지. 앱 자신의 파일 말고는 연결하지 못하게 막는 CSP (원칙 2) |
 | `web/capacitor.config.ts` | 안드로이드 앱(APK) 설정: 앱 ID·이름·웹 빌드 위치. 원격 주소는 쓰지 않는다 |
-| `web/android/` | Capacitor가 만든 안드로이드 프로젝트. 고친 곳은 `app/src/main/AndroidManifest.xml`(마이크 권한, 평문 통신 끄기)뿐 |
+| `web/android/` | Capacitor가 만든 안드로이드 프로젝트. 고친 곳: `app/src/main/AndroidManifest.xml`(마이크·저장 권한, 평문 통신 끄기), `app/build.gradle`(아래), `app/src/main/res/`의 아이콘·시작 화면 그림, 테마 아이콘 단색 층 `drawable/ic_launcher_monochrome.xml`(손으로 그린 선 그림), 다크 모드 시작 화면 바탕 `values-night/styles.xml` |
 | `web/scripts/gradle.sh` | 안드로이드 빌드 도구(Gradle)를 JDK 21·Android Studio SDK로 돌리는 스크립트 (`npm run apk:debug`·`apk:release`가 쓴다) |
 | `web/scripts/android-icons.sh` | iOS 앱 아이콘 하나로 안드로이드 아이콘(예전용·모양 맞춤)과 시작 화면 그림을 만드는 스크립트 |
 | `web/android/app/build.gradle` | 안드로이드 앱 빌드 설정: 버전(versionCode·versionName), 완성 APK 서명(저장소 밖 `~/Documents/울림-서명키`를 읽는다) |
 | `web/src/platform/app.ts` | 안드로이드 앱 안인지 (`isNativeApp`). 앱이면 저장·공유를 앱 기능으로 바꾼다 |
 | `web/src/platform/nativeShare.ts` | 앱에서 파일로 저장(‘문서/울림/내보낸 파일’)과 안드로이드 공유 창으로 보내기 |
+| `web/src/platform/nativeApp.ts` | 앱을 휴대폰 앱처럼: `html.app` 스타일·확대 막기, 뒤로 버튼(열린 창 → 화면 조각 → [높이] → 앱 뒤로 보내기), 화면이 가려지면 연습 정지 |
+| `web/src/platform/backButton.ts` | 뒤로 버튼을 먼저 받는 화면 조각 목록(`onBack`, 나중에 건 것부터)과 열린 창 닫기 |
+| `web/src/platform/haptics.ts` | 짧은 진동(앱에서만): 녹음이 끝날 때 약하게, 쉬어 가기 안내 때 강하게 |
+| `web/test/backButton.test.ts` | 뒤로 버튼 처리 순서와 열린 창 닫기 시험지 |
 | `web/src/storage/nativeFolder.ts` | 앱의 기록 폴더(휴대폰의 ‘문서/울림’): 웹 기록 폴더와 같은 읽기·쓰기·지우기·목록, base64로 나눠 쓰기, 저장 권한 |
 | `web/test/nativeFolder.test.ts` | 앱 기록 폴더 시험지 (Capacitor 파일 시스템처럼 동작하는 가짜로) |
 | `web/src/main.ts`, `web/src/App.svelte`, `web/src/app.css` | 웹 화면 시작점과 공통 모양. App은 화면 셋([높이]·[모음]·[기록])을 숨기기만 하며 바꾸고(문장 위치·스크롤 유지), 그 아래 연습 조작과 탭 막대. 색은 iOS 색 세트와 같은 값(밝은·어두운 모드) |
