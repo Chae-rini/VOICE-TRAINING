@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  formantTicks,
   frequencyAtPosition,
   graphRange,
   isBeyond,
@@ -58,6 +59,15 @@ describe('PitchScale (반음 눈금)', () => {
     const narrow = ticks(range(175, 240))
     expect(narrow.length).toBeGreaterThanOrEqual(3)
     expect(narrow.every((value) => value >= 175 && value <= 240)).toBe(true)
+  })
+
+  it('공명 밝기(F2) 눈금: 넓으면 800·1000·1500·2000·2500, 좁으면 더 촘촘한 묶음에서 3개 이상 (iOS와 같은 숫자)', () => {
+    expect(formantTicks(range(600, 3000))).toEqual([600, 800, 1000, 1500, 2000, 2500, 3000])
+    expect(formantTicks(range(800, 2600))).toEqual([800, 1000, 1500, 2000, 2500])
+    // 공명 밝기 그래프의 가장 좁은 축(반음 6개, 약 1.41배)
+    expect(formantTicks(range(1100, 2200))).toEqual([1200, 1400, 1600, 1800, 2000, 2200])
+    expect(formantTicks(range(1250, 1767))).toEqual([1300, 1400, 1500, 1600, 1700])
+    expect(formantTicks(range(1500, 1610))).toEqual([1500, 1550, 1600])
   })
 
   it('세로축 밖: 두 점이 모두 같은 쪽 밖일 때만 (끝에 붙인 점선으로 그릴 구간)', () => {

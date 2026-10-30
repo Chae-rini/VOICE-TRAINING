@@ -59,13 +59,30 @@ const TICK_SETS: readonly (readonly number[])[] = [
   Array.from({ length: 34 }, (_, i) => 70 + 10 * i), // 70, 80, …, 400
 ]
 
+/** 공명 밝기(F2) 그래프의 눈금 후보 (모음 지도의 F2 범위 600~3000 Hz 안) */
+const FORMANT_TICK_SETS: readonly (readonly number[])[] = [
+  [600, 800, 1000, 1500, 2000, 2500, 3000],
+  [600, 700, 800, 900, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2400, 2600, 2800, 3000],
+  Array.from({ length: 25 }, (_, i) => 600 + 100 * i), // 600, 700, …, 3000
+  Array.from({ length: 49 }, (_, i) => 600 + 50 * i), // 600, 650, …, 3000
+]
+
 /** `r` 안의 눈금 [Hz]. 가장 성긴 묶음부터 보고, 눈금이 `minimumCount`개(기본 3개) 이상 들어가는 첫 묶음을 쓴다. */
 export function ticks(r: Range, minimumCount = 3): number[] {
-  for (const set of TICK_SETS) {
+  return ticksFrom(TICK_SETS, r, minimumCount)
+}
+
+/** 공명 밝기(F2) 그래프의 눈금 [Hz]. 고르는 방법은 높이 눈금과 같다 (iOS `PitchScale.formantTicks`). */
+export function formantTicks(r: Range, minimumCount = 3): number[] {
+  return ticksFrom(FORMANT_TICK_SETS, r, minimumCount)
+}
+
+function ticksFrom(sets: readonly (readonly number[])[], r: Range, minimumCount: number): number[] {
+  for (const set of sets) {
     const inside = set.filter((value) => contains(r, value))
     if (inside.length >= minimumCount) {
       return inside
     }
   }
-  return TICK_SETS[TICK_SETS.length - 1].filter((value) => contains(r, value))
+  return sets[sets.length - 1].filter((value) => contains(r, value))
 }

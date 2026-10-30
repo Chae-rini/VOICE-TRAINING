@@ -98,7 +98,7 @@ Voice Tools 앱에서 영감을 받았지만, 한국어 화자 기준(모음별 
 - 축의 여유·최소 폭은 반음으로 센다 (`PracticeHistory.pitchPaddingSemitones` 1.5, `minimumPitchSpanSemitones` 6). 분포 칸은 반음 반 칸, 경계는 440 Hz 기준으로 고정 (두 녹음이 같은 칸을 쓰게).
 - 저장값(목표 범위·기준)은 계속 Hz다. 반음 눈금은 그리는 방법만 바꾼다.
 - 모음 지도(F1·F2)는 아직 Hz 직선 눈금이다. 포먼트에 맞는 눈금은 따로 정한다.
-- [기록] 공명 밝기 추이(2026-10-31): 연습 기록의 F2 중앙값(`PracticeSession.f2MedianHz`)을 [높이] 공명 막대처럼 반음(로그) 눈금으로 그린다. 축은 `PracticeHistory.resonanceDomain`(높이 축과 같은 여유·최소 폭, `VowelSpace.f2Range` 안), 눈금은 `PitchScale.formantTicks`. 비교는 지금 기준 F2(`TargetRangeStore.baselineF2Key`) 점선뿐이고, “같은 대본끼리 비교해야 정확해요” 안내를 빼지 않는다. 기록에 읽은 대본이 남지 않아 대본별로 거르지는 못한다
+- [기록] 공명 밝기 추이(2026-10-31): 연습 기록의 F2 중앙값(`PracticeSession.f2MedianHz`)을 [높이] 공명 막대처럼 반음(로그) 눈금으로 그린다. 축은 `PracticeHistory.resonanceDomain`(높이 축과 같은 여유·최소 폭, `VowelSpace.f2Range` 안), 눈금은 `PitchScale.formantTicks`. 비교는 지금 기준 F2(`TargetRangeStore.baselineF2Key`) 점선뿐이고, “같은 대본끼리 비교해야 정확해요” 안내를 빼지 않는다. 기록에 읽은 대본이 남지 않아 대본별로 거르지는 못한다. 웹은 `web/src/model/history.ts`의 `resonanceDomain`, `web/src/dsp/pitchScale.ts`의 `formantTicks`, `HistoryCharts.svelte`(같은 글·같은 규칙, 두 시험이 같은 숫자를 기대한다)
 - [높이] 음량·공명 밝기 막대(2026-10-25, `Models/VoiceMeters.swift`):
   - 음량은 이 기기 마이크 기준 dBFS다. 절대 데시벨(dB SPL)이 아니라고 화면에 밝히고, 크다·작다 평가 문구는 쓰지 않는다. 아주 큰 소리가 이어질 때만 목 상태를 묻는다 (임시 기준 −10 dBFS · 3초, 아이폰 값으로 고칠 것).
   - 공명 밝기는 최근 2.5초 F2 중앙값을 내 기준 F2(기준 목소리 잴 때 저장, `TargetRangeStore.baselineF2Key`)와만 비교한다. 성별 평균·좋고 나쁨 표현은 쓰지 않는다. 문장 속 F2는 말한 모음에 따라 달라지므로 "같은 대본을 읽을 때 비교하면 정확해요" 안내를 빼지 않는다.

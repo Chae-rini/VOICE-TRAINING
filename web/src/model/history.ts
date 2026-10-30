@@ -1,6 +1,7 @@
 import { FREQUENCY_RANGE } from '../dsp/pitchDetector'
 import { offsetBySemitones, semitones } from '../dsp/pitchScale'
 import type { Range } from '../dsp/range'
+import { VowelSpace } from '../dsp/vowelSpace'
 import type { PracticeLanguage, SessionRecord } from './records'
 
 /**
@@ -57,6 +58,8 @@ export interface SessionPoint {
   readonly low: number
   readonly high: number
   readonly language: PracticeLanguage
+  /** [Hz] 연습 전체의 F2 중앙값 (공명 밝기). 2026-10-25 전의 연습과 포먼트를 충분히 못 잡은 연습은 null */
+  readonly f2: number | null
 }
 
 export function sessionPoint(record: SessionRecord): SessionPoint {
@@ -67,6 +70,7 @@ export function sessionPoint(record: SessionRecord): SessionPoint {
     low: record.pitch.p10,
     high: record.pitch.p90,
     language: record.language,
+    f2: record.f2Median,
   }
 }
 
@@ -133,8 +137,24 @@ export const PITCH_PADDING_SEMITONES = 1.5
  * 그래프가 반음 눈금이라 여유와 최소 폭도 반음으로 잡는다 (높은 쪽·낮은 쪽이 같은 여유를 갖게). 두 녹음 비교 그래프도 쓴다.
  */
 export function pitchDomain(values: readonly number[], target: Range | null, baseline: number | null): Range {
-  const axis = FREQUENCY_RANGE
   const all = [...values, ...(target === null ? [] : [target.lower, target.upper]), ...(baseline === null ? [] : [baseline])]
+  return semitoneDomain(all, FREQUENCY_RANGE)
+}
+
+/**
+ * 공명 밝기 그래프의 세로축 [Hz] (iOS `PracticeHistory.resonanceDomain`): 연습마다 F2 중앙값과 기준 F2가 모두 들어가게,
+ * 높이 축과 같은 반음 여유·최소 폭으로 잡고 모음 지도의 F2 범위(600~3000 Hz) 안으로 자른다. F2가 없는 연습은 세지 않는다.
+ */
+export function resonanceDomain(points: readonly SessionPoint[], baseline: number | null): Range {
+  const values = points.flatMap((point) => (point.f2 === null ? [] : [point.f2]))
+  return semitoneDomain(baseline === null ? values : [...values, baseline], VowelSpace.f2Range)
+}
+
+/**
+ * 값 [Hz]들이 모두 들어가는 반음(로그) 눈금 축. 위아래 반음 `PITCH_PADDING_SEMITONES`개 여유, 최소 반음 `MINIMUM_PITCH_SPAN_SEMITONES`개 폭,
+ * `axis` 밖으로 나가면 안쪽으로 민다. 값이 없으면 `axis` 전체.
+ */
+function semitoneDomain(all: readonly number[], axis: Range): Range {
   if (all.length === 0) return axis
 
   let lower = offsetBySemitones(Math.min(...all), -PITCH_PADDING_SEMITONES)

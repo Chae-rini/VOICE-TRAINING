@@ -11,6 +11,7 @@ import {
   periodContains,
   periodStart,
   pitchDomain,
+  resonanceDomain,
   sessionPitchDomain,
   totalLabel,
   type SessionPoint,
@@ -34,8 +35,11 @@ import { EMPTY_RECORDS } from '../src/storage/archive'
 const now = new Date(2026, 9, 25, 21)
 const date = (day: number, hour: number, month = 10) => new Date(2026, month - 1, day, hour)
 
-function point(start: Date, { minutes = 10, median = 160, low = 140, high = 185, language = 'ko' as PracticeLanguage } = {}): SessionPoint {
-  return { startedAt: start, practiceSeconds: minutes * 60, median, low, high, language }
+function point(
+  start: Date,
+  { minutes = 10, median = 160, low = 140, high = 185, language = 'ko' as PracticeLanguage, f2 = null as number | null } = {},
+): SessionPoint {
+  return { startedAt: start, practiceSeconds: minutes * 60, median, low, high, language, f2 }
 }
 
 describe('PracticeHistory ([기록]의 계산)', () => {
@@ -118,6 +122,31 @@ describe('PracticeHistory ([기록]의 계산)', () => {
     const lowShare = semitones(100, 130) / semitones(lowVoice.lower, lowVoice.upper)
     const highShare = semitones(220, 286) / semitones(highVoice.lower, highVoice.upper)
     expect(Math.abs(lowShare - highShare)).toBeLessThan(1e-3)
+  })
+
+  it('공명 밝기 세로축(반음 눈금): 연습마다 F2와 기준 F2가 모두 들어가고, 높이 축과 같은 여유·최소 폭, 600~3000 Hz 안', () => {
+    // F2가 없는 연습(그 전 기록)은 세지 않는다
+    const points = [point(now, { f2: 1400 }), point(now, { f2: 2100 }), point(now)]
+    const domain = resonanceDomain(points, 1500)
+    expect(semitones(domain.lower, 1400)).toBeCloseTo(1.5, 9)
+    expect(semitones(2100, domain.upper)).toBeCloseTo(1.5, 9)
+
+    // 기준이 연습보다 바깥이면 기준까지 넣는다
+    const withBaseline = resonanceDomain([point(now, { f2: 1500 })], 2400)
+    expect(semitones(withBaseline.lower, 1500)).toBeCloseTo(1.5, 9)
+    expect(semitones(2400, withBaseline.upper)).toBeCloseTo(1.5, 9)
+
+    // 폭이 좁으면 반음 6개로 넓힌다 (작은 차이가 크게 부풀어 보이지 않게)
+    const narrow = resonanceDomain([point(now, { f2: 1500 }), point(now, { f2: 1550 })], null)
+    expect(semitones(narrow.lower, narrow.upper)).toBeCloseTo(6, 9)
+
+    // 위 끝(3000 Hz)을 넘으면 안쪽으로 민다
+    const high = resonanceDomain([point(now, { f2: 2900 })], null)
+    expect(high.upper).toBe(3000)
+    expect(semitones(high.lower, 3000)).toBeCloseTo(6, 9)
+
+    // F2가 하나도 없으면 모음 지도의 F2 범위 전체
+    expect(resonanceDomain([point(now)], null)).toEqual(range(600, 3000))
   })
 
   it.each([

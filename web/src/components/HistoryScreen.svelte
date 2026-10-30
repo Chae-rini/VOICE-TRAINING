@@ -9,6 +9,7 @@
     HISTORY_PERIODS,
     historyTotals,
     periodContains,
+    resonanceDomain,
     sessionPitchDomain,
     sessionPoint,
     totalLabel,
@@ -194,6 +195,8 @@
             pitchDomain={sessionPitchDomain(points, settings.target, settings.baseline?.median ?? null)}
             target={settings.target}
             baseline={settings.baseline?.median ?? null}
+            resonanceDomain={resonanceDomain(points, settings.baseline?.f2 ?? null)}
+            baselineF2={settings.baseline?.f2 ?? null}
           />
         {/if}
       </section>

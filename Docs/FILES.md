@@ -153,22 +153,22 @@
 | `web/src/storage/handleStore.ts` | 고른 기록 폴더의 연결 정보를 이 브라우저(IndexedDB)에 기억 |
 | `web/src/storage/fileSystemAccess.d.ts` | TypeScript 기본 타입에 아직 없는 폴더 고르기·허락 묻기 타입 |
 | `web/src/components/HistoryScreen.svelte` | [기록] 화면: 기간·언어 거르기, 모아 보기, 그래프, 남긴 녹음·연습 기록·내 목소리 재기 목록, 모두 지우기, 저장 위치(필요할 때는 맨 위). 누르면 자세히 화면으로 바뀐다(돌아오면 스크롤 그대로) |
-| `web/src/components/HistoryCharts.svelte`, `LanguageTag.svelte` | [기록] 그래프 두 개(연습마다 높이: 반음 눈금·목표 띠·기준 점선·언어별 점 모양 / 날마다 연습 시간 막대, SVG)와 언어 표시 |
+| `web/src/components/HistoryCharts.svelte`, `LanguageTag.svelte` | [기록] 그래프 세 개(연습마다 높이: 반음 눈금·목표 띠·기준 점선·언어별 점 모양 / 연습마다 공명 밝기 F2 / 날마다 연습 시간 막대, SVG)와 언어 표시 |
 | `web/src/components/RecordingDetail.svelte`, `SessionDetail.svelte` | 남긴 녹음 자세히(메모·언어 고치기, [높이]에서 다시 듣기, 파일로 저장, 지우기)와 연습 기록 자세히(녹음마다 숫자, AI에게 피드백 받기·요약 복사, 지우기) |
 | `web/src/components/StorageCard.svelte` | ‘내 기록 저장 위치’ 카드 |
 | `web/src/components/CompareScreen.svelte`, `CompareChart.svelte` | 두 녹음 비교: A·B 고르기(메모 붙임)·바꾸기, 나란히 보기(높낮이 폭 포함)·중앙값 차이 한 문장, 높이 분포(반음 반 칸, SVG), 하나씩·A → B 이어 듣기 |
 | `web/src/model/comparison.ts` | 두 녹음 비교의 계산: 처음 짝, 높낮이 폭(반음), 중앙값 차이 글(판정 없음), 반음 반 칸 분포(440 Hz 기준), 분포 가로축 (iOS `RecordingComparison`) |
 | `web/src/practice/comparePlayer.svelte.ts` | 두 녹음 비교의 재생기: 남긴 녹음을 읽어 분석하고(늦게 끝난 예전 읽기는 버림), 가장 큰 소리를 맞춰 하나씩·A → 0.7초 → B로 들려준다 |
-| `web/src/model/history.ts` | [기록]의 계산: 기간(7일·30일·전체), 거르기, 날마다 연습 시간, 모아 보기, 가로·세로축(반음 여유·최소 폭), 시간 표시 (iOS `PracticeHistory`) |
+| `web/src/model/history.ts` | [기록]의 계산: 기간(7일·30일·전체), 거르기, 날마다 연습 시간, 모아 보기, 가로·세로축(높이·공명 밝기 F2, 반음 여유·최소 폭), 시간 표시 (iOS `PracticeHistory`) |
 | `web/src/graph/historyChart.ts` | [기록] 그래프 자리: 날짜 위치·날짜 눈금·분 눈금·언어별 점 모양 |
-| `web/src/model/sampleHistory.ts` | 개발용 가짜 기록 40일치 (개발 서버 `?seed`, 배포 빌드에는 없음) |
+| `web/src/model/sampleHistory.ts` | 개발용 가짜 기록 40일치 (개발 서버 `?seed`, 배포 빌드에는 없음). 30일 전부터는 F2도 |
 | `web/src/text/dates.ts` | 날짜·시각 글자 (10월 25일 (일) 오후 8:12 등) |
 | `web/src/components/StorageNotice.svelte` | [높이]·[모음] 위의 한 줄 안내(다시 연결, 폴더 고르기, 파일로 저장, 불러오기 안내) |
 | `web/src/text/korean.ts`, `sentenceGenerator.ts` | 조사 고르기(을/를 등), 단모음 세기, 자동 생성 문장 (iOS와 같은 규칙) |
 | `web/src/data/sentences.ts`, `scripts.ts` | 직접 쓴 문장·패턴·단어(iOS 파일과 같은지 테스트), 대본은 iOS의 `PracticeScripts.json`을 그대로 읽는다 |
 | `web/src/dsp/pitchDetector.ts` | YIN 피치 검출 (iOS `PitchDetector.swift`를 그대로 옮김) |
 | `web/src/dsp/formantAnalyzer.ts` | LPC 포먼트(F1·F2) 분석 (iOS `FormantAnalyzer.swift`) |
-| `web/src/dsp/pitchScale.ts`, `web/src/dsp/range.ts` | 반음 눈금, 세로축 범위(목표 ±50 Hz), 축 밖 판정, 눈금 숫자 |
+| `web/src/dsp/pitchScale.ts`, `web/src/dsp/range.ts` | 반음 눈금, 세로축 범위(목표 ±50 Hz), 축 밖 판정, 눈금 숫자(높이·공명 밝기 F2) |
 | `web/src/dsp/graphWindow.ts` | 가로축 구간(오른쪽 끝 = 지금), 시작·n번째 선, 시간 눈금 |
 | `web/src/dsp/pitchHistory.ts` | 피치 점 기록, 끊김·픽셀 열 묶기, 그래프 시계(녹음 중·멈춤·다시 듣기) |
 | `web/src/dsp/voiceMeters.ts`, `web/src/dsp/vowelSpace.ts` | 음량(dBFS) 막대, 공명 밝기(F2) 막대, 모음 지도 규칙(F1·F2 범위·눈금·지금 점·위치, F1 불확실) |
