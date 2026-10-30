@@ -13,26 +13,32 @@ extension PracticeArchive {
 
         let today = calendar.startOfDay(for: now)
         // 40일 전부터 오늘까지, 사흘에 하루는 쉰다. 나흘마다 영어 발표 연습, 닷새마다 아침에도 한 번.
+        // 공명 밝기(F2)는 30일 전부터만 남긴다 (그 전 연습은 이 값을 저장하기 전의 기록처럼). 영어는 모음이 달라 F2가 다르게 나온다.
         for daysAgo in stride(from: 40, through: 0, by: -1) where daysAgo % 3 != 1 {
             guard let day = calendar.date(byAdding: .day, value: -daysAgo, to: today) else { continue }
             let language: PracticeLanguage = daysAgo % 4 == 0 ? .english : .korean
             let median = 150 + Double(40 - daysAgo) * 0.4 + (language == .english ? 12 : 0) + sin(Double(daysAgo)) * 4
+            let f2 = daysAgo > 30 ? nil
+                : 1450 + Double(30 - daysAgo) * 3 + (language == .english ? -90 : 0) + cos(Double(daysAgo)) * 40
             addSample(at: day.addingTimeInterval(20 * 3600), minutes: 6 + Double(daysAgo % 5) * 3, median: median,
-                      takes: 2 + daysAgo % 4, language: language)
+                      takes: 2 + daysAgo % 4, language: language, f2: f2)
             if daysAgo % 5 == 0 {
-                addSample(at: day.addingTimeInterval(8 * 3600), minutes: 4, median: median - 6, takes: 1, language: .korean)
+                addSample(at: day.addingTimeInterval(8 * 3600), minutes: 4, median: median - 6, takes: 1, language: .korean,
+                          f2: f2.map { $0 - 30 })
             }
         }
         for daysAgo in [38, 20, 3] {
             guard let day = calendar.date(byAdding: .day, value: -daysAgo, to: today) else { continue }
             let median = 148 + Double(40 - daysAgo) * 0.3
             // 개발용 가짜 기록이라 저장 실패는 무시한다.
-            try? saveBaseline(VoiceBaseline(median: median, low: median - 18, high: median + 22),
+            try? saveBaseline(VoiceBaseline(median: median, low: median - 18, high: median + 22,
+                                            f2: daysAgo > 30 ? nil : 1480 + Double(30 - daysAgo) * 2),
                               measuredAt: day.addingTimeInterval(19 * 3600))
         }
     }
 
-    private func addSample(at start: Date, minutes: Double, median: Double, takes: Int, language: PracticeLanguage) {
+    private func addSample(at start: Date, minutes: Double, median: Double, takes: Int, language: PracticeLanguage,
+                           f2: Double?) {
         let target = TargetRangeStore.savedTarget(in: .standard)
         // 중앙값 ±20 Hz에 고르게 퍼진 높이 → 아래 10%·위 10%는 중앙값 ±16 Hz
         let voiced = (0..<100).map { median - 20 + 40 * Double($0) / 99 }
@@ -51,7 +57,7 @@ extension PracticeArchive {
         }
         try? saveSession(PracticeSessionLog.Summary(startedAt: start, endedAt: start.addingTimeInterval(duration),
                                                     takeCount: takes, language: language, pitch: pitch,
-                                                    takes: takeSummaries))
+                                                    takes: takeSummaries, f2Median: f2))
     }
 }
 #endif

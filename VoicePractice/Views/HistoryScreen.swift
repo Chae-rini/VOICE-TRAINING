@@ -16,6 +16,7 @@ struct HistoryScreen: View {
     @AppStorage(TargetRangeStore.lowerKey) private var targetLower: Double?
     @AppStorage(TargetRangeStore.upperKey) private var targetUpper: Double?
     @AppStorage(TargetRangeStore.baselineMedianKey) private var baselineMedian: Double?
+    @AppStorage(TargetRangeStore.baselineF2Key) private var baselineF2: Double?
     /// nil이면 모든 언어
     @State private var language: PracticeLanguage?
     @State private var isConfirmingDeleteAll = false
@@ -125,7 +126,9 @@ struct HistoryScreen: View {
                         dateDomain: PracticeHistory.dateDomain(points, period: period, now: .now, calendar: calendar),
                         pitchDomain: PracticeHistory.pitchDomain(points, target: target, baseline: baselineMedian),
                         target: target,
-                        baseline: baselineMedian
+                        baseline: baselineMedian,
+                        resonanceDomain: PracticeHistory.resonanceDomain(points, baseline: baselineF2),
+                        baselineF2: baselineF2
                     )
                     .padding(.vertical, 6)
                 }

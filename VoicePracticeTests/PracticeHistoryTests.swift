@@ -21,8 +21,9 @@ struct PracticeHistoryTests {
     }
 
     private func point(_ start: Date, minutes: Double = 10, median: Double = 160, low: Double = 140, high: Double = 185,
-                       language: PracticeLanguage = .korean) -> SessionPoint {
-        SessionPoint(startedAt: start, practiceSeconds: minutes * 60, median: median, low: low, high: high, language: language)
+                       language: PracticeLanguage = .korean, f2: Double? = nil) -> SessionPoint {
+        SessionPoint(startedAt: start, practiceSeconds: minutes * 60, median: median, low: low, high: high, language: language,
+                     f2: f2)
     }
 
     @Test("기간: 7일은 오늘과 그 앞 6일, 30일은 오늘과 그 앞 29일, 전체는 처음부터")
@@ -117,6 +118,32 @@ struct PracticeHistoryTests {
         let lowShare = semitones(100, 130) / semitones(lowVoice.lowerBound, lowVoice.upperBound)
         let highShare = semitones(220, 286) / semitones(highVoice.lowerBound, highVoice.upperBound)
         #expect(abs(lowShare - highShare) < 1e-3)
+    }
+
+    @Test("공명 밝기 세로축(반음 눈금): 연습마다 F2와 기준 F2가 모두 들어가고, 높이 축과 같은 여유·최소 폭, 600~3000 Hz 안")
+    func resonanceDomain() {
+        // F2가 없는 연습(그 전 기록)은 세지 않는다
+        let points = [point(.now, f2: 1400), point(.now, f2: 2100), point(.now)]
+        let domain = PracticeHistory.resonanceDomain(points, baseline: 1500)
+        #expect(abs(semitones(domain.lowerBound, 1400) - 1.5) < 1e-9)
+        #expect(abs(semitones(2100, domain.upperBound) - 1.5) < 1e-9)
+
+        // 기준이 연습보다 바깥이면 기준까지 넣는다
+        let withBaseline = PracticeHistory.resonanceDomain([point(.now, f2: 1500)], baseline: 2400)
+        #expect(abs(semitones(withBaseline.lowerBound, 1500) - 1.5) < 1e-9)
+        #expect(abs(semitones(2400, withBaseline.upperBound) - 1.5) < 1e-9)
+
+        // 폭이 좁으면 반음 6개로 넓힌다 (작은 차이가 크게 부풀어 보이지 않게)
+        let narrow = PracticeHistory.resonanceDomain([point(.now, f2: 1500), point(.now, f2: 1550)], baseline: nil)
+        #expect(abs(semitones(narrow.lowerBound, narrow.upperBound) - 6) < 1e-9)
+
+        // 위 끝(3000 Hz)을 넘으면 안쪽으로 민다
+        let high = PracticeHistory.resonanceDomain([point(.now, f2: 2900)], baseline: nil)
+        #expect(high.upperBound == 3000)
+        #expect(abs(semitones(high.lowerBound, 3000) - 6) < 1e-9)
+
+        // F2가 하나도 없으면 모음 지도의 F2 범위 전체
+        #expect(PracticeHistory.resonanceDomain([point(.now)], baseline: nil) == 600...3000)
     }
 
     @Test("모두 합친 시간 표시", arguments: [

@@ -44,6 +44,8 @@ struct SessionPoint: Identifiable, Equatable {
     let low: Double
     let high: Double
     let language: PracticeLanguage
+    /// [Hz] 연습 전체의 F2 중앙값 (공명 밝기). 2026-10-25 전의 연습과 포먼트를 충분히 못 잡은 연습은 nil
+    var f2: Double? = nil
 
     var id: Date { startedAt }
 }
@@ -51,7 +53,8 @@ struct SessionPoint: Identifiable, Equatable {
 extension SessionPoint {
     init(_ session: PracticeSession) {
         self.init(startedAt: session.startedAt, practiceSeconds: session.practiceSeconds,
-                  median: session.medianHz, low: session.lowHz, high: session.highHz, language: session.language)
+                  median: session.medianHz, low: session.lowHz, high: session.highHz, language: session.language,
+                  f2: session.f2MedianHz)
     }
 }
 
@@ -123,7 +126,6 @@ enum PracticeHistory {
 
     /// 높이 [Hz]들이 모두 들어가는 축 범위 (두 녹음 비교 그래프도 쓴다). 규칙은 위와 같다.
     static func pitchDomain(values: [Double], target: ClosedRange<Double>?, baseline: Double?) -> ClosedRange<Double> {
-        let axis = PitchDetector.frequencyRange
         var values = values
         if let target {
             values += [target.lowerBound, target.upperBound]
@@ -131,6 +133,18 @@ enum PracticeHistory {
         if let baseline {
             values.append(baseline)
         }
+        return semitoneDomain(values: values, axis: PitchDetector.frequencyRange)
+    }
+
+    /// 공명 밝기 그래프의 세로축 [Hz]: 연습마다 F2 중앙값과 기준 F2가 모두 들어가게, 높이 축과 같은 반음 여유·최소 폭으로 잡고
+    /// 모음 지도의 F2 범위(600~3000 Hz) 안으로 자른다. F2가 없는 연습은 세지 않는다.
+    static func resonanceDomain(_ points: [SessionPoint], baseline: Double?) -> ClosedRange<Double> {
+        semitoneDomain(values: points.compactMap(\.f2) + [baseline].compactMap { $0 }, axis: VowelSpace.f2Range)
+    }
+
+    /// 값 [Hz]들이 모두 들어가는 반음(로그) 눈금 축. 위아래 반음 `pitchPaddingSemitones`개 여유, 최소 반음 `minimumPitchSpanSemitones`개 폭,
+    /// `axis` 밖으로 나가면 안쪽으로 민다. 값이 없으면 `axis` 전체.
+    private static func semitoneDomain(values: [Double], axis: ClosedRange<Double>) -> ClosedRange<Double> {
         guard let lowest = values.min(), let highest = values.max() else { return axis }
 
         var lower = PitchScale.frequency(lowest, offsetBy: -pitchPaddingSemitones)

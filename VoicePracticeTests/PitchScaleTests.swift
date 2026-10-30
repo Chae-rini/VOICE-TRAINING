@@ -65,6 +65,16 @@ struct PitchScaleTests {
         #expect(PitchScale.ticks(in: 175...240).allSatisfy { (175...240).contains($0) })
     }
 
+    @Test("공명 밝기(F2) 눈금: 넓으면 800·1000·1500·2000·2500, 좁으면 더 촘촘한 묶음에서 3개 이상")
+    func formantTicks() {
+        #expect(PitchScale.formantTicks(in: 600...3000) == [600, 800, 1000, 1500, 2000, 2500, 3000])
+        #expect(PitchScale.formantTicks(in: 800...2600) == [800, 1000, 1500, 2000, 2500])
+        // 공명 밝기 그래프의 가장 좁은 축(반음 6개, 약 1.41배)
+        #expect(PitchScale.formantTicks(in: 1100...2200) == [1200, 1400, 1600, 1800, 2000, 2200])
+        #expect(PitchScale.formantTicks(in: 1250...1767) == [1300, 1400, 1500, 1600, 1700])
+        #expect(PitchScale.formantTicks(in: 1500...1610) == [1500, 1550, 1600])
+    }
+
     @Test("세로축 밖: 두 점이 모두 같은 쪽 밖일 때만 (끝에 붙인 점선으로 그릴 구간)")
     func beyondAxis() {
         let range = 70.0...170.0

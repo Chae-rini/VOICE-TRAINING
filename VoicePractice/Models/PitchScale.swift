@@ -52,8 +52,25 @@ enum PitchScale {
         Array(stride(from: 70.0, through: 400.0, by: 10)),
     ]
 
+    /// 공명 밝기(F2) 그래프의 눈금 후보 (모음 지도의 F2 범위 600~3000 Hz 안)
+    private static let formantTickSets: [[Double]] = [
+        [600, 800, 1000, 1500, 2000, 2500, 3000],
+        [600, 700, 800, 900, 1000, 1200, 1400, 1600, 1800, 2000, 2200, 2400, 2600, 2800, 3000],
+        Array(stride(from: 600.0, through: 3000.0, by: 100)),
+        Array(stride(from: 600.0, through: 3000.0, by: 50)),
+    ]
+
     /// `range` 안의 눈금 [Hz]. 가장 성긴 묶음부터 보고, 눈금이 `minimumCount`개(기본 3개) 이상 들어가는 첫 묶음을 쓴다.
     static func ticks(in range: ClosedRange<Double>, minimumCount: Int = 3) -> [Double] {
+        ticks(in: range, from: tickSets, minimumCount: minimumCount)
+    }
+
+    /// 공명 밝기(F2) 그래프의 눈금 [Hz]. 고르는 방법은 높이 눈금과 같다.
+    static func formantTicks(in range: ClosedRange<Double>, minimumCount: Int = 3) -> [Double] {
+        ticks(in: range, from: formantTickSets, minimumCount: minimumCount)
+    }
+
+    private static func ticks(in range: ClosedRange<Double>, from tickSets: [[Double]], minimumCount: Int) -> [Double] {
         for set in tickSets {
             let inside = set.filter { range.contains($0) }
             if inside.count >= minimumCount {
