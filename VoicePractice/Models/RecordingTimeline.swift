@@ -29,6 +29,11 @@ struct RecordingTimeline {
         }
     }
 
+    /// [s] 정지로 끊은 녹음에서 목소리가 이보다 짧게 잡혔으면, 이미 있는 마지막 녹음을 덮어쓰지 않는다 (임시값, 2026-10-30).
+    /// 반복 루프는 다 들은 뒤 다음 녹음을 스스로 시작해서, 그때 정지하면 빈 새 녹음이 방금 들은 녹음을 덮어썼다.
+    /// 마이크 잡음이 잠깐 목소리로 잡힌 것은 거르고, 짧게라도 실제로 말한 녹음은 남기려는 값이다. 웹 `MINIMUM_STOPPED_TAKE_VOICED_SECONDS`와 같다
+    static let minimumStoppedTakeVoicedSeconds: TimeInterval = 0.5
+
     /// 연습 녹음을 마지막 녹음으로 확정한다. 소리 구간(`startTime`부터 소리 길이만큼)의 점만 묶음에 넣는다.
     /// `graphDuration` [s]: 그래프 가로축 길이(들려줄 길이), `recordingStart` [s]: 녹음을 시작한 시각, `round`: 몇 번째 녹음인지.
     @discardableResult
@@ -36,12 +41,34 @@ struct RecordingTimeline {
                            language: PracticeLanguage?, recordedAt: Date = .now,
                            graphDuration: TimeInterval = 0, recordingStart: TimeInterval? = nil,
                            round: Int? = nil) -> RecordedTake {
-        let take = RecordedTake(buffer: buffer, startTime: startTime, playbackGain: playbackGain, recordedAt: recordedAt,
-                                title: "방금 녹음", archiveTitle: "", language: language, readings: display.readings,
-                                graphDuration: graphDuration, recordingStart: recordingStart, round: round)
+        let take = makeTake(buffer: buffer, startTime: startTime, playbackGain: playbackGain, language: language,
+                            recordedAt: recordedAt, graphDuration: graphDuration, recordingStart: recordingStart, round: round)
+        keep(take)
+        return take
+    }
+
+    /// 지금까지 들어온 점으로 녹음 묶음을 만든다 (아직 마지막 녹음으로 두지는 않는다). 인자는 `keepTake`와 같다.
+    func makeTake(buffer: AVAudioPCMBuffer, startTime: TimeInterval, playbackGain: Float,
+                  language: PracticeLanguage?, recordedAt: Date = .now,
+                  graphDuration: TimeInterval = 0, recordingStart: TimeInterval? = nil,
+                  round: Int? = nil) -> RecordedTake {
+        RecordedTake(buffer: buffer, startTime: startTime, playbackGain: playbackGain, recordedAt: recordedAt,
+                     title: "방금 녹음", archiveTitle: "", language: language, readings: display.readings,
+                     graphDuration: graphDuration, recordingStart: recordingStart, round: round)
+    }
+
+    /// 녹음 묶음을 마지막 녹음으로 둔다. `stopped`: 정지 버튼·전화 등으로 녹음을 끊었는지.
+    /// 끊은 녹음에 목소리가 거의 없고(`minimumStoppedTakeVoicedSeconds` 미만) 이미 마지막 녹음이 있으면,
+    /// 새 녹음은 버리고 그래프도 마지막 녹음으로 되돌린 뒤 false를 돌려준다. ‘지금 들어보기’로 끝낸 녹음은 늘 남긴다.
+    @discardableResult
+    mutating func keep(_ take: RecordedTake, stopped: Bool = false) -> Bool {
+        if stopped, let lastTake, take.voicedSeconds < Self.minimumStoppedTakeVoicedSeconds {
+            display = lastTake.history
+            return false
+        }
         lastTake = take
         display = take.history
-        return take
+        return true
     }
 
     /// 재기를 마치고 잰 점을 돌려준다. 재기는 마지막 녹음을 바꾸지 않으므로, 그래프는 마지막 녹음으로 되돌린다.

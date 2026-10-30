@@ -16,6 +16,7 @@ import type { KoreanVowel } from '../text/korean'
 import { COUNTDOWN_SECONDS, PracticeLoop, type LoopPhase } from './loop'
 import { PracticeSessionLog, sessionRecord } from './sessionLog'
 import {
+  keepsEarlierTake,
   makeTake,
   takeDuration,
   takeEndTime,
@@ -165,7 +166,12 @@ class PracticeSession {
     this.#loop.stop()
     this.#syncPhase()
     try {
-      if (phase === 'recording') await this.#keepTake()
+      let keptEarlierTake = false
+      if (phase === 'recording') {
+        const earlier = this.lastTake?.id
+        await this.#keepTake(true)
+        keptEarlierTake = earlier !== undefined && this.lastTake?.id === earlier
+      }
       if (phase === 'measuring') {
         this.measurement = null
         this.measuringVowel = null
@@ -174,6 +180,10 @@ class PracticeSession {
       audio.closeMic()
       await audio.rest()
       await this.#finishSession()
+      if (keptEarlierTake) {
+        const note = '새 녹음에 목소리가 거의 없어서, 그 전 녹음을 마지막 녹음으로 두었어요.'
+        this.infoMessage = this.infoMessage === null ? note : `${this.infoMessage} ${note}`
+      }
     } finally {
       this.busy = null
     }
@@ -243,7 +253,8 @@ class PracticeSession {
   }
 
   /** 지금까지 녹음한 소리를 "마지막 녹음"으로 남긴다. 소리 구간의 점만 묶음에 넣는다. */
-  async #keepTake(): Promise<RecordedTake | null> {
+  /** 지금까지 녹음한 소리를 마지막 녹음으로 남긴다. `stopped`: 정지로 끊은 녹음이면, 목소리가 거의 없을 때 그 전 녹음을 그대로 두고 null */
+  async #keepTake(stopped = false): Promise<RecordedTake | null> {
     const clock = this.clock
     const sound = await audio.finishRecording()
     if (sound === null) return null
@@ -261,6 +272,12 @@ class PracticeSession {
       recordingStart: clock.kind === 'live' ? clock.start : null,
       round: clock.kind === 'live' ? clock.round : null,
     })
+    // 버린 녹음은 연습 기록에도 넣지 않는다. 그래프는 그 전 녹음으로 되돌린다
+    const earlier = this.lastTake
+    if (stopped && earlier !== null && keepsEarlierTake(take, earlier)) {
+      this.history = takeHistory(earlier)
+      return null
+    }
     this.lastTake = take
     this.history = takeHistory(take)
     this.clock = this.#lastTakeClock()

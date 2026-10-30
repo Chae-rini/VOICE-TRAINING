@@ -61,6 +61,23 @@ export function takeSummary(take: RecordedTake, target: Range | null): PitchSumm
   return PitchSummary.fromReadings(take.readings, takeDuration(take), target)
 }
 
+/** [s] 목소리가 잡힌 시간 (요약 카드의 ‘목소리가 잡힌 시간’과 같은 어림). 목소리가 없으면 0 */
+export function takeVoicedSeconds(take: RecordedTake): number {
+  return takeSummary(take, null)?.voicedSeconds ?? 0
+}
+
+/**
+ * [s] 정지로 끊은 녹음에서 목소리가 이보다 짧게 잡혔으면, 이미 있는 마지막 녹음을 덮어쓰지 않는다
+ * (iOS `RecordingTimeline.minimumStoppedTakeVoicedSeconds`와 같은 임시값, 2026-10-30).
+ * 반복 루프는 다 들은 뒤 다음 녹음을 스스로 시작해서, 그때 정지하면 빈 새 녹음이 방금 들은 녹음을 덮어썼다.
+ */
+export const MINIMUM_STOPPED_TAKE_VOICED_SECONDS = 0.5
+
+/** 정지로 끊은 녹음 `stopped`를 버리고 그 전 마지막 녹음 `earlier`를 그대로 둘지 (iOS `RecordingTimeline.keep(_:stopped:)`) */
+export function keepsEarlierTake(stopped: RecordedTake, earlier: RecordedTake | null): boolean {
+  return earlier !== null && takeVoicedSeconds(stopped) < MINIMUM_STOPPED_TAKE_VOICED_SECONDS
+}
+
 /** [Hz] 녹음 전체의 F2 중앙값 (공명 밝기). 포먼트가 충분히 잡히지 않았으면 null. */
 export function takeF2Median(take: RecordedTake): number | null {
   return ResonanceMeter.median(take.readings)

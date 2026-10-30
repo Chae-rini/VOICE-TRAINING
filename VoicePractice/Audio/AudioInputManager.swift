@@ -428,10 +428,13 @@ final class AudioInputManager {
     /// 연습을 멈춘다 (직접 정지, 전화·알람, 이어폰 연결 변화, 백그라운드 전환).
     /// 녹음 도중이었다면 거기까지 녹음한 소리를 남겨 다시 들을 수 있게 한다.
     func stop() {
+        var keptEarlierTake = false
         switch loop.phase {
         case .recording:
             removeTap()
-            keepTake()
+            let earlier = timeline.lastTake?.id
+            keepTake(stopped: true)
+            keptEarlierTake = earlier != nil && timeline.lastTake?.id == earlier
         case .measuring:
             removeTap()
             recorder = nil
@@ -449,6 +452,10 @@ final class AudioInputManager {
         shutDown()
         loop.stop()
         finishSession()
+        if keptEarlierTake {
+            let note = "새 녹음에 목소리가 거의 없어서, 그 전 녹음을 마지막 녹음으로 두었어요."
+            infoMessage = infoMessage.map { "\($0) \(note)" } ?? note
+        }
     }
 
     /// 연습 한 번을 마치며 요약(숫자만)을 기록에 남긴다. 30초 넘게 연습하고 목소리가 5초 넘게 잡혔을 때만.
@@ -679,8 +686,9 @@ final class AudioInputManager {
     }
 
     /// 지금까지 녹음한 소리를 "마지막 녹음"으로 남긴다.
+    /// `stopped`: 정지로 끊은 녹음이면, 목소리가 거의 없을 때 그 전 녹음을 그대로 두고 nil (`RecordingTimeline.keep`).
     @discardableResult
-    private func keepTake() -> RecordedTake? {
+    private func keepTake(stopped: Bool = false) -> RecordedTake? {
         defer { recorder = nil }
         guard let recorder, let playback = recorder.makePlaybackBuffer() else { return nil }
         var recordingStart: TimeInterval?
@@ -689,9 +697,11 @@ final class AudioInputManager {
             recordingStart = start
             round = number
         }
-        let take = timeline.keepTake(buffer: playback.buffer, startTime: recorder.startTime ?? AudioClock.now,
+        let take = timeline.makeTake(buffer: playback.buffer, startTime: recorder.startTime ?? AudioClock.now,
                                      playbackGain: playback.gain, language: sessionLog?.language,
                                      graphDuration: keepDuration, recordingStart: recordingStart, round: round)
+        // 버린 녹음은 연습 기록에도 넣지 않는다
+        guard timeline.keep(take, stopped: stopped) else { return nil }
         // 연습 중이면 이 녹음의 요약(요약 카드와 같은 숫자: 묶음 안의 점)을 연습 기록에 쌓는다.
         // 다음 녹음이 시작되면 요약 카드가 사라지므로, 나중에 [기록]에서 보고 보낼 수 있게 남겨 둔다.
         sessionLog?.finishTake(readings: take.readings, duration: take.duration,

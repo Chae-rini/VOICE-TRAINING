@@ -60,6 +60,11 @@ struct RecordedTake {
         startTime + duration
     }
 
+    /// [s] 목소리가 잡힌 시간 (요약 카드의 ‘목소리가 잡힌 시간’과 같은 어림). 목소리가 없으면 0
+    var voicedSeconds: TimeInterval {
+        summary(target: nil)?.voicedSeconds ?? 0
+    }
+
     /// 이 녹음의 요약. 목소리가 한 번도 안 잡혔으면 nil.
     func summary(target: ClosedRange<Double>?) -> PitchSummary? {
         PitchSummary(readings: readings, duration: duration, target: target)

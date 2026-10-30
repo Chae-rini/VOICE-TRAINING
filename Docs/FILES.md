@@ -18,6 +18,7 @@
 | `VoicePractice/Models/RecordedTake.swift` | 녹음 한 번의 묶음: 소리, 시작 시각·길이, 그 구간의 피치·포먼트 점, 남긴 기록의 ID. 요약·저장·공유·다시 듣기는 이것만 쓴다 |
 | `VoicePractice/Models/RecordingTimeline.swift` | 녹음·재기 중의 피치 점을 화면 그래프용·재기용으로 나눠 담고, 마지막 녹음 묶음을 들고 있는 곳 |
 | `VoicePracticeTests/RecordedTakeTests.swift` | 외부 리뷰 버그 세 개(요약 구간, 재기 덮어쓰기, 저장 실패)의 재현 테스트 |
+| `VoicePracticeTests/StoppedTakeTests.swift` | 정지로 끊은 빈 녹음이 그 전 녹음을 덮어쓰지 않는지 (목소리 0.5초 기준, ‘지금 들어보기’는 그대로) |
 | `VoicePracticeTests/PracticeRecordTests.swift` | 연습 한 번 모으기 규칙과 저장소(저장·다시 읽기·m4a·백업 제외·하나 지우기·모두 지우기·녹음 이름)를 확인하는 시험지 |
 | `VoicePractice/Models/PracticeHistory.swift` | [기록] 탭의 계산 규칙: 기간(7일·30일·전체), 언어 거르기, 날마다 연습 시간, 모아 보기, 그래프 축 범위, 시간 표시 |
 | `VoicePractice/Models/SampleHistory.swift` | 개발용 가짜 기록 40일치 (시뮬레이터 확인용, Debug 빌드에서 `-seedSampleHistory YES`일 때만) |
@@ -112,6 +113,7 @@
 | `web/src/platform/backButton.ts` | 뒤로 버튼을 먼저 받는 화면 조각 목록(`onBack`, 나중에 건 것부터)과 열린 창 닫기 |
 | `web/src/platform/haptics.ts` | 짧은 진동(앱에서만): 녹음이 끝날 때 약하게, 쉬어 가기 안내 때 강하게 |
 | `web/test/backButton.test.ts` | 뒤로 버튼 처리 순서와 열린 창 닫기 시험지 |
+| `web/test/stoppedTake.test.ts` | 정지로 끊은 빈 녹음 규칙 시험지 (iOS `StoppedTakeTests`와 같은 기준) |
 | `web/src/storage/nativeFolder.ts` | 앱의 기록 폴더(휴대폰의 ‘문서/울림’): 웹 기록 폴더와 같은 읽기·쓰기·지우기·목록, base64로 나눠 쓰기, 저장 권한 |
 | `web/test/nativeFolder.test.ts` | 앱 기록 폴더 시험지 (Capacitor 파일 시스템처럼 동작하는 가짜로) |
 | `web/src/main.ts`, `web/src/App.svelte`, `web/src/app.css` | 웹 화면 시작점과 공통 모양. App은 화면 셋([높이]·[모음]·[기록])을 숨기기만 하며 바꾸고(문장 위치·스크롤 유지), 그 아래 연습 조작과 탭 막대. 색은 iOS 색 세트와 같은 값(밝은·어두운 모드) |
