@@ -137,12 +137,12 @@
 | `web/src/practice/sharing.ts` | 파일로 저장(WAV 내려받기), AI에게 피드백 받기(브라우저 공유 창, 없으면 복사), 요약 복사 |
 | `web/src/components/SummaryCard.svelte` | 마지막 녹음 요약 카드: 중앙·범위·목표 범위 안 비율, 문장 끝 칸, 기록에 남기기(메모 창)·파일로 저장·공유·복사 버튼 |
 | `web/src/components/PhraseEndingList.svelte` | 요약 카드 안의 문장 끝 칸 (iOS `PhraseEndingSection`) |
-| `web/src/text/phraseEnding.ts` | 문장 끝 분석을 글로 바꾸기 (iOS `PhraseEndingText.swift`와 같은 글) |
+| `web/src/text/phraseEnding.ts` | 문장 끝 분석을 글로 바꾸기 (iOS `PhraseEndingText.swift`와 같은 글). 기록에 남은 숫자만으로 쓰는 글(`summary…`)과 녹음 여러 개 합치기(`combinedPhraseSummary`)도 |
 | `web/src/graph/pitchGraph.ts` | 그래프 그리기(목표 띠·눈금·기준선·시작선·꺾은선·축 밖 점선·다시 듣기)와 그래프 높이 규칙. 꺾은선 나누기는 순수 함수라 테스트한다 |
 | `web/src/graph/descriptions.ts` | 그래프·막대를 말로 바꾼 설명(iOS와 같은 문장), 쉬어 가기 안내 문구 |
 | `web/src/model/practice.ts` | 들려줄 길이, 내 기준 목소리 재기·처음 목표 범위·먼 범위 판정, 목표 범위 슬라이더 규칙 |
 | `web/src/model/settingsStorage.ts`, `settings.svelte.ts` | 화면 설정(들려줄 길이·문장 종류·대본 거르기·고른 모음)은 이 브라우저(localStorage, `ullim.` 키)에. 내 기준 값(목표 범위·기준·모음 지도)은 화면이 함께 보고 바뀌면 기록 폴더에 알린다. W5까지 브라우저에 있던 내 기준 값을 읽고(옮기기용) 지우기 |
-| `web/src/model/records.ts` | `울림-기록.json`에 남는 기록의 모양(연습 기록·녹음마다 요약·남긴 녹음·기준 이력·모음 이력)과 확인, 말하는 언어 |
+| `web/src/model/records.ts` | `울림-기록.json`에 남는 기록의 모양(연습 기록·녹음마다 요약·남긴 녹음·기준 이력·모음 이력)과 확인, 말하는 언어. 녹음마다·남긴 녹음의 문장 끝 숫자(`phraseEndings`, 없으면 그 전 기록) |
 | `web/src/practice/sessionLog.ts` | 연습 한 번의 기록: 녹음마다 요약을 쌓고, 정지하면 30초·목소리 5초 이상일 때 연습 기록 하나로 (iOS `PracticeSessionLog`). 연습 기록의 AI 요청문·녹음 한 줄 |
 | `web/src/model/voiceSettings.ts` | 내 기준 값의 모양, 기준을 재면 목표 범위 정하기, 기록 폴더를 열 때 폴더 값과 화면 값 합치기 |
 | `web/src/storage/recordStore.svelte.ts` | 내 기록이 남는 곳: 기록 폴더 고르기·다시 연결·바꾸기·끊기, 바뀐 값을 폴더에 쓰기(0.4초 모아서), 기록 더하기(녹음 소리 먼저, 폴더가 없으면 화면에 담아 두었다가 옮김), 기록 파일(zip) 저장·불러오기, 사파리처럼 폴더를 못 고르는 브라우저(개발 서버에서 `?nofolder`로 흉내) |
@@ -186,3 +186,4 @@
 | `web/test/signals.ts` | 웹 테스트용 합성 신호 (iOS 테스트·`Tools/WebGolden`과 같은 식) |
 | `web/test/golden/swift-golden.json` | `Tools/WebGolden`이 만든 정답표. 손으로 고치지 않는다 |
 | `web/test/phraseEnding.test.ts` | 구절별 문장 끝 분석의 시험지 (iOS `PhraseEndingAnalysisTests`와 같은 입력·기대값 파일을 읽는다) |
+| `web/test/phraseRecords.test.ts` | 기록에 남긴 문장 끝 숫자: 연습 기록·남긴 녹음 저장·되읽기, 예전 기록·망가진 칸, 녹음 여러 개 합치기, 연습 기록 요청문 (iOS `PhraseEndingRecordTests`와 같은 숫자·같은 글) |

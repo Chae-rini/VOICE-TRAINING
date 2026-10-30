@@ -3,11 +3,12 @@ import type { ProcessingItem } from '../audio/processing'
 import { encodeWav, peakMagnitude } from '../audio/wav'
 import { playbackGain } from '../dsp/analysis'
 import { GraphWindow } from '../dsp/graphWindow'
+import { analyzePhraseEndings } from '../dsp/phraseEnding'
 import { PitchHistory, type GraphClock, type PitchReading } from '../dsp/pitchHistory'
 import { PitchSummary } from '../dsp/pitchSummary'
 import { REST_REMINDER_SECONDS, restMessage } from '../graph/descriptions'
 import { Baseline, type BaselineMeasurement } from '../model/practice'
-import { newRecordId, pitchNumbers, recordingDisplayTitle, type RecordingRecord } from '../model/records'
+import { newRecordId, phraseNumbers, pitchNumbers, recordingDisplayTitle, type RecordingRecord } from '../model/records'
 import { settings } from '../model/settings.svelte'
 import { VowelMaps, type VowelEntry } from '../model/vowelMap'
 import { vibrate } from '../platform/haptics'
@@ -228,6 +229,7 @@ class PracticeSession {
         language: take.language ?? settings.practiceLanguage,
         pitch: pitchNumbers(summary),
         f2Median: takeF2Median(take),
+        phraseEndings: phraseNumbers(analyzePhraseEndings(take.readings, settings.target).summary),
       }
       const blob = new Blob([encodeWav(take.samples, take.sampleRate)], { type: 'audio/wav' })
       const result = await store.addRecord('recordings', record, { name: fileName, blob })
@@ -281,8 +283,12 @@ class PracticeSession {
     this.lastTake = take
     this.history = takeHistory(take)
     this.clock = this.#lastTakeClock()
-    // 연습 중이면 이 녹음의 요약(요약 카드와 같은 숫자: 묶음 안의 점)을 연습 기록에 쌓는다.
-    this.#log?.finishTake(take.readings, takeDuration(take), settings.target, take.recordedAt)
+    // 연습 중이면 이 녹음의 요약(요약 카드와 같은 숫자: 묶음 안의 점, 같은 목표 범위로 잰 문장 끝)을 연습 기록에 쌓는다.
+    const log = this.#log
+    if (log !== null) {
+      const target = settings.target
+      log.finishTake(take.readings, takeDuration(take), target, take.recordedAt, analyzePhraseEndings(take.readings, target).summary)
+    }
     return take
   }
 

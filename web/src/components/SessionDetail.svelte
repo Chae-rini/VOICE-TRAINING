@@ -1,11 +1,20 @@
 <script lang="ts">
+  import { PHRASE_ENDING_RULES } from '../dsp/phraseEnding'
   import { PitchSummary } from '../dsp/pitchSummary'
   import { totalLabel } from '../model/history'
   import { languageLabel, type SessionRecord } from '../model/records'
-  import { sessionFeedbackRequest, sessionSummaryOf, takeNumbersLine, takeOwnTarget } from '../practice/sessionLog'
+  import {
+    sessionFeedbackRequest,
+    sessionSummaryOf,
+    takeNumbersLine,
+    takeOwnTarget,
+    takePhraseEndings,
+    type TakeSummary,
+  } from '../practice/sessionLog'
   import { copyText, shareText } from '../practice/sharing'
   import { store } from '../storage/recordStore.svelte'
   import { formatDayTime, formatFullDateTime } from '../text/dates'
+  import { combinedPhraseSummary, dropText, summaryHeadline, summaryShortPhrase } from '../text/phraseEnding'
 
   /**
    * 연습 기록 하나 (iOS `PracticeSessionDetailView`): 연습 전체와 녹음마다의 숫자, AI에게 보낼 요약 글.
@@ -15,6 +24,13 @@
 
   const summary = $derived(sessionSummaryOf(record))
   const request = $derived(sessionFeedbackRequest(summary))
+  /** 문장 끝: 녹음마다 남긴 숫자를 합친다 (이 기능 전의 녹음은 빠진다). 하나도 없으면 칸을 보이지 않는다 */
+  const phraseTakes = $derived(takePhraseEndings(summary))
+  const phrase = $derived(combinedPhraseSummary(phraseTakes))
+
+  function takePhrase(take: TakeSummary): string | null {
+    return take.phraseEndings === undefined ? null : summaryShortPhrase(take.phraseEndings, PHRASE_ENDING_RULES)
+  }
   let didCopy = $state(false)
   let message: string | null = $state(null)
 
@@ -73,6 +89,24 @@
     {/if}
   </section>
 
+  {#if phrase !== null}
+    <section class="card">
+      <h3>문장 끝</h3>
+      <p>{summaryHeadline(phrase, PHRASE_ENDING_RULES)}</p>
+      {#if phrase.meanEndDropSemitones !== null}
+        <div class="line"><span>평균 하강 폭</span><span>{dropText(phrase.meanEndDropSemitones)}</span></div>
+      {/if}
+      {#if phrase.endBelowTargetCount !== null}
+        <div class="line"><span>바닥이 목표 하한 아래로 내려간 끝</span><span>{phrase.endBelowTargetCount}개</span></div>
+      {/if}
+      <p class="note">
+        {phraseTakes.length === summary.takes.length
+          ? `녹음 ${phraseTakes.length}개의 문장 끝을 더했어요. 끝이 내려가는 건 자연스러워요.`
+          : `문장 끝 숫자가 있는 녹음 ${phraseTakes.length}개만 더했어요 (이 기능이 생기기 전 녹음은 빠져요). 끝이 내려가는 건 자연스러워요.`}
+      </p>
+    </section>
+  {/if}
+
   <section class="card">
     <h3>녹음마다</h3>
     {#if summary.takes.length === 0}
@@ -80,9 +114,13 @@
     {:else}
       {#each summary.takes as take (take.round)}
         {@const own = takeOwnTarget(take, summary.pitch.target)}
+        {@const phraseLine = takePhrase(take)}
         <div class="take">
           <div class="line"><strong>{take.round}번째 녹음</strong><span>{PitchSummary.durationLabel(take.pitch.duration)}</span></div>
           <span class="numbers">{takeNumbersLine(take)}</span>
+          {#if phraseLine !== null}
+            <span class="secondary small">{phraseLine}</span>
+          {/if}
           {#if own !== null}
             <span class="secondary small">그때 목표 {Math.trunc(own.lower)}–{Math.trunc(own.upper)} Hz</span>
           {/if}

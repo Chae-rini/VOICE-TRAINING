@@ -1,3 +1,4 @@
+import type { PhraseEndingSummary } from '../dsp/phraseEnding'
 import { PitchSummary } from '../dsp/pitchSummary'
 import type { Range } from '../dsp/range'
 import { formatShortDateTime } from '../text/dates'
@@ -53,12 +54,70 @@ export function pitchSummaryOf(n: PitchNumbers): PitchSummary {
   return new PitchSummary(n.duration, n.voicedSeconds, n.median, n.p10, n.p90, n.target, n.inTargetFraction)
 }
 
+/**
+ * 저장하는 문장 끝 숫자 (`PhraseEndingSummary`와 같은 이름, 2026-10-30~). iOS `PracticeTake`·`SavedRecording`의 `phrase…` 칸 7개와 같은 내용이다.
+ * 하강 구절 비율은 남기지 않고 개수로 다시 센다.
+ */
+export interface PhraseNumbers {
+  readonly phraseCount: number
+  /** 3반음 넘게 내려간(‘falling’·‘dropping’) 구절 수 */
+  readonly fallingOrDroppingCount: number
+  /** [반음] 구절마다의 하강 폭 평균. 구절이 없으면 null */
+  readonly meanEndDropSemitones: number | null
+  /** 끝 바닥이 목표 하한 아래인 구절 수. 목표 범위가 없었으면 null */
+  readonly endBelowTargetCount: number | null
+  readonly possibleFryCount: number
+  /** 0~1. 목표 범위 밖 순간 중 문장 끝에 든 비율, 전체 목소리 중 문장 끝에 든 비율 */
+  readonly outOfTargetAtEndFraction: number | null
+  readonly endFrameShare: number | null
+}
+
+export function phraseNumbers(summary: PhraseEndingSummary): PhraseNumbers {
+  return {
+    phraseCount: summary.phraseCount,
+    fallingOrDroppingCount: summary.fallingOrDroppingCount,
+    meanEndDropSemitones: summary.meanEndDropSemitones,
+    endBelowTargetCount: summary.endBelowTargetCount,
+    possibleFryCount: summary.possibleFryCount,
+    outOfTargetAtEndFraction: summary.outOfTargetAtEndFraction,
+    endFrameShare: summary.endFrameShare,
+  }
+}
+
+/**
+ * 남긴 문장 끝 숫자를 요약으로 되돌린다 (iOS `PhraseEndingSummary.restored`). 칸이 없으면 그 전에 남긴 기록이라 null.
+ * 모양이 다르면(손으로 고친 기록 파일 등) 숫자를 지어내지 않고 null — 기록 자체는 그대로 보인다.
+ */
+export function phraseSummaryOf(value: unknown): PhraseEndingSummary | null {
+  const n = value as PhraseNumbers | null | undefined
+  if (
+    typeof n !== 'object' ||
+    n === null ||
+    ![n.phraseCount, n.fallingOrDroppingCount, n.possibleFryCount].every(isNumber) ||
+    ![n.meanEndDropSemitones, n.endBelowTargetCount, n.outOfTargetAtEndFraction, n.endFrameShare].every(isNumberOrNull)
+  ) {
+    return null
+  }
+  return {
+    phraseCount: n.phraseCount,
+    meanEndDropSemitones: n.meanEndDropSemitones,
+    fallingOrDroppingCount: n.fallingOrDroppingCount,
+    fallingOrDroppingFraction: n.phraseCount > 0 ? n.fallingOrDroppingCount / n.phraseCount : null,
+    endBelowTargetCount: n.endBelowTargetCount,
+    possibleFryCount: n.possibleFryCount,
+    outOfTargetAtEndFraction: n.outOfTargetAtEndFraction,
+    endFrameShare: n.endFrameShare,
+  }
+}
+
 /** 연습 중 녹음 한 번의 요약 (‘지금 들어보기’를 누르거나 녹음 중에 정지할 때마다 하나) */
 export interface TakeRecord {
   /** 연습 안에서 몇 번째 녹음인지 (1부터) */
   readonly round: number
   readonly endedAt: string
   readonly pitch: PitchNumbers
+  /** 그 녹음의 문장 끝 숫자 (요약 카드의 문장 끝 칸과 같은 값). 이 기능 전의 기록에는 없다 */
+  readonly phraseEndings?: PhraseNumbers
 }
 
 /** 연습 한 번(‘반복 루프 재생’부터 정지까지)의 요약. 정지하면 자동으로 남는다 */
@@ -89,6 +148,8 @@ export interface RecordingRecord {
   readonly pitch: PitchNumbers
   /** [Hz] 녹음 전체의 F2 중앙값. 포먼트를 못 쟀으면 null */
   readonly f2Median: number | null
+  /** 남길 때의 문장 끝 숫자. 이 기능 전의 기록에는 없다 */
+  readonly phraseEndings?: PhraseNumbers
 }
 
 /** ‘내 목소리 재기’를 저장할 때마다 하나 */

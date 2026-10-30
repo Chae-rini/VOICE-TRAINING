@@ -1,4 +1,4 @@
-import type { PhraseEnding, PhraseEndingAnalysis, PhraseEndType } from '../dsp/phraseEnding'
+import type { PhraseEnding, PhraseEndingAnalysis, PhraseEndingRules, PhraseEndingSummary, PhraseEndType } from '../dsp/phraseEnding'
 
 /*
  * 문장 끝 분석을 사람이 읽는 글로 바꾼다 ([높이] 요약 카드, AI 요청문). iOS `Models/PhraseEndingText.swift`와 같은 글이다.
@@ -16,11 +16,7 @@ export const PHRASE_END_TYPE_LABELS: Readonly<Record<PhraseEndType, string>> = {
 
 /** 요약 한 줄. 예: "문장 끝 11개 중 7개가 3반음 넘게 내려갔어요" */
 export function phraseHeadline(analysis: PhraseEndingAnalysis): string {
-  const { summary } = analysis
-  const limit = ruleNumber(analysis.rules.stableMaxDropSemitones)
-  if (summary.phraseCount === 0) return '문장으로 나눌 만큼 목소리가 이어진 곳이 없어요'
-  if (summary.fallingOrDroppingCount === 0) return `문장 끝 ${summary.phraseCount}개 중 ${limit}반음 넘게 내려간 곳은 없어요`
-  return `문장 끝 ${summary.phraseCount}개 중 ${summary.fallingOrDroppingCount}개가 ${limit}반음 넘게 내려갔어요`
+  return summaryHeadline(analysis.summary, analysis.rules)
 }
 
 /** 요약 한 줄 아래의 숫자들 (해당할 때만). 구절이 없으면 빈 배열. */
@@ -52,13 +48,46 @@ export function phraseGuidance(analysis: PhraseEndingAnalysis): string {
 
 /** AI 요청문에 넣을 줄들. 구절이 없으면 빈 배열. */
 export function phraseRequestLines(analysis: PhraseEndingAnalysis): string[] {
-  const { summary, rules } = analysis
+  return summaryRequestLines(analysis.summary, analysis.rules)
+}
+
+/*
+ * 문장 끝 숫자만으로 쓰는 글 (iOS `extension PhraseEndingSummary`). 녹음 하나의 분석(위)과 기록에 남은 숫자
+ * (연습 기록의 녹음마다·남긴 녹음, 2026-10-30~)가 같이 쓴다. 기록에는 구절별 목록과 목표 범위 없이 숫자만 남는다.
+ * 목표 범위가 있었는지는 ‘끝 바닥이 목표 하한 아래인 구절’ 칸이 있는지로 안다. 글 속의 기준 숫자는 지금의 `PhraseEndingRules.json` 값이다.
+ */
+
+/** 요약 한 줄. 예: "문장 끝 11개 중 7개가 3반음 넘게 내려갔어요" */
+export function summaryHeadline(summary: PhraseEndingSummary, rules: PhraseEndingRules): string {
+  const limit = ruleNumber(rules.stableMaxDropSemitones)
+  if (summary.phraseCount === 0) return '문장으로 나눌 만큼 목소리가 이어진 곳이 없어요'
+  if (summary.fallingOrDroppingCount === 0) return `문장 끝 ${summary.phraseCount}개 중 ${limit}반음 넘게 내려간 곳은 없어요`
+  return `문장 끝 ${summary.phraseCount}개 중 ${summary.fallingOrDroppingCount}개가 ${limit}반음 넘게 내려갔어요`
+}
+
+/** 녹음마다 줄에 붙이는 짧은 말. 예: "문장 끝 11개 중 7개 3반음 넘게 내려감, 평균 2.4반음 내려감". 구절이 없으면 null */
+export function summaryShortPhrase(summary: PhraseEndingSummary, rules: PhraseEndingRules): string | null {
+  if (summary.meanEndDropSemitones === null || summary.phraseCount === 0) return null
+  const limit = ruleNumber(rules.stableMaxDropSemitones)
+  return `문장 끝 ${summary.phraseCount}개 중 ${summary.fallingOrDroppingCount}개 ${limit}반음 넘게 내려감, 평균 ${dropText(summary.meanEndDropSemitones)}`
+}
+
+/**
+ * AI 요청문에 넣을 줄들. 구절이 없으면 빈 배열.
+ * `combinedTakeCount`: 녹음 여러 개를 합친 요약이면 그 수 (연습 기록의 요청문). 머리줄에 합쳤다고 밝힌다.
+ */
+export function summaryRequestLines(
+  summary: PhraseEndingSummary,
+  rules: PhraseEndingRules,
+  combinedTakeCount: number | null = null,
+): string[] {
   if (summary.meanEndDropSemitones === null || summary.fallingOrDroppingFraction === null) return []
   const silence = ruleNumber(rules.phraseBreakSilenceSeconds)
   const end = ruleNumber(rules.endWindowSeconds)
   const limit = ruleNumber(rules.stableMaxDropSemitones)
+  const scope = combinedTakeCount === null ? '' : `녹음 ${combinedTakeCount}개를 합쳐서, `
   const lines = [
-    `문장 끝 (무성음 ${silence}초 이상에서 구절을 나누고, 구절마다 마지막 ${end}초를 구절 전체와 비교)`,
+    `문장 끝 (${scope}무성음 ${silence}초 이상에서 구절을 나누고, 구절마다 마지막 ${end}초를 구절 전체와 비교)`,
     `- 구절 수: ${summary.phraseCount}개`,
     `- 평균 하강 폭: ${summary.meanEndDropSemitones.toFixed(1)}반음 (구절 중앙값 → 마지막 ${end}초 중앙값, +면 내려감)`,
     `- ${limit}반음 넘게 내려간 구절: ${summary.fallingOrDroppingCount}개 (${percent(summary.fallingOrDroppingFraction)}%)`,
@@ -75,11 +104,35 @@ export function phraseRequestLines(analysis: PhraseEndingAnalysis): string[] {
   }
   lines.push(`- 끝에 아주 낮은 높이가 이어진 구절(긁히는 소리 가능성, 높이 검출 오류일 수도 있음): ${summary.possibleFryCount}개`)
   lines.push(
-    analysis.target === null
+    summary.endBelowTargetCount === null
       ? `한국어 평서문은 끝이 내려가는 게 자연스러우니, 평평하게가 아니라 하강 폭 ${limit}반음 이내인지로 봐 주세요.`
       : `한국어 평서문은 끝이 내려가는 게 자연스러우니, 평평하게가 아니라 하강 폭 ${limit}반음 이내, 끝 바닥이 목표 하한 아래로 내려가지 않는지로 봐 주세요.`,
   )
   return lines
+}
+
+/**
+ * 녹음 여러 개를 하나로 합친다 (연습 기록 전체, iOS `PhraseEndingSummary.combined`). 구절 수·개수는 더하고, 평균 하강 폭은 구절 수로 가중 평균한다.
+ * 목표 밖·문장 끝 비율 두 개는 녹음마다 분모(프레임 수)가 남아 있지 않아 합칠 수 없으므로 비운다.
+ * ‘끝 바닥이 목표 하한 아래’는 목표 범위가 있던 녹음만 더한다 (하나도 없으면 null). 합칠 것이 없으면 null.
+ */
+export function combinedPhraseSummary(summaries: readonly PhraseEndingSummary[]): PhraseEndingSummary | null {
+  if (summaries.length === 0) return null
+  const sum = (values: readonly number[]) => values.reduce((a, b) => a + b, 0)
+  const phrases = sum(summaries.map((s) => s.phraseCount))
+  const falling = sum(summaries.map((s) => s.fallingOrDroppingCount))
+  const dropSum = sum(summaries.flatMap((s) => (s.meanEndDropSemitones === null ? [] : [s.meanEndDropSemitones * s.phraseCount])))
+  const belowTarget = summaries.flatMap((s) => (s.endBelowTargetCount === null ? [] : [s.endBelowTargetCount]))
+  return {
+    phraseCount: phrases,
+    meanEndDropSemitones: phrases > 0 ? dropSum / phrases : null,
+    fallingOrDroppingCount: falling,
+    fallingOrDroppingFraction: phrases > 0 ? falling / phrases : null,
+    endBelowTargetCount: belowTarget.length === 0 ? null : sum(belowTarget),
+    possibleFryCount: sum(summaries.map((s) => s.possibleFryCount)),
+    outOfTargetAtEndFraction: null,
+    endFrameShare: null,
+  }
 }
 
 /** 구절 중앙값 → 끝 중앙값. 예: "182 → 158 Hz" */

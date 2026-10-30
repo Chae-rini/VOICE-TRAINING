@@ -1,3 +1,4 @@
+import { PHRASE_ENDING_RULES, type PhraseEndingSummary } from '../dsp/phraseEnding'
 import type { PitchReading } from '../dsp/pitchHistory'
 import { PitchSummary } from '../dsp/pitchSummary'
 import type { Range } from '../dsp/range'
@@ -6,12 +7,15 @@ import { totalLabel } from '../model/history'
 import {
   languageLabel,
   newRecordId,
+  phraseNumbers,
+  phraseSummaryOf,
   pitchNumbers,
   pitchSummaryOf,
   type PracticeLanguage,
   type SessionRecord,
 } from '../model/records'
 import { formatDayTime } from '../text/dates'
+import { combinedPhraseSummary, summaryRequestLines, summaryShortPhrase } from '../text/phraseEnding'
 
 /** 녹음 한 번의 요약 */
 export interface TakeSummary {
@@ -20,6 +24,8 @@ export interface TakeSummary {
   readonly endedAt: Date
   /** `duration`은 녹음 길이, `target`은 그 녹음을 마친 때의 목표 범위 */
   readonly pitch: PitchSummary
+  /** 그 녹음의 문장 끝 분석 숫자 (요약 카드의 문장 끝 칸과 같은 값). 이 기능 전의 기록이면 없다 */
+  readonly phraseEndings?: PhraseEndingSummary
 }
 
 /** 정지했을 때 남길 내용 */
@@ -88,11 +94,18 @@ export class PracticeSessionLog {
   /**
    * 녹음 한 번이 끝났을 때 그 녹음의 요약을 남긴다. 목소리가 한 번도 안 잡혔으면 남기지 않는다.
    * 요약 카드와 같은 점·길이를 넘겨, 카드에 보이던 숫자가 그대로 남게 한다.
+   * `phraseEndings`: 같은 녹음의 문장 끝 분석 숫자 (요약 카드와 같은 목표 범위로 잰 것).
    */
-  finishTake(readings: readonly PitchReading[], duration: number, target: Range | null, endedAt: Date): void {
+  finishTake(
+    readings: readonly PitchReading[],
+    duration: number,
+    target: Range | null,
+    endedAt: Date,
+    phraseEndings?: PhraseEndingSummary,
+  ): void {
     if (this.takeCount === 0) return
     const pitch = PitchSummary.fromReadings(readings, duration, target)
-    if (pitch !== null) this.takes.push({ round: this.takeCount, endedAt, pitch })
+    if (pitch !== null) this.takes.push({ round: this.takeCount, endedAt, pitch, phraseEndings })
   }
 
   /** 정지했을 때의 요약. 30초보다 짧은 연습이거나 목소리가 5초보다 짧게 잡혔으면 null (남기지 않음) */
@@ -123,7 +136,12 @@ export function sessionRecord(summary: SessionSummary, id = newRecordId()): Sess
     language: summary.language,
     pitch: pitchNumbers(summary.pitch),
     f2Median: summary.f2Median,
-    takes: summary.takes.map((take) => ({ round: take.round, endedAt: take.endedAt.toISOString(), pitch: pitchNumbers(take.pitch) })),
+    takes: summary.takes.map((take) => ({
+      round: take.round,
+      endedAt: take.endedAt.toISOString(),
+      pitch: pitchNumbers(take.pitch),
+      ...(take.phraseEndings === undefined ? {} : { phraseEndings: phraseNumbers(take.phraseEndings) }),
+    })),
   }
 }
 
@@ -137,7 +155,12 @@ export function sessionSummaryOf(record: SessionRecord): SessionSummary {
     pitch: pitchSummaryOf(record.pitch),
     takes: [...record.takes]
       .sort((a, b) => a.round - b.round)
-      .map((take) => ({ round: take.round, endedAt: new Date(take.endedAt), pitch: pitchSummaryOf(take.pitch) })),
+      .map((take) => ({
+        round: take.round,
+        endedAt: new Date(take.endedAt),
+        pitch: pitchSummaryOf(take.pitch),
+        phraseEndings: phraseSummaryOf(take.phraseEndings) ?? undefined,
+      })),
     f2Median: record.f2Median,
   }
 }
@@ -171,7 +194,14 @@ export function takeRequestLine(take: TakeSummary, sessionTarget: Range | null):
     const own = takeOwnTarget(take, sessionTarget)
     if (own !== null) line += ` (그때 목표 ${Math.trunc(own.lower)}~${Math.trunc(own.upper)} Hz)`
   }
+  const phrase = take.phraseEndings === undefined ? null : summaryShortPhrase(take.phraseEndings, PHRASE_ENDING_RULES)
+  if (phrase !== null) line += `, ${phrase}`
   return line
+}
+
+/** 녹음마다 남긴 문장 끝 숫자, 녹음 순서대로 (이 기능 전의 녹음은 빠진다). 연습 전체의 문장 끝은 이것을 합친다 */
+export function takePhraseEndings(summary: SessionSummary): PhraseEndingSummary[] {
+  return summary.takes.flatMap((take) => (take.phraseEndings === undefined ? [] : [take.phraseEndings]))
 }
 
 /**
@@ -185,6 +215,10 @@ export function sessionFeedbackRequest(summary: SessionSummary): string {
       ? '- (녹음마다 기록이 없는 예전 연습이에요)'
       : summary.takes.map((take) => takeRequestLine(take, pitch.target)).join('\n')
   const practiceTime = totalLabel((summary.endedAt.getTime() - summary.startedAt.getTime()) / 1000)
+  // 문장 끝은 녹음마다 남긴 숫자를 합쳐서. 하나도 없으면 단락을 넣지 않는다
+  const phraseTakes = takePhraseEndings(summary)
+  const phrase = combinedPhraseSummary(phraseTakes)
+  const phraseLines = phrase === null ? [] : summaryRequestLines(phrase, PHRASE_ENDING_RULES, phraseTakes.length)
   return [
     '[울림 · 보이스 트레이닝 연습 피드백 요청]',
     `연습: ${formatDayTime(summary.startedAt)} · 연습 ${practiceTime} · 녹음 ${summary.takeCount}번 · 말한 언어 ${languageLabel(summary.language)}`,
@@ -198,6 +232,7 @@ export function sessionFeedbackRequest(summary: SessionSummary): string {
     '',
     '녹음마다 (‘지금 들어보기’를 누르거나 정지할 때마다 하나, 목소리가 잡힌 녹음만)',
     takeLines,
+    ...(phraseLines.length === 0 ? [] : ['', ...phraseLines]),
     '',
     '녹음 파일은 보내지 않았어요. 위 수치를 목표 범위와 비교해 해석하고, 녹음마다 어떻게 달라졌는지와 다음 연습에서 해 볼 만한 점을 알려 주세요.',
     PitchSummary.timbreCaution,

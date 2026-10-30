@@ -1,10 +1,18 @@
 <script lang="ts">
+  import { PHRASE_ENDING_RULES } from '../dsp/phraseEnding'
   import { PitchSummary } from '../dsp/pitchSummary'
-  import { PRACTICE_LANGUAGES, recordingDisplayTitle, type PracticeLanguage, type RecordingRecord } from '../model/records'
+  import {
+    phraseSummaryOf,
+    PRACTICE_LANGUAGES,
+    recordingDisplayTitle,
+    type PracticeLanguage,
+    type RecordingRecord,
+  } from '../model/records'
   import { session } from '../practice/session.svelte'
   import { saveFile as saveToDevice } from '../practice/sharing'
   import { store } from '../storage/recordStore.svelte'
   import { formatFullDateTime } from '../text/dates'
+  import { dropText, summaryHeadline } from '../text/phraseEnding'
   import { navigation } from './navigation.svelte'
 
   /**
@@ -31,6 +39,8 @@
   })
 
   const pitch = $derived(record.pitch)
+  /** 남길 때의 문장 끝 숫자. 이 기능 전에 남긴 녹음이면 null (칸을 보이지 않는다) */
+  const phrase = $derived(phraseSummaryOf(record.phraseEndings))
 
   async function saveMemo() {
     const trimmed = memo.trim()
@@ -112,6 +122,20 @@
     {/if}
   </section>
 
+  {#if phrase !== null}
+    <section class="card">
+      <h3>문장 끝</h3>
+      <p class="headline">{summaryHeadline(phrase, PHRASE_ENDING_RULES)}</p>
+      {#if phrase.meanEndDropSemitones !== null}
+        <div class="line"><span>평균 하강 폭</span><span>{dropText(phrase.meanEndDropSemitones)}</span></div>
+      {/if}
+      {#if phrase.endBelowTargetCount !== null}
+        <div class="line"><span>바닥이 목표 하한 아래로 내려간 끝</span><span>{phrase.endBelowTargetCount}개</span></div>
+      {/if}
+      <p class="note">남길 때의 숫자예요. 구절별로 보려면 [높이]에서 다시 들어 보세요. 끝이 내려가는 건 자연스러워요.</p>
+    </section>
+  {/if}
+
   <section class="card">
     <h3>메모</h3>
     <textarea bind:value={memo} onchange={saveMemo} rows="3" maxlength="500" placeholder="어떤 연습이었는지 적어 두세요" aria-label="메모"
@@ -171,6 +195,9 @@
     flex-direction: column;
     gap: 10px;
     font-size: 0.9rem;
+  }
+  .headline {
+    margin: 0;
   }
   .line {
     display: flex;
