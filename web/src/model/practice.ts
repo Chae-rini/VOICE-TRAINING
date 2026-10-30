@@ -63,8 +63,6 @@ export const Baseline = {
   initialTargetHalfWidth: 20,
   /** [반음] 목표 범위 가운데가 기준에서 이만큼 이상 떨어지면 부드럽게 안내한다. 위·아래 어느 쪽이든 같다 */
   farDistanceSemitones: 6,
-  /** 잴 때 읽을 연습 문장 */
-  readingSentence: '회의는 오후 두 시에 시작합니다.',
 
   /** 피치 기록으로 기준 목소리를 잰다. 목소리가 잡힌 시간이 2초보다 짧으면 tooLittleVoice. */
   measure(readings: readonly PitchReading[]): BaselineMeasurement {

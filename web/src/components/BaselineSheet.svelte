@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { onMount } from 'svelte'
+  import { onMount, untrack } from 'svelte'
   import type { InputSource } from '../audio/micInput'
+  import { isSentence, randomBaselineReading, readingInstruction, type BaselineReading } from '../model/baselineReading'
   import { Baseline, TargetRange, type VoiceBaseline } from '../model/practice'
   import { newRecordId } from '../model/records'
   import { settings } from '../model/settings.svelte'
@@ -18,6 +19,8 @@
   const isDev = import.meta.env.DEV
   /** 목표 범위를 기준에 맞출지. 저장해 둔 목표 범위가 있으면 처음에는 꺼 둔다 (저절로 바뀌지 않게). */
   let applyToTarget = $state(settings.target === null)
+  /** 이번에 읽을 글. 창이 열릴 때마다 무작위로 고르고 ‘다른 대본’으로 바꾼다 (창은 한 번 만들어 두고 열고 닫기만 한다) */
+  let reading: BaselineReading = $state(randomBaselineReading())
   let frequency: number | null = $state(null)
   let animationFrame = 0
 
@@ -33,10 +36,13 @@
     if (file) void session.measureFromFile(file)
   }
   const measurement = $derived(session.measurement)
+  /** 재는 중이거나 결과가 있을 때는 글을 바꾸지 않는다 (어떤 글로 잰 결과인지 헷갈리지 않게) */
+  const canChangeReading = $derived(!isMeasuring && !isAnalyzing && measurement === null)
 
   $effect(() => {
     if (open && !dialog.open) {
       applyToTarget = settings.target === null
+      reading = untrack(() => randomBaselineReading(reading))
       dialog.showModal()
     } else if (!open && dialog.open) {
       dialog.close()
@@ -95,8 +101,14 @@
     {/if}
 
     <div class="card">
-      <p class="secondary small">10초 동안 이 문장을 평소처럼 두세 번 읽어 주세요.</p>
-      <p class="sentence">{Baseline.readingSentence}</p>
+      <p class="secondary small">{readingInstruction(reading)}</p>
+      {#if reading.title !== null}
+        <p class="secondary small title">{reading.title}</p>
+      {/if}
+      <p class={isSentence(reading) ? 'sentence' : 'script'}>{reading.text}</p>
+      <button class="plain small shuffle" onclick={() => (reading = randomBaselineReading(reading))} disabled={!canChangeReading}>
+        🔀 다른 대본
+      </button>
     </div>
 
     {#if isMeasuring}
@@ -112,7 +124,11 @@
     {:else if measurement?.kind === 'tooLittleVoice'}
       <div class="result">
         <h3>ⓘ 목소리가 거의 잡히지 않았어요.</h3>
-        <p class="secondary">조용한 곳에서 위 문장을 평소 목소리로 소리 내어 다시 읽어 주세요.</p>
+        <p class="secondary">
+          {isSentence(reading)
+            ? '조용한 곳에서 위 문장을 평소 목소리로 소리 내어 다시 읽어 주세요.'
+            : '조용한 곳에서 위 대본을 평소 목소리로 소리 내어 처음부터 다시 읽어 주세요.'}
+        </p>
         <button class="fill" onclick={() => session.cancelMeasuring()}>다시 재기</button>
       </div>
     {:else if measurement?.kind === 'measured'}
@@ -127,7 +143,7 @@
         <p class="secondary small">
           {baseline.f2 === null
             ? '포먼트가 충분히 잡히지 않아 공명 밝기 기준은 저장하지 않아요.'
-            : `공명 밝기 기준(F2 중앙값): ${Math.round(baseline.f2)} Hz`}
+            : `공명 밝기 기준(F2 중앙값): ${Math.round(baseline.f2)} Hz. 읽은 글의 모음에 따라 조금 달라질 수 있어요.`}
         </p>
         <label class="toggle">
           <input type="checkbox" bind:checked={applyToTarget} />
@@ -221,6 +237,18 @@
     font-size: 1.25rem;
     font-weight: 500;
     word-break: keep-all;
+  }
+  .title {
+    font-weight: 600;
+  }
+  .script {
+    font-size: 1rem;
+    font-weight: 500;
+    line-height: 1.6;
+    word-break: keep-all;
+  }
+  .shuffle {
+    align-self: flex-start;
   }
   .measuring {
     display: flex;

@@ -129,7 +129,9 @@
 | `web/src/model/vowelMap.ts` | 내 모음 지도: 모음 하나 재기(중앙값·25~75% 흔들림·F1 불확실), 저장한 값 읽기(망가진 항목은 빼고) |
 | `web/src/components/LivePanel.svelte` | 지금 높이 숫자, 그래프(캔버스), 음량·공명 막대. 화면을 그릴 때마다 최근 점으로 고친다. 화면 읽기 프로그램용 설명 |
 | `web/src/components/TargetRangeControls.svelte` | 목표 범위 한 줄·슬라이더(반음 눈금, 5 Hz 단위)·기준에서 먼 범위 안내·내 목소리 재기 버튼 |
-| `web/src/components/BaselineSheet.svelte` | 내 목소리 재기 창: 10초 재기, 결과(중앙·범위·F2), 목표 범위를 기준에 맞추기, 저장 |
+| `web/src/components/BaselineSheet.svelte` | 내 목소리 재기 창: 열 때마다 무작위로 고른 문장·대본(‘다른 대본’), 10초 재기, 결과(중앙·범위·F2), 목표 범위를 기준에 맞추기, 저장 |
+| `web/src/model/baselineReading.ts` | 내 목소리 재기에서 읽을 글 (iOS `BaselineReading`과 같은 규칙: 내 문장 + 평소 말투 대본, 무작위·직전 글 빼기, 안내 글) |
+| `web/test/baselineReading.test.ts` | 재기에서 읽을 글 시험지 (iOS `BaselineReadingTests`와 같은 확인) |
 | `web/src/components/SentenceCards.svelte`, `ScriptReader.svelte` | 문장 카드(내 문장·자동 생성, 밀어서 넘기기)와 대본 읽기(종류·길이 거르기, 다른 대본, 들려줄 길이 맞추기) |
 | `web/src/components/DurationControl.svelte` | ‘들려줄 길이’ 버튼과 조정 창 (10초~3분) |
 | `web/src/practice/session.svelte.ts` | 연습 흐름: 반복 루프(녹음 → 지금 들어보기 → 숨 고르기 → 다시 녹음), 마지막 녹음 다시 듣기, 파일 불러오기, 내 목소리 재기·모음 재기(마이크·파일), 그래프 시계, 15분 쉬어 가기, 정지할 때 연습 기록 남기기, ‘기록에 남기기’ |
