@@ -8,6 +8,7 @@ import {
   PRACTICE_SCRIPTS,
   scriptCategories,
   scriptDetails,
+  shuffledOrder,
 } from '../src/data/scripts'
 import { PRACTICE_SENTENCES, SENTENCE_PATTERNS, SENTENCE_WORDS } from '../src/data/sentences'
 import {
@@ -173,6 +174,20 @@ describe('대본 200편', () => {
     expect(shortTalks.every((s) => s.category === '대화문' && estimatedSeconds(s) <= 20)).toBe(true)
     const lengths = (['short', 'medium', 'long'] as const).map((l) => filterScripts(ANY_CATEGORY, l).length)
     expect(lengths.reduce((a, b) => a + b, 0)).toBe(200) // 길이 구간이 겹치거나 빠지지 않는다
+  })
+
+  it('섞인 순서: 대본마다 한 번씩, 같은 시드면 같은 순서, 열 때마다 첫 대본이 달라진다 (iOS ScriptOrder와 같은 확인)', () => {
+    const seeded = (seed: number) => {
+      const generator = new SplitMix64(seed)
+      return () => generator.uniform()
+    }
+    const order = shuffledOrder(200, seeded(42))
+    expect([...order].sort((a, b) => a - b)).toEqual(Array.from({ length: 200 }, (_, i) => i))
+    expect(order).toEqual(shuffledOrder(200, seeded(42)))
+    expect(order, '파일 순서 그대로가 아니다').not.toEqual(Array.from({ length: 200 }, (_, i) => i))
+    const firsts = new Set(Array.from({ length: 50 }, (_, seed) => shuffledOrder(200, seeded(seed))[0]))
+    expect(firsts.size, '열 때마다 다른 대본부터 보여야 한다').toBeGreaterThan(30)
+    expect(shuffledOrder(0)).toEqual([])
   })
 
   it('대본 설명 한 줄: 종류(분야) · 말투 · 약 n초', () => {

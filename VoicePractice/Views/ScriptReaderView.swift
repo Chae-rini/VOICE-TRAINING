@@ -1,6 +1,7 @@
 import SwiftUI
 
 /// 대본 낭독 화면 조각. 종류·길이로 거르고, 스크롤해서 읽고, 들려줄 길이를 대본 길이에 맞출 수 있다.
+/// 대본은 섞인 순서로 보인다 (`ScriptOrder`): 이 조각이 새로 생길 때(대본으로 바꿀 때·앱을 켤 때)마다 다른 대본부터.
 struct ScriptReaderView: View {
     /// 연습 중에는 들려줄 길이를 바꾸지 못하게 한다.
     let isPracticing: Bool
@@ -11,7 +12,10 @@ struct ScriptReaderView: View {
     @AppStorage("scriptCategory") private var category = Self.anyCategory
     @AppStorage("scriptLength") private var length = ScriptLength.any
     @AppStorage("practiceDurationSeconds") private var practiceDuration = PracticeDuration.defaultSeconds
-    @State private var index = 0
+    /// 섞는 씨앗. 이 조각이 새로 생길 때 정해지고, 거르기를 바꾸면 새로 정한다
+    @State private var seed = UInt64.random(in: .min ... .max)
+    /// 섞인 순서에서 몇 번째인지 (0부터)
+    @State private var position = 0
     /// [pt] 대본 상자 높이. 글자가 커지면 같이 커져서 보이는 줄 수가 크게 줄지 않는다.
     @ScaledMetric(relativeTo: .body) private var scriptHeight: CGFloat = 240
 
@@ -27,8 +31,15 @@ struct ScriptReaderView: View {
         }
     }
 
+    /// 섞인 순서 (filtered 안의 자리들)
+    private var order: [Int] {
+        ScriptOrder.shuffled(count: filtered.count, seed: seed)
+    }
+
     private var current: PracticeScript? {
-        filtered.indices.contains(index) ? filtered[index] : filtered.first
+        let order = order
+        guard !order.isEmpty else { return nil }
+        return filtered[order[min(position, order.count - 1)]]
     }
 
     var body: some View {
@@ -45,8 +56,8 @@ struct ScriptReaderView: View {
                     .frame(maxWidth: .infinity, minHeight: 120)
             }
         }
-        .onChange(of: category) { index = 0 }
-        .onChange(of: length) { index = 0 }
+        .onChange(of: category) { reshuffle() }
+        .onChange(of: length) { reshuffle() }
     }
 
     private var filterBar: some View {
@@ -72,7 +83,7 @@ struct ScriptReaderView: View {
 
             Button {
                 if filtered.count > 1 {
-                    index = (filtered.indices.filter { $0 != index }).randomElement() ?? 0
+                    position = (filtered.indices.filter { $0 != position }).randomElement() ?? 0
                 }
             } label: {
                 Label("다른 대본", systemImage: "shuffle")
@@ -116,28 +127,28 @@ struct ScriptReaderView: View {
         return VStack(spacing: 8) {
             HStack {
                 Button {
-                    index = max(0, index - 1)
+                    position = max(0, position - 1)
                 } label: {
                     Label("이전", systemImage: "chevron.left")
                 }
-                .disabled(index == 0)
+                .disabled(position == 0)
 
                 Spacer()
-                Text("\(min(index, filtered.count - 1) + 1) / \(filtered.count)")
+                Text("\(min(position, filtered.count - 1) + 1) / \(filtered.count)")
                     .font(.footnote)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
                 Spacer()
 
                 Button {
-                    index = min(filtered.count - 1, index + 1)
+                    position = min(filtered.count - 1, position + 1)
                 } label: {
                     HStack(spacing: 4) {
                         Text("다음")
                         Image(systemName: "chevron.right")
                     }
                 }
-                .disabled(index >= filtered.count - 1)
+                .disabled(position >= filtered.count - 1)
             }
 
             Button {
@@ -151,6 +162,12 @@ struct ScriptReaderView: View {
             .disabled(isPracticing || practiceDuration == suggested)
         }
         .font(.subheadline)
+    }
+
+    /// 거르기를 바꾸면 새로 섞어 처음부터
+    private func reshuffle() {
+        seed = .random(in: .min ... .max)
+        position = 0
     }
 
     private func details(for script: PracticeScript) -> String {

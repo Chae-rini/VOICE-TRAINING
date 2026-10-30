@@ -7,6 +7,7 @@
     SCRIPT_LENGTHS,
     scriptCategories,
     scriptDetails,
+    shuffledOrder,
     type ScriptLength,
   } from '../data/scripts'
   import { PracticeDuration } from '../model/practice'
@@ -16,16 +17,20 @@
   /**
    * 대본 낭독 (iOS `ScriptReaderView`). 종류·길이로 거르고, 상자 안에서 스크롤해 읽고,
    * 들려줄 길이를 대본 길이에 맞출 수 있다. 그래프가 화면 위에 고정되어 있어서 대본은 이 상자 안에서 넘기며 읽는다.
+   * 대본은 섞인 순서로 보인다 (`shuffledOrder`): 이 조각이 새로 생길 때(대본으로 바꿀 때·앱을 열 때)마다 다른 대본부터.
    */
   let { isPracticing }: { isPracticing: boolean } = $props()
 
   const categories = scriptCategories()
-  let index = $state(0)
+  /** 섞인 순서에서 몇 번째인지 (0부터) */
+  let position = $state(0)
   let textBox: HTMLDivElement | undefined = $state()
 
   const category = $derived(categories.includes(settings.scriptCategory) ? settings.scriptCategory : ANY_CATEGORY)
   const filtered = $derived(filterScripts(category, settings.scriptLength))
-  const current = $derived(filtered[Math.min(index, filtered.length - 1)])
+  // 거르기가 바뀌면(filtered가 새 배열이 되면) 다시 섞는다
+  const order = $derived(shuffledOrder(filtered.length))
+  const current = $derived(filtered[order[Math.min(position, order.length - 1)]])
   const suggested = $derived(current ? PracticeDuration.suggestedFor(estimatedSeconds(current)) : null)
 
   // 대본이 바뀌면 스크롤을 맨 위로 되돌린다.
@@ -36,16 +41,16 @@
 
   function chooseCategory(event: Event) {
     settings.setScriptCategory((event.target as HTMLSelectElement).value)
-    index = 0
+    position = 0
   }
   function chooseLength(event: Event) {
     settings.setScriptLength((event.target as HTMLSelectElement).value as ScriptLength)
-    index = 0
+    position = 0
   }
   function shuffle() {
     if (filtered.length < 2) return
-    const others = filtered.map((_, i) => i).filter((i) => i !== index)
-    index = others[Math.floor(Math.random() * others.length)]
+    const others = filtered.map((_, i) => i).filter((i) => i !== position)
+    position = others[Math.floor(Math.random() * others.length)]
   }
 </script>
 
@@ -81,9 +86,13 @@
     </article>
 
     <nav class="navigation" aria-label="대본 넘기기">
-      <button class="plain" onclick={() => (index = Math.max(0, index - 1))} disabled={index === 0}>‹ 이전</button>
-      <span class="counter">{Math.min(index, filtered.length - 1) + 1} / {filtered.length}</span>
-      <button class="plain" onclick={() => (index = Math.min(filtered.length - 1, index + 1))} disabled={index >= filtered.length - 1}>
+      <button class="plain" onclick={() => (position = Math.max(0, position - 1))} disabled={position === 0}>‹ 이전</button>
+      <span class="counter">{Math.min(position, filtered.length - 1) + 1} / {filtered.length}</span>
+      <button
+        class="plain"
+        onclick={() => (position = Math.min(filtered.length - 1, position + 1))}
+        disabled={position >= filtered.length - 1}
+      >
         다음 ›
       </button>
     </nav>

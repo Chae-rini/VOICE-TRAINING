@@ -77,6 +77,22 @@ export function filterScripts(
   )
 }
 
+/**
+ * [높이] 대본 화면의 섞인 순서 (iOS `ScriptOrder`, 2026-10-31~. 그 전에는 늘 1번 대본부터 파일 순서대로였다).
+ * 0..<count를 섞은 자리 목록 (피셔–예이츠). 열 때마다 다른 대본부터 보이고, 이전·다음은 이 순서대로 넘어간다.
+ * `random`: 0 이상 1 미만의 수를 주는 함수 (시험에서는 시드를 고정한 것을 넘긴다)
+ */
+export function shuffledOrder(count: number, random: () => number = Math.random): number[] {
+  const order = Array.from({ length: count }, (_, i) => i)
+  for (let i = count - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1))
+    const swap = order[i]
+    order[i] = order[j]
+    order[j] = swap
+  }
+  return order
+}
+
 /** 예: "비문학·과학 · 해요체 · 약 24초" */
 export function scriptDetails(script: PracticeScript): string {
   const kind = [script.category, script.topic].filter((part) => part !== undefined).join('·')

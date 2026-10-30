@@ -71,6 +71,17 @@ struct PracticeScriptTests {
             }
         }
     }
+
+    @Test("섞인 순서: 대본마다 한 번씩, 같은 씨앗이면 같은 순서, 씨앗(열 때)마다 첫 대본이 달라진다")
+    func shuffledOrder() {
+        let order = ScriptOrder.shuffled(count: scripts.count, seed: 42)
+        #expect(order.sorted() == Array(0..<scripts.count))
+        #expect(order == ScriptOrder.shuffled(count: scripts.count, seed: 42))
+        #expect(order != Array(0..<scripts.count), "파일 순서 그대로가 아니다")
+        let firsts = Set((0..<50).map { ScriptOrder.shuffled(count: scripts.count, seed: UInt64($0)).first })
+        #expect(firsts.count > 30, "열 때마다 다른 대본부터 보여야 한다")
+        #expect(ScriptOrder.shuffled(count: 0, seed: 1).isEmpty)
+    }
 }
 
 @MainActor
