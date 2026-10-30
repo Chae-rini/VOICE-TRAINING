@@ -127,6 +127,15 @@ struct PhraseEndingRecordTests {
         let rules = try #require(PhraseEndingRules.standard)
         #expect(withTarget.headline(rules: rules) == "문장 끝 11개 중 7개가 3반음 넘게 내려갔어요")
         #expect(withTarget.shortPhrase(rules: rules) == "문장 끝 11개 중 7개 3반음 넘게 내려감, 평균 2.5반음 내려감")
+        // 3반음 넘게 내려간 곳이 없을 때와 평균이 0.0반음일 때는 "0개 … 내려감", "평균 거의 그대로"라고 쓰지 않는다
+        let flat = PhraseEndingSummary(phraseCount: 1, meanEndDropSemitones: 0.02, fallingOrDroppingCount: 0,
+                                       fallingOrDroppingFraction: 0, endBelowTargetCount: 0, possibleFryCount: 0,
+                                       outOfTargetAtEndFraction: nil, endFrameShare: 0.03)
+        #expect(flat.shortPhrase(rules: rules) == "문장 끝 1개 중 3반음 넘게 내려간 곳 없음, 평균 하강 거의 없음")
+        let rising = PhraseEndingSummary(phraseCount: 5, meanEndDropSemitones: -0.8, fallingOrDroppingCount: 0,
+                                         fallingOrDroppingFraction: 0, endBelowTargetCount: nil, possibleFryCount: 0,
+                                         outOfTargetAtEndFraction: nil, endFrameShare: 0.2)
+        #expect(rising.shortPhrase(rules: rules) == "문장 끝 5개 중 3반음 넘게 내려간 곳 없음, 평균 0.8반음 올라감")
         let none = PhraseEndingSummary(phraseCount: 0, meanEndDropSemitones: nil, fallingOrDroppingCount: 0,
                                        fallingOrDroppingFraction: nil, endBelowTargetCount: nil, possibleFryCount: 0,
                                        outOfTargetAtEndFraction: nil, endFrameShare: nil)

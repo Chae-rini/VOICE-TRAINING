@@ -14,7 +14,7 @@ extension PhraseEndingAnalysis {
     var detailLines: [String] {
         guard let mean = summary.meanEndDropSemitones else { return [] }
         let end = Self.number(rules.endWindowSeconds)
-        var lines = ["평균 \(Self.dropText(mean))"]
+        var lines = [Self.meanDropText(mean)]
         if let target, let count = summary.endBelowTargetCount {
             lines.append("바닥이 목표 하한(\(Int(target.lowerBound)) Hz) 아래로 내려간 끝: \(count)개")
         }
@@ -46,6 +46,11 @@ extension PhraseEndingAnalysis {
         return drop > 0 ? "\(size)반음 내려감" : "\(size)반음 올라감"
     }
 
+    /// 평균 하강 폭 한 마디. 예: 2.4 → "평균 2.4반음 내려감", 0.02 → "평균 하강 거의 없음" ("평균 거의 그대로"는 어색해서)
+    static func meanDropText(_ mean: Double) -> String {
+        String(format: "%.1f", abs(mean)) == "0.0" ? "평균 하강 거의 없음" : "평균 \(dropText(mean))"
+    }
+
     /// 0~1 → 반올림한 백분율
     static func percent(_ fraction: Double) -> Int {
         Int((fraction * 100).rounded())
@@ -73,11 +78,15 @@ extension PhraseEndingSummary {
         return "문장 끝 \(phraseCount)개 중 \(fallingOrDroppingCount)개가 \(limit)반음 넘게 내려갔어요"
     }
 
-    /// 녹음마다 줄에 붙이는 짧은 말. 예: "문장 끝 11개 중 7개 3반음 넘게 내려감, 평균 2.4반음 내려감". 구절이 없으면 nil
+    /// 녹음마다 줄에 붙이는 짧은 말. 예: "문장 끝 11개 중 7개 3반음 넘게 내려감, 평균 2.4반음 내려감",
+    /// "문장 끝 1개 중 3반음 넘게 내려간 곳 없음, 평균 하강 거의 없음". 구절이 없으면 nil
     func shortPhrase(rules: PhraseEndingRules) -> String? {
         guard let mean = meanEndDropSemitones, phraseCount > 0 else { return nil }
         let limit = PhraseEndingAnalysis.number(rules.stableMaxDropSemitones)
-        return "문장 끝 \(phraseCount)개 중 \(fallingOrDroppingCount)개 \(limit)반음 넘게 내려감, 평균 \(PhraseEndingAnalysis.dropText(mean))"
+        let falling = fallingOrDroppingCount == 0
+            ? "\(limit)반음 넘게 내려간 곳 없음"
+            : "\(fallingOrDroppingCount)개 \(limit)반음 넘게 내려감"
+        return "문장 끝 \(phraseCount)개 중 \(falling), \(PhraseEndingAnalysis.meanDropText(mean))"
     }
 
     /// AI 요청문에 넣을 줄들. 구절이 없으면 빈 배열.

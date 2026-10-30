@@ -24,7 +24,7 @@ export function phraseDetailLines(analysis: PhraseEndingAnalysis): string[] {
   const { summary, target } = analysis
   if (summary.meanEndDropSemitones === null) return []
   const end = ruleNumber(analysis.rules.endWindowSeconds)
-  const lines = [`평균 ${dropText(summary.meanEndDropSemitones)}`]
+  const lines = [meanDropText(summary.meanEndDropSemitones)]
   if (target !== null && summary.endBelowTargetCount !== null) {
     lines.push(`바닥이 목표 하한(${Math.trunc(target.lower)} Hz) 아래로 내려간 끝: ${summary.endBelowTargetCount}개`)
   }
@@ -65,11 +65,18 @@ export function summaryHeadline(summary: PhraseEndingSummary, rules: PhraseEndin
   return `문장 끝 ${summary.phraseCount}개 중 ${summary.fallingOrDroppingCount}개가 ${limit}반음 넘게 내려갔어요`
 }
 
-/** 녹음마다 줄에 붙이는 짧은 말. 예: "문장 끝 11개 중 7개 3반음 넘게 내려감, 평균 2.4반음 내려감". 구절이 없으면 null */
+/**
+ * 녹음마다 줄에 붙이는 짧은 말. 예: "문장 끝 11개 중 7개 3반음 넘게 내려감, 평균 2.4반음 내려감",
+ * "문장 끝 1개 중 3반음 넘게 내려간 곳 없음, 평균 하강 거의 없음". 구절이 없으면 null
+ */
 export function summaryShortPhrase(summary: PhraseEndingSummary, rules: PhraseEndingRules): string | null {
   if (summary.meanEndDropSemitones === null || summary.phraseCount === 0) return null
   const limit = ruleNumber(rules.stableMaxDropSemitones)
-  return `문장 끝 ${summary.phraseCount}개 중 ${summary.fallingOrDroppingCount}개 ${limit}반음 넘게 내려감, 평균 ${dropText(summary.meanEndDropSemitones)}`
+  const falling =
+    summary.fallingOrDroppingCount === 0
+      ? `${limit}반음 넘게 내려간 곳 없음`
+      : `${summary.fallingOrDroppingCount}개 ${limit}반음 넘게 내려감`
+  return `문장 끝 ${summary.phraseCount}개 중 ${falling}, ${meanDropText(summary.meanEndDropSemitones)}`
 }
 
 /**
@@ -153,6 +160,11 @@ export function dropText(drop: number): string {
   const size = Math.abs(drop).toFixed(1)
   if (size === '0.0') return '거의 그대로'
   return drop > 0 ? `${size}반음 내려감` : `${size}반음 올라감`
+}
+
+/** 평균 하강 폭 한 마디. 예: 2.4 → "평균 2.4반음 내려감", 0.02 → "평균 하강 거의 없음" ("평균 거의 그대로"는 어색해서) */
+export function meanDropText(mean: number): string {
+  return Math.abs(mean).toFixed(1) === '0.0' ? '평균 하강 거의 없음' : `평균 ${dropText(mean)}`
 }
 
 /** 0~1 → 반올림한 백분율 */

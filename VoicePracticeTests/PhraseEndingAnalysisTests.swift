@@ -196,7 +196,7 @@ struct PhraseEndingAnalysisTests {
 
         let fry = try analyzed("끝에 90 Hz 6점 연속 (긁히는 소리 가능성), 끊긴 2점씩은 아님").analysis
         #expect(fry.detailLines == [
-            "평균 거의 그대로",
+            "평균 하강 거의 없음",
             "바닥이 목표 하한(150 Hz) 아래로 내려간 끝: 2개",
             "목표 범위 밖 순간의 100%가 문장 끝 0.3초에 있어요 (문장 끝은 목소리의 26%)",
             "끝이 긁혔을 수도 있는 곳: 1개 (높이를 잘못 읽었을 수도 있어요)",

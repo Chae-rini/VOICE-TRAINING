@@ -185,6 +185,11 @@ describe('기록 화면의 한 줄 글', () => {
   it('요약 한 줄과 녹음마다 붙이는 짧은 말', () => {
     expect(summaryHeadline(withTarget, rules)).toBe('문장 끝 11개 중 7개가 3반음 넘게 내려갔어요')
     expect(summaryShortPhrase(withTarget, rules)).toBe('문장 끝 11개 중 7개 3반음 넘게 내려감, 평균 2.5반음 내려감')
+    // 3반음 넘게 내려간 곳이 없을 때와 평균이 0.0반음일 때는 "0개 … 내려감", "평균 거의 그대로"라고 쓰지 않는다
+    const flat = { ...noTarget, phraseCount: 1, meanEndDropSemitones: 0.02, fallingOrDroppingCount: 0, fallingOrDroppingFraction: 0 }
+    expect(summaryShortPhrase(flat, rules)).toBe('문장 끝 1개 중 3반음 넘게 내려간 곳 없음, 평균 하강 거의 없음')
+    const rising = { ...noTarget, meanEndDropSemitones: -0.8, fallingOrDroppingCount: 0, fallingOrDroppingFraction: 0 }
+    expect(summaryShortPhrase(rising, rules)).toBe('문장 끝 5개 중 3반음 넘게 내려간 곳 없음, 평균 0.8반음 올라감')
     const none: PhraseEndingSummary = {
       phraseCount: 0,
       meanEndDropSemitones: null,
