@@ -368,7 +368,7 @@ final class AudioInputManager {
             let record = try await archive.saveRecording(
                 samples: samples, sampleRate: take.buffer.format.sampleRate, summary: summary,
                 title: take.archiveTitle, memo: memo, language: take.language ?? language, recordedAt: take.recordedAt,
-                f2Median: take.f2Median
+                f2Median: take.f2Median, phraseEndings: take.phraseEndings(target: target)?.summary
             )
             // 저장하는 동안 새 녹음으로 바뀌었으면 새 녹음은 아직 남기지 않은 것이다.
             timeline.markSaved(record.persistentModelID, takeID: take.id)
@@ -704,8 +704,10 @@ final class AudioInputManager {
         guard timeline.keep(take, stopped: stopped) else { return nil }
         // 연습 중이면 이 녹음의 요약(요약 카드와 같은 숫자: 묶음 안의 점)을 연습 기록에 쌓는다.
         // 다음 녹음이 시작되면 요약 카드가 사라지므로, 나중에 [기록]에서 보고 보낼 수 있게 남겨 둔다.
-        sessionLog?.finishTake(readings: take.readings, duration: take.duration,
-                               target: TargetRangeStore.savedTarget(in: .standard), at: take.recordedAt)
+        // 문장 끝 숫자도 요약 카드와 같은 목표 범위로 재어 같이 쌓는다 (2026-10-30~).
+        let target = TargetRangeStore.savedTarget(in: .standard)
+        sessionLog?.finishTake(readings: take.readings, duration: take.duration, target: target,
+                               phraseEndings: take.phraseEndings(target: target)?.summary, at: take.recordedAt)
         return take
     }
 

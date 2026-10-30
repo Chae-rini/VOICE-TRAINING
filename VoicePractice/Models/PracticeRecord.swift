@@ -56,6 +56,8 @@ struct PracticeSessionLog {
         let endedAt: Date
         /// `duration`은 녹음 길이, `target`은 그 녹음을 마친 때의 목표 범위
         let pitch: PitchSummary
+        /// 그 녹음의 문장 끝 분석 숫자 (요약 카드의 문장 끝 칸과 같은 값). 이 기능 전의 기록이면 nil
+        var phraseEndings: PhraseEndingSummary? = nil
     }
 
     let startedAt: Date
@@ -100,10 +102,11 @@ struct PracticeSessionLog {
 
     /// 녹음 한 번이 끝났을 때 그 녹음의 요약을 남긴다. 목소리가 한 번도 안 잡혔으면 남기지 않는다.
     /// 요약 카드와 같은 `readings`·`duration`을 넘겨, 카드에 보이던 숫자가 그대로 남게 한다.
+    /// `phraseEndings`: 같은 녹음의 문장 끝 분석 숫자 (요약 카드와 같은 목표 범위로 잰 것).
     mutating func finishTake(readings: [PitchReading], duration: TimeInterval, target: ClosedRange<Double>?,
-                             at endedAt: Date) {
+                             phraseEndings: PhraseEndingSummary? = nil, at endedAt: Date) {
         guard takeCount > 0, let pitch = PitchSummary(readings: readings, duration: duration, target: target) else { return }
-        takes.append(Take(round: takeCount, endedAt: endedAt, pitch: pitch))
+        takes.append(Take(round: takeCount, endedAt: endedAt, pitch: pitch, phraseEndings: phraseEndings))
     }
 
     /// 정지했을 때의 요약. 30초보다 짧은 연습이거나 목소리가 5초보다 짧게 잡혔으면 nil (남기지 않음).
@@ -138,6 +141,9 @@ extension PracticeSessionLog.Take {
                 line += " (그때 목표 \(Int(target.lowerBound))~\(Int(target.upperBound)) Hz)"
             }
         }
+        if let rules = PhraseEndingRules.standard, let phrase = phraseEndings?.shortPhrase(rules: rules) {
+            line += ", \(phrase)"
+        }
         return line
     }
 }
@@ -151,6 +157,12 @@ extension PracticeSessionLog.Summary {
             ? "- (녹음마다 기록이 없는 예전 연습이에요)"
             : takes.map { $0.requestLine(sessionTarget: pitch.target) }.joined(separator: "\n")
         let practiceTime = PracticeHistory.totalLabel(endedAt.timeIntervalSince(startedAt))
+        // 문장 끝은 녹음마다 남긴 숫자를 합쳐서 (이 기능 전의 녹음은 빠진다). 하나도 없으면 단락을 넣지 않는다
+        let phraseTakes = takes.compactMap(\.phraseEndings)
+        let phraseLines = PhraseEndingRules.standard.flatMap { rules in
+            PhraseEndingSummary.combined(phraseTakes)?.requestLines(rules: rules, combinedTakeCount: phraseTakes.count)
+        } ?? []
+        let phraseBlock = phraseLines.isEmpty ? "" : "\n\n" + phraseLines.joined(separator: "\n")
         return """
         [울림 · 보이스 트레이닝 연습 피드백 요청]
         연습: \(startedAt.formatted(.dateTime.month().day().weekday().hour().minute())) · 연습 \(practiceTime) · 녹음 \(takeCount)번 · 말한 언어 \(language.label)
@@ -163,7 +175,7 @@ extension PracticeSessionLog.Summary {
         - 내 목표 범위: \(pitch.targetDescription)
 
         녹음마다 (‘지금 들어보기’를 누르거나 정지할 때마다 하나, 목소리가 잡힌 녹음만)
-        \(takeLines)
+        \(takeLines)\(phraseBlock)
 
         녹음 파일은 보내지 않았어요. 위 수치를 목표 범위와 비교해 해석하고, 녹음마다 어떻게 달라졌는지와 다음 연습에서 해 볼 만한 점을 알려 주세요.
         \(PitchSummary.timbreCaution)
@@ -261,6 +273,20 @@ final class PracticeTake {
     /// 0~1. 목표 범위 안에 있던 비율
     var inTargetFraction: Double?
     var session: PracticeSession?
+    /// 문장 끝 분석 숫자 (2026-10-30~, `PhraseEndingSummary`를 칸별로). 구절 수가 비어 있으면 그 전에 남긴 기록이다
+    var phraseCount: Int?
+    /// 3반음 넘게 내려간(‘falling’·‘dropping’) 구절 수
+    var phraseFallingCount: Int?
+    /// [반음] 구절마다의 하강 폭 평균. 구절이 없으면 nil
+    var phraseMeanEndDrop: Double?
+    /// 끝 바닥이 목표 하한 아래인 구절 수. 목표 범위가 없었으면 nil
+    var phraseEndBelowTargetCount: Int?
+    /// 끝이 긁혔을 수도 있는 구절 수
+    var phrasePossibleFryCount: Int?
+    /// 0~1. 목표 범위 밖 순간 중 문장 끝에 든 비율, 전체 목소리 중 문장 끝에 든 비율
+    var phraseOutOfTargetAtEnd: Double?
+    var phraseEndFrameShare: Double?
+
 
     init(_ take: PracticeSessionLog.Take) {
         round = take.round
@@ -273,6 +299,23 @@ final class PracticeTake {
         targetLowerHz = take.pitch.target?.lowerBound
         targetUpperHz = take.pitch.target?.upperBound
         inTargetFraction = take.pitch.inTargetFraction
+        let phraseEndings = take.phraseEndings
+        phraseCount = phraseEndings?.phraseCount
+        phraseFallingCount = phraseEndings?.fallingOrDroppingCount
+        phraseMeanEndDrop = phraseEndings?.meanEndDropSemitones
+        phraseEndBelowTargetCount = phraseEndings?.endBelowTargetCount
+        phrasePossibleFryCount = phraseEndings?.possibleFryCount
+        phraseOutOfTargetAtEnd = phraseEndings?.outOfTargetAtEndFraction
+        phraseEndFrameShare = phraseEndings?.endFrameShare
+    }
+
+    /// 남긴 문장 끝 숫자. 그 전에 남긴 기록이면 nil
+    var phraseEndings: PhraseEndingSummary? {
+        PhraseEndingSummary.restored(
+            phraseCount: phraseCount, fallingOrDroppingCount: phraseFallingCount, meanEndDropSemitones: phraseMeanEndDrop,
+            endBelowTargetCount: phraseEndBelowTargetCount, possibleFryCount: phrasePossibleFryCount,
+            outOfTargetAtEndFraction: phraseOutOfTargetAtEnd, endFrameShare: phraseEndFrameShare
+        )
     }
 
     var take: PracticeSessionLog.Take {
@@ -283,7 +326,8 @@ final class PracticeTake {
         return PracticeSessionLog.Take(
             round: round, endedAt: endedAt,
             pitch: PitchSummary(duration: durationSeconds, voicedSeconds: voicedSeconds, median: medianHz, p10: lowHz,
-                                p90: highHz, target: target, inTargetFraction: inTargetFraction)
+                                p90: highHz, target: target, inTargetFraction: inTargetFraction),
+            phraseEndings: phraseEndings
         )
     }
 }
@@ -310,9 +354,23 @@ final class SavedRecording {
     var languageCode: String
     /// [Hz] 녹음 전체의 F2 중앙값 (공명 밝기). 2026-10-25 전에 남긴 녹음과 포먼트를 못 잰 녹음은 nil
     var f2MedianHz: Double?
+    /// 문장 끝 분석 숫자 (2026-10-30~, `PhraseEndingSummary`를 칸별로). 구절 수가 비어 있으면 그 전에 남긴 기록이다
+    var phraseCount: Int?
+    /// 3반음 넘게 내려간(‘falling’·‘dropping’) 구절 수
+    var phraseFallingCount: Int?
+    /// [반음] 구절마다의 하강 폭 평균. 구절이 없으면 nil
+    var phraseMeanEndDrop: Double?
+    /// 끝 바닥이 목표 하한 아래인 구절 수. 목표 범위가 없었으면 nil
+    var phraseEndBelowTargetCount: Int?
+    /// 끝이 긁혔을 수도 있는 구절 수
+    var phrasePossibleFryCount: Int?
+    /// 0~1. 목표 범위 밖 순간 중 문장 끝에 든 비율, 전체 목소리 중 문장 끝에 든 비율
+    var phraseOutOfTargetAtEnd: Double?
+    var phraseEndFrameShare: Double?
+
 
     init(summary: PitchSummary, title: String, memo: String, fileName: String,
-         language: PracticeLanguage, recordedAt: Date, f2Median: Double? = nil) {
+         language: PracticeLanguage, recordedAt: Date, f2Median: Double? = nil, phraseEndings: PhraseEndingSummary? = nil) {
         self.recordedAt = recordedAt
         self.title = title
         self.memo = memo
@@ -327,6 +385,22 @@ final class SavedRecording {
         inTargetFraction = summary.inTargetFraction
         languageCode = language.rawValue
         f2MedianHz = f2Median
+        phraseCount = phraseEndings?.phraseCount
+        phraseFallingCount = phraseEndings?.fallingOrDroppingCount
+        phraseMeanEndDrop = phraseEndings?.meanEndDropSemitones
+        phraseEndBelowTargetCount = phraseEndings?.endBelowTargetCount
+        phrasePossibleFryCount = phraseEndings?.possibleFryCount
+        phraseOutOfTargetAtEnd = phraseEndings?.outOfTargetAtEndFraction
+        phraseEndFrameShare = phraseEndings?.endFrameShare
+    }
+
+    /// 남긴 문장 끝 숫자. 그 전에 남긴 기록이면 nil
+    var phraseEndings: PhraseEndingSummary? {
+        PhraseEndingSummary.restored(
+            phraseCount: phraseCount, fallingOrDroppingCount: phraseFallingCount, meanEndDropSemitones: phraseMeanEndDrop,
+            endBelowTargetCount: phraseEndBelowTargetCount, possibleFryCount: phrasePossibleFryCount,
+            outOfTargetAtEndFraction: phraseOutOfTargetAtEnd, endFrameShare: phraseEndFrameShare
+        )
     }
 
     var language: PracticeLanguage {

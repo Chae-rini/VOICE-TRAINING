@@ -103,6 +103,35 @@ struct PhraseEndingSummary: Equatable {
     /// 0~1. 전체 유성 프레임 중 문장 끝에 든 비율. 위 비율과 견줄 기준이다
     /// (문장 끝이 원래 전체의 20%인데 목표 밖의 70%가 거기 있으면 끝에 몰려 있는 것). 유성 프레임이 없으면 nil
     let endFrameShare: Double?
+
+    /// 값을 담기만 하므로 메인 액터에 묶지 않는다. 기록(SwiftData @Model)의 속성에서 다시 만들 때도 부른다
+    nonisolated init(phraseCount: Int, meanEndDropSemitones: Double?, fallingOrDroppingCount: Int,
+                     fallingOrDroppingFraction: Double?, endBelowTargetCount: Int?, possibleFryCount: Int,
+                     outOfTargetAtEndFraction: Double?, endFrameShare: Double?) {
+        self.phraseCount = phraseCount
+        self.meanEndDropSemitones = meanEndDropSemitones
+        self.fallingOrDroppingCount = fallingOrDroppingCount
+        self.fallingOrDroppingFraction = fallingOrDroppingFraction
+        self.endBelowTargetCount = endBelowTargetCount
+        self.possibleFryCount = possibleFryCount
+        self.outOfTargetAtEndFraction = outOfTargetAtEndFraction
+        self.endFrameShare = endFrameShare
+    }
+
+    /// 기록에 칸별로 남긴 숫자로 다시 만든다 (연습 기록의 녹음마다·남긴 녹음, 2026-10-30~).
+    /// 구절 수 칸이 비어 있으면 그 전에 남긴 기록이라 nil. 하강 구절 비율은 남기지 않고 개수로 다시 센다.
+    nonisolated static func restored(phraseCount: Int?, fallingOrDroppingCount: Int?, meanEndDropSemitones: Double?,
+                                     endBelowTargetCount: Int?, possibleFryCount: Int?,
+                                     outOfTargetAtEndFraction: Double?, endFrameShare: Double?) -> PhraseEndingSummary? {
+        guard let phraseCount, let fallingOrDroppingCount, let possibleFryCount else { return nil }
+        return PhraseEndingSummary(
+            phraseCount: phraseCount, meanEndDropSemitones: meanEndDropSemitones,
+            fallingOrDroppingCount: fallingOrDroppingCount,
+            fallingOrDroppingFraction: phraseCount > 0 ? Double(fallingOrDroppingCount) / Double(phraseCount) : nil,
+            endBelowTargetCount: endBelowTargetCount, possibleFryCount: possibleFryCount,
+            outOfTargetAtEndFraction: outOfTargetAtEndFraction, endFrameShare: endFrameShare
+        )
+    }
 }
 
 /// 녹음 한 번을 구절로 나누고, 구절마다 문장 끝이 얼마나 내려갔는지 잰다.

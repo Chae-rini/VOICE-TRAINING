@@ -45,6 +45,22 @@ struct RecordingDetailView: View {
                 }
             }
 
+            if let rules = PhraseEndingRules.standard, let phrase = recording.phraseEndings {
+                Section {
+                    Text(phrase.headline(rules: rules))
+                    if let mean = phrase.meanEndDropSemitones {
+                        LabeledContent("평균 하강 폭", value: PhraseEndingAnalysis.dropText(mean))
+                    }
+                    if let below = phrase.endBelowTargetCount {
+                        LabeledContent("바닥이 목표 하한 아래로 내려간 끝", value: "\(below)개")
+                    }
+                } header: {
+                    Text("문장 끝")
+                } footer: {
+                    Text("남길 때의 숫자예요. 구절별로 보려면 [높이]에서 다시 들어 보세요. 끝이 내려가는 건 자연스러워요.")
+                }
+            }
+
             Section("메모") {
                 TextField("어떤 연습이었는지 적어 두세요", text: $recording.memo, axis: .vertical)
                     .lineLimit(1...5)

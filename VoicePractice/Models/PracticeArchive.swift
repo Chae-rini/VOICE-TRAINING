@@ -71,8 +71,10 @@ final class PracticeArchive {
     /// 녹음 소리를 m4a로 저장하고 기록을 남긴다. 파일 만들기는 화면이 멈추지 않게 백그라운드에서 한다.
     /// 파일을 만든 뒤 기록 저장에 실패하면 그 파일을 지워, 소리만 있거나 기록만 있는 반쪽 기록이 남지 않게 한다.
     @discardableResult
+    /// `phraseEndings`: 그 녹음의 문장 끝 분석 숫자 (요약 카드와 같은 값, 2026-10-30~).
     func saveRecording(samples: [Float], sampleRate: Double, summary: PitchSummary, title: String, memo: String,
-                       language: PracticeLanguage, recordedAt: Date, f2Median: Double? = nil) async throws -> SavedRecording {
+                       language: PracticeLanguage, recordedAt: Date, f2Median: Double? = nil,
+                       phraseEndings: PhraseEndingSummary? = nil) async throws -> SavedRecording {
         try prepareRecordingsDirectory()
         let fileName = "\(UUID().uuidString).m4a"
         let url = recordingsDirectory.appending(path: fileName)
@@ -82,7 +84,8 @@ final class PracticeArchive {
         Self.excludeFromBackup(url)
 
         let recording = SavedRecording(summary: summary, title: title, memo: memo, fileName: fileName,
-                                       language: language, recordedAt: recordedAt, f2Median: f2Median)
+                                       language: language, recordedAt: recordedAt, f2Median: f2Median,
+                                       phraseEndings: phraseEndings)
         context.insert(recording)
         do {
             try save()

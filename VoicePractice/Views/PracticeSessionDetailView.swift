@@ -35,6 +35,27 @@ struct PracticeSessionDetailView: View {
                 }
             }
 
+            if let rules = PhraseEndingRules.standard {
+                let phraseTakes = summary.takes.compactMap(\.phraseEndings)
+                if let phrase = PhraseEndingSummary.combined(phraseTakes) {
+                    Section {
+                        Text(phrase.headline(rules: rules))
+                        if let mean = phrase.meanEndDropSemitones {
+                            LabeledContent("평균 하강 폭", value: PhraseEndingAnalysis.dropText(mean))
+                        }
+                        if let below = phrase.endBelowTargetCount {
+                            LabeledContent("바닥이 목표 하한 아래로 내려간 끝", value: "\(below)개")
+                        }
+                    } header: {
+                        Text("문장 끝")
+                    } footer: {
+                        Text(phraseTakes.count == summary.takes.count
+                             ? "녹음 \(phraseTakes.count)개의 문장 끝을 더했어요. 끝이 내려가는 건 자연스러워요."
+                             : "문장 끝 숫자가 있는 녹음 \(phraseTakes.count)개만 더했어요 (이 기능이 생기기 전 녹음은 빠져요). 끝이 내려가는 건 자연스러워요.")
+                    }
+                }
+            }
+
             Section {
                 if summary.takes.isEmpty {
                     Text("이 연습에는 녹음마다 기록이 없어요. 녹음마다 기록은 이 기능이 생긴 뒤의 연습부터 남아요.")
@@ -82,6 +103,11 @@ struct PracticeSessionDetailView: View {
             Text(take.numbersLine)
                 .font(.footnote)
                 .monospacedDigit()
+            if let rules = PhraseEndingRules.standard, let phrase = take.phraseEndings?.shortPhrase(rules: rules) {
+                Text(phrase)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             if let target = take.pitch.target, target != sessionTarget {
                 Text("그때 목표 \(Int(target.lowerBound))–\(Int(target.upperBound)) Hz")
                     .font(.caption)
