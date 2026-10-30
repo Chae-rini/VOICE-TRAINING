@@ -37,8 +37,10 @@
 | `VoicePracticeTests/PracticeReminderTests.swift` | 연습 알림 날짜 계산·알림 내용·오늘 연습 여부를 확인하는 시험지 |
 | `VoicePracticeTests/RecordingImportTests.swift` | 파일 분석·WAV 저장·요약 수치·요청문을 확인하는 시험지 |
 | `VoicePractice/Models/VoiceBaseline.swift` | 내 기준 목소리 계산(중앙값·범위·목소리 안 잡힘·공명 밝기 기준 F2), 처음 목표 범위(±20 Hz), 반음 거리, 목표 범위·기준 저장 규칙(예전 사용자 값 지키기) |
-| `VoicePractice/Views/BaselineMeasureView.swift` | "내 목소리 재기" 화면: 문장 읽고 10초 재기 또는 녹음 파일로 재기, 결과와 목표 범위 맞추기 스위치 |
+| `VoicePractice/Models/BaselineReading.swift` | 내 목소리 재기에서 읽을 글: 내 문장 + 평소 말투 대본(대화문·독백·비문학·수필, 사실 확인된 것) 중 무작위, 직전 글 빼기, 안내 글 |
+| `VoicePractice/Views/BaselineMeasureView.swift` | "내 목소리 재기" 화면: 무작위로 고른 문장·대본을 읽고 10초 재기(‘다른 대본’으로 바꾸기) 또는 녹음 파일로 재기, 결과와 목표 범위 맞추기 스위치 |
 | `VoicePracticeTests/VoiceBaselineTests.swift` | 기준 계산·처음 목표 범위·저장값 유지·목소리 안 잡힘·파일로 재기를 확인하는 시험지 |
+| `VoicePracticeTests/BaselineReadingTests.swift` | 재기에서 읽을 글: 후보 범위, 직전 글 빼기, 같은 시드면 같은 글, 후보가 적을 때, 안내 글 |
 | `VoicePractice/Audio/FormantAnalyzer.swift` | 소리 조각 하나에서 포먼트(F1·F2)를 LPC로 재는 계산기 (표본 줄이기, Levinson–Durbin, 다항식 근) |
 | `VoicePracticeTests/SyntheticVowel.swift` | 정답 포먼트를 아는 합성 모음 만들기 (Rosenberg 펄스 + 공명기). 테스트와 검증 도구가 함께 쓴다 |
 | `VoicePracticeTests/FormantAnalyzerTests.swift` | 포먼트 계산기의 각 단계와 합성 모음 정확도를 확인하는 시험지 |

@@ -1,7 +1,7 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// "내 목소리 재기": 연습 문장을 편하게 읽는 10초로 기준 목소리를 잰다.
+/// "내 목소리 재기": 문장이나 대본을 편하게 읽는 10초로 기준 목소리를 잰다. 읽을 글은 열 때마다 무작위다 (`BaselineReading`).
 /// 결과는 중앙값과 범위만 보여 주고, 높다·낮다 같은 평가는 하지 않는다.
 /// 저장하면 그래프에 기준선(점선)이 생기고, 원하면 목표 범위를 기준 ±20 Hz로 맞춘다.
 struct BaselineMeasureView: View {
@@ -13,6 +13,8 @@ struct BaselineMeasureView: View {
     @State private var isImporting = false
     /// ‘이 값으로 저장’이 실패했는지
     @State private var saveFailed = false
+    /// 이번에 읽을 글. 화면을 열 때마다 무작위로 고르고 ‘다른 대본’으로 바꾼다
+    @State private var reading = BaselineReading.random()
 
     private var isMeasuring: Bool {
         audio.loop.phase == .measuring
@@ -56,10 +58,24 @@ struct BaselineMeasureView: View {
 
     private var sentenceCard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("10초 동안 이 문장을 평소처럼 두세 번 읽어 주세요.")
+            Text(reading.instruction)
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            WordWrappedText(text: VoiceBaseline.readingSentence, textStyle: .title3, weight: .medium)
+            if let title = reading.title {
+                Text(title)
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+            }
+            WordWrappedText(text: reading.text, textStyle: reading.isSentence ? .title3 : .body,
+                            weight: .medium, lineSpacing: reading.isSentence ? 0 : 6)
+            // 재는 중이거나 결과가 있을 때는 바꾸지 않는다 (어떤 글로 잰 결과인지 헷갈리지 않게)
+            Button {
+                reading = BaselineReading.random(excluding: reading)
+            } label: {
+                Label("다른 대본", systemImage: "shuffle")
+            }
+            .font(.subheadline)
+            .disabled(isMeasuring || audio.isAnalyzingFile || audio.measurement != nil)
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -152,7 +168,9 @@ struct BaselineMeasureView: View {
         VStack(alignment: .leading, spacing: 12) {
             Label("목소리가 거의 잡히지 않았어요.", systemImage: "exclamationmark.circle")
                 .font(.headline)
-            Text("조용한 곳에서 위 문장을 평소 목소리로 소리 내어 다시 읽어 주세요.")
+            Text(reading.isSentence
+                 ? "조용한 곳에서 위 문장을 평소 목소리로 소리 내어 다시 읽어 주세요."
+                 : "조용한 곳에서 위 대본을 평소 목소리로 소리 내어 처음부터 다시 읽어 주세요.")
                 .foregroundStyle(.secondary)
             Button("다시 재기") {
                 audio.clearMeasurement()
@@ -174,7 +192,8 @@ struct BaselineMeasureView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
             // 공명 밝기 막대의 가운데(기준)로 함께 저장한다.
-            Text(baseline.f2.map { "공명 밝기 기준(F2 중앙값): \(Int($0.rounded())) Hz" }
+            // F2는 읽은 모음에 따라 달라서, 잴 때마다 글이 바뀌면 기준도 조금 흔들린다
+            Text(baseline.f2.map { "공명 밝기 기준(F2 중앙값): \(Int($0.rounded())) Hz. 읽은 글의 모음에 따라 조금 달라질 수 있어요." }
                  ?? "포먼트가 충분히 잡히지 않아 공명 밝기 기준은 저장하지 않아요.")
                 .font(.caption)
                 .foregroundStyle(.secondary)

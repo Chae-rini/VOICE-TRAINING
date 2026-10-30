@@ -1,6 +1,6 @@
 import Foundation
 
-/// 내 기준 목소리: 연습 문장을 편하게 읽었을 때 잰 피치.
+/// 내 기준 목소리: 문장이나 대본을 편하게 읽었을 때 잰 피치 (읽을 글은 `BaselineReading`).
 /// 높다·낮다 같은 평가 없이, 목표 범위를 정하는 출발점으로만 쓴다.
 /// 값은 기기 안(UserDefaults)에만 저장하고 공유 요청문에도 넣지 않는다.
 struct VoiceBaseline: Equatable {
@@ -22,9 +22,6 @@ struct VoiceBaseline: Equatable {
     static let initialTargetHalfWidth = 20.0
     /// [반음] 목표 범위 가운데가 기준에서 이만큼 이상 떨어지면 부드럽게 안내한다. 위·아래 어느 쪽이든 같다.
     static let farDistanceSemitones = 6.0
-    /// 잴 때 읽을 연습 문장 (PracticeSentences 중 하나)
-    static let readingSentence = "회의는 오후 두 시에 시작합니다."
-
     enum Measurement: Equatable {
         case measured(VoiceBaseline)
         /// 목소리가 거의 잡히지 않음 → 다시 재기
