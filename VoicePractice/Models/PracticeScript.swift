@@ -3,7 +3,7 @@ import Foundation
 /// 낭독 연습 대본 한 편. 본문은 PracticeScripts.json에 들어 있고, 그 파일을 직접 고쳐도 된다.
 struct PracticeScript: Codable, Identifiable, Equatable {
     let id: String
-    let category: String       // 대화문, 독백, 수필, 감성 내레이션, 소설, 산문시, 비문학, 음색 교정
+    let category: String       // 대화문, 독백, 수필, 감성 내레이션, 소설, 산문시, 비문학, 음색 교정, 발표, 면접 답변, 전화·안내, 뉴스·일기예보, 동화 낭독
     let topic: String?         // 비문학의 분야: 과학, 인문, 사회, 예술, 생활
     let style: String          // 해요체, 합쇼체, 반말, 문어체
     let title: String
@@ -14,9 +14,10 @@ struct PracticeScript: Codable, Identifiable, Equatable {
     /// 소리 내어 읽는 속도 가정 [음절/s]. 실제 낭독 시간과 비교해 나중에 보정할 수 있다.
     static let syllablesPerSecond = 4.5
 
-    /// 한글 음절 수 (공백·문장부호 제외)
+    /// 소리 내어 읽는 음절 수 어림: 한글 음절 + 아라비아 숫자 한 자에 한 음절 (공백·문장부호 제외).
+    /// 숫자는 2026-10-31부터 대본에 쓴다 ("3시" → 세 시, "18도" → 십팔 도). 한 자에 한 음절은 어림이다.
     var syllableCount: Int {
-        text.unicodeScalars.filter { (0xAC00...0xD7A3).contains($0.value) }.count
+        text.unicodeScalars.filter { (0xAC00...0xD7A3).contains($0.value) || ("0"..."9").contains($0) }.count
     }
 
     /// 예상 낭독 시간 [s]

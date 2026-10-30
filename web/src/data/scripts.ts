@@ -4,7 +4,7 @@ import scriptsJson from '../../../VoicePractice/Models/PracticeScripts.json'
 /** 낭독 연습 대본 한 편 (iOS `Models/PracticeScript.swift`) */
 export interface PracticeScript {
   readonly id: string
-  /** 대화문, 독백, 수필, 감성 내레이션, 소설, 산문시, 비문학, 음색 교정 */
+  /** 대화문, 독백, 수필, 감성 내레이션, 소설, 산문시, 비문학, 음색 교정, 발표, 면접 답변, 전화·안내, 뉴스·일기예보, 동화 낭독 */
   readonly category: string
   /** 비문학의 분야: 과학, 인문, 사회, 예술, 생활 */
   readonly topic?: string
@@ -23,12 +23,15 @@ export const PRACTICE_SCRIPTS: readonly PracticeScript[] = scriptsJson as Practi
 /** 소리 내어 읽는 속도 가정 [음절/s]. 실제 낭독 시간과 비교해 나중에 보정할 수 있다. */
 export const SYLLABLES_PER_SECOND = 4.5
 
-/** 한글 음절 수 (공백·문장부호 제외) */
+/**
+ * 소리 내어 읽는 음절 수 어림 (iOS `syllableCount`): 한글 음절 + 아라비아 숫자 한 자에 한 음절 (공백·문장부호 제외).
+ * 숫자는 2026-10-31부터 대본에 쓴다 ("3시" → 세 시, "18도" → 십팔 도). 한 자에 한 음절은 어림이다.
+ */
 export function syllableCount(text: string): number {
   let count = 0
   for (const character of text) {
     const code = character.codePointAt(0)!
-    if (code >= 0xac00 && code <= 0xd7a3) count++
+    if ((code >= 0xac00 && code <= 0xd7a3) || (character >= '0' && character <= '9')) count++
   }
   return count
 }

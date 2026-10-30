@@ -61,11 +61,11 @@
 | `VoicePractice/Models/SentenceGenerator.swift` | 패턴의 빈칸을 단어로 채우고, 받침에 맞게 조사를 고르고, 말투와 모음이 고르게 15문장을 골라 주는 문장 공장 |
 | `VoicePractice/Models/KoreanVowel.swift` | 한글 글자를 분해해서 어떤 단모음(아·어·오·우·으·이·에)이 몇 번 나오는지 세는 도구 |
 | `VoicePractice/Models/PracticeDuration.swift` | 연습 시간("지금 들어보기"로 들려줄 최근 길이) 규칙: 10초~3분, 10초 단위, "1분 30초" 같은 표시 문구 |
-| `VoicePractice/Models/PracticeScripts.json` | 낭독 대본 200편. 직접 고치거나 추가해도 되는 파일 (고친 뒤 ⌘U로 검사) |
+| `VoicePractice/Models/PracticeScripts.json` | 낭독 대본 260편(13가지 종류). 직접 고치거나 추가해도 되는 파일 (고친 뒤 ⌘U로 검사, 웹도 같은 파일을 읽는다) |
 | `VoicePractice/Models/PracticeScript.swift` | 대본 파일을 읽고, 음절 수로 예상 낭독 시간을 계산하는 도구. 대본 화면의 섞인 순서(`ScriptOrder`, 씨앗을 고정할 수 있는 `SplitMix64`) |
 | `VoicePractice/Views/ScriptReaderView.swift` | 대본을 고르고 스크롤해서 읽는 화면 조각 (섞인 순서로, 열 때마다 다른 대본부터) |
 | `VoicePractice/Views/KoreanLineBreaking.swift` | 한글 문장이 단어 중간이 아니라 띄어쓰기에서 줄바꿈되게 하는 도구 |
-| `VoicePracticeTests/PracticeScriptTests.swift` | 대본 200편의 길이·금지어·숫자·중복, 섞인 순서, 꺾은선 끊기 규칙을 확인하는 시험지 |
+| `VoicePracticeTests/PracticeScriptTests.swift` | 대본 260편의 길이·금지어·중복·종류 이름, 숫자를 셈에 넣는 음절 수, 섞인 순서, 꺾은선 끊기 규칙을 확인하는 시험지 |
 | `VoicePractice/Views/PitchGraphView.swift` | [높이] 위에 고정되는 현재 Hz 숫자와 피치 그래프(반음 눈금, 가로축 = 들려줄 길이, 시간 눈금, 시작·n번째 선, 재생 위치 선, 대본 읽기 모드)와 그 아래 음량·공명 밝기 막대. 같은 파일의 `MeterGuideView`는 막대 보는 법, `TargetRangeControls`는 목표 범위 줄·슬라이더·내 목소리 재기 버튼 |
 | `VoicePractice/Views/AudioFileDocument.swift` | ‘파일로 저장’에서 iOS 파일 저장 창에 넘기는 m4a 파일과 처음 파일 이름(Ullim-날짜-시각) |
 | `VoicePracticeTests/AudioFileExportTests.swift` | 파일 이름·확장자(.m4a), 마지막 녹음 m4a 만들기·다시 재기·임시 파일 정리, 그래프 높이를 확인하는 시험지 |

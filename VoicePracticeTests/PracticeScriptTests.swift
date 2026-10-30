@@ -5,7 +5,10 @@ import Testing
 struct PracticeScriptTests {
     let scripts = PracticeScripts.all
 
-    static let categories: Set = ["대화문", "독백", "수필", "감성 내레이션", "소설", "산문시", "비문학", "음색 교정"]
+    static let categories: Set = [
+        "대화문", "독백", "수필", "감성 내레이션", "소설", "산문시", "비문학", "음색 교정",
+        "발표", "면접 답변", "전화·안내", "뉴스·일기예보", "동화 낭독",  // 2026-10-31 더함
+    ]
     static let styles: Set = ["해요체", "합쇼체", "반말", "문어체"]
     static let topics: Set = ["과학", "인문", "사회", "예술", "생활"]
     /// 성별이 드러나는 말. 대본 원칙에 따라 쓰지 않는다.
@@ -14,9 +17,9 @@ struct PracticeScriptTests {
         "아저씨", "아주머니", "아줌마", "남편", "아내", "남자", "여자", "그녀", "소년", "소녀", "신랑", "신부",
     ]
 
-    @Test("대본 파일을 읽으면 200편이 나온다")
+    @Test("대본 파일을 읽으면 260편이 나온다 (2026-10-31에 60편 더함)")
     func loadsAll() {
-        #expect(scripts.count == 200)
+        #expect(scripts.count == 260)
     }
 
     @Test("번호·제목·본문이 겹치지 않는다")
@@ -44,13 +47,20 @@ struct PracticeScriptTests {
         }
     }
 
-    @Test("성별이 드러나는 말과 아라비아 숫자를 쓰지 않는다")
+    @Test("성별이 드러나는 말을 쓰지 않는다")
     func followsWritingRules() {
         for script in scripts {
             let found = Self.genderedWords.filter { script.text.contains($0) || script.title.contains($0) }
             #expect(found.isEmpty, "\(script.id) \(script.title): \(found)")
-            #expect(!script.text.contains { $0.isASCII && $0.isNumber }, "\(script.id) \(script.title): 숫자")
         }
+    }
+
+    @Test("읽는 음절 수: 한글 음절과 숫자 한 자에 한 음절 (숫자는 2026-10-31부터 대본에 쓴다)")
+    func syllablesCountDigits() {
+        let script = PracticeScript(id: "t", category: "발표", topic: nil, style: "합쇼체", title: "t",
+                                    text: "오후 3시에 2번 출구, 18도!", focusVowel: nil, needsFactCheck: nil)
+        // 오후(2) 3(1) 시에(2) 2(1) 번(1) 출구(2) 18(2) 도(1)
+        #expect(script.syllableCount == 12)
     }
 
     @Test("비문학은 모두 사실 확인 표시가 있다")

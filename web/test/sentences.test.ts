@@ -9,6 +9,7 @@ import {
   scriptCategories,
   scriptDetails,
   shuffledOrder,
+  syllableCount,
 } from '../src/data/scripts'
 import { PRACTICE_SENTENCES, SENTENCE_PATTERNS, SENTENCE_WORDS } from '../src/data/sentences'
 import {
@@ -145,35 +146,42 @@ describe('SentenceGenerator (자동 생성 문장)', () => {
 })
 
 // iOS VoicePracticeTests/PracticeScriptTests.swift를 옮겼다 (같은 JSON 파일을 읽는다).
-describe('대본 200편', () => {
+describe('대본 260편', () => {
   const genderedWords = [
     '엄마', '아빠', '어머니', '아버지', '언니', '오빠', '누나', '고모', '삼촌', '할머니', '할아버지',
     '아저씨', '아주머니', '아줌마', '남편', '아내', '남자', '여자', '그녀', '소년', '소녀', '신랑', '신부',
   ]
 
-  it('200편, 번호·제목·본문이 겹치지 않는다', () => {
-    expect(PRACTICE_SCRIPTS).toHaveLength(200)
-    expect(new Set(PRACTICE_SCRIPTS.map((s) => s.id)).size).toBe(200)
-    expect(new Set(PRACTICE_SCRIPTS.map((s) => s.title)).size).toBe(200)
-    expect(new Set(PRACTICE_SCRIPTS.map((s) => s.text)).size).toBe(200)
+  it('260편(2026-10-31에 60편 더함), 번호·제목·본문이 겹치지 않는다', () => {
+    expect(PRACTICE_SCRIPTS).toHaveLength(260)
+    expect(new Set(PRACTICE_SCRIPTS.map((s) => s.id)).size).toBe(260)
+    expect(new Set(PRACTICE_SCRIPTS.map((s) => s.title)).size).toBe(260)
+    expect(new Set(PRACTICE_SCRIPTS.map((s) => s.text)).size).toBe(260)
   })
 
-  it('예상 낭독 시간이 10~60초 안이고, 성별이 드러나는 말과 아라비아 숫자를 쓰지 않는다', () => {
+  it('예상 낭독 시간이 10~60초 안이고, 성별이 드러나는 말을 쓰지 않는다', () => {
     for (const script of PRACTICE_SCRIPTS) {
       const seconds = estimatedSeconds(script)
       expect(seconds >= 10 && seconds <= 60, `${script.id} ${seconds}초`).toBe(true)
       expect(genderedWords.filter((w) => script.text.includes(w) || script.title.includes(w)), script.id).toEqual([])
-      expect(/[0-9]/.test(script.text), script.id).toBe(false)
     }
   })
 
-  it('종류는 파일 순서대로 8가지, 거르기는 종류와 길이를 함께 본다', () => {
-    expect(scriptCategories()).toEqual(['대화문', '독백', '수필', '감성 내레이션', '소설', '산문시', '비문학', '음색 교정'])
-    expect(filterScripts(ANY_CATEGORY, 'any')).toHaveLength(200)
+  it('읽는 음절 수: 한글 음절과 숫자 한 자에 한 음절 (숫자는 2026-10-31부터 대본에 쓴다, iOS와 같은 어림)', () => {
+    // 오후(2) 3(1) 시에(2) 2(1) 번(1) 출구(2) 18(2) 도(1)
+    expect(syllableCount('오후 3시에 2번 출구, 18도!')).toBe(12)
+  })
+
+  it('종류는 파일 순서대로 13가지, 거르기는 종류와 길이를 함께 본다', () => {
+    expect(scriptCategories()).toEqual([
+      '대화문', '독백', '수필', '감성 내레이션', '소설', '산문시', '비문학', '음색 교정',
+      '발표', '면접 답변', '전화·안내', '뉴스·일기예보', '동화 낭독',
+    ])
+    expect(filterScripts(ANY_CATEGORY, 'any')).toHaveLength(260)
     const shortTalks = filterScripts('대화문', 'short')
     expect(shortTalks.every((s) => s.category === '대화문' && estimatedSeconds(s) <= 20)).toBe(true)
     const lengths = (['short', 'medium', 'long'] as const).map((l) => filterScripts(ANY_CATEGORY, l).length)
-    expect(lengths.reduce((a, b) => a + b, 0)).toBe(200) // 길이 구간이 겹치거나 빠지지 않는다
+    expect(lengths.reduce((a, b) => a + b, 0)).toBe(260) // 길이 구간이 겹치거나 빠지지 않는다
   })
 
   it('섞인 순서: 대본마다 한 번씩, 같은 시드면 같은 순서, 열 때마다 첫 대본이 달라진다 (iOS ScriptOrder와 같은 확인)', () => {

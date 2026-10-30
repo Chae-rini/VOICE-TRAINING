@@ -42,9 +42,10 @@ describe('내 목소리 재기에서 읽을 글', () => {
     expect(candidates.filter(isSentence)).toHaveLength(2)
     expect(candidates.at(-1)?.title).toBe('제목 d')
 
-    // 앱에 든 글: 내 문장 15개 + 대화문 40·독백 30·수필 20 (비문학 40편은 아직 모두 사실 확인 전)
+    // 앱에 든 글: 내 문장 15개 + 대화문 50·독백 30·수필 20 (비문학 40편은 아직 모두 사실 확인 전,
+    // 2026-10-31에 더한 발표·면접 답변 등은 ‘평소 목소리’ 재기와 맞지 않아 넣지 않음)
     const bundled = baselineCandidates()
-    expect(bundled).toHaveLength(PRACTICE_SENTENCES.length + 90)
+    expect(bundled).toHaveLength(PRACTICE_SENTENCES.length + 100)
     expect(bundled).toContainEqual({ text: '회의는 오후 두 시에 시작합니다.', title: null })
   })
 
