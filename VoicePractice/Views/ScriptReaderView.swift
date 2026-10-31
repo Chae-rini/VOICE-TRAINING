@@ -1,14 +1,16 @@
+import SwiftData
 import SwiftUI
 
 /// 대본 낭독 화면 조각. 종류·길이로 거르고, 스크롤해서 읽고, 들려줄 길이를 대본 길이에 맞출 수 있다.
 /// 대본은 섞인 순서로 보인다 (`ScriptOrder`): 이 조각이 새로 생길 때(대본으로 바꿀 때·앱을 켤 때)마다 다른 대본부터.
+/// AI 앱 등에서 가져온 대본은 맨 뒤 ‘내 대본’ 종류로 함께 보인다 (`ScriptImportView`).
 struct ScriptReaderView: View {
     /// 연습 중에는 들려줄 길이를 바꾸지 못하게 한다.
     let isPracticing: Bool
 
     private static let anyCategory = "전체"
 
-    private let scripts = PracticeScripts.all
+    @Query(sort: \ImportedScript.addedAt) private var imported: [ImportedScript]
     @AppStorage("scriptCategory") private var category = Self.anyCategory
     @AppStorage("scriptLength") private var length = ScriptLength.any
     @AppStorage("practiceDurationSeconds") private var practiceDuration = PracticeDuration.defaultSeconds
@@ -16,18 +18,32 @@ struct ScriptReaderView: View {
     @State private var seed = UInt64.random(in: .min ... .max)
     /// 섞인 순서에서 몇 번째인지 (0부터)
     @State private var position = 0
+    @State private var isImporting = false
+    @State private var isConfirmingDelete = false
+    /// 내 대본 지우기가 영구 저장에 실패했는지
+    @State private var deleteFailed = false
     /// [pt] 대본 상자 높이. 글자가 커지면 같이 커져서 보이는 줄 수가 크게 줄지 않는다.
     @ScaledMetric(relativeTo: .body) private var scriptHeight: CGFloat = 240
 
-    /// 파일에 처음 나오는 순서대로의 종류 목록
+    /// 앱에 든 대본 + 가져온 내 대본
+    private var scripts: [PracticeScript] {
+        PracticeScripts.all + imported.map { PracticeScript(imported: $0) }
+    }
+
+    /// 파일에 처음 나오는 순서대로의 종류 목록 (내 대본이 있으면 맨 뒤에 ‘내 대본’)
     private var categories: [String] {
         var seen: Set<String> = []
         return scripts.map(\.category).filter { seen.insert($0).inserted }
     }
 
+    /// 고른 종류가 없어졌으면(내 대본을 모두 지웠을 때) 전체로
+    private var activeCategory: String {
+        categories.contains(category) ? category : Self.anyCategory
+    }
+
     private var filtered: [PracticeScript] {
         scripts.filter {
-            (category == Self.anyCategory || $0.category == category) && length.contains($0.estimatedSeconds)
+            (activeCategory == Self.anyCategory || $0.category == activeCategory) && length.contains($0.estimatedSeconds)
         }
     }
 
@@ -58,6 +74,13 @@ struct ScriptReaderView: View {
         }
         .onChange(of: category) { reshuffle() }
         .onChange(of: length) { reshuffle() }
+        .sheet(isPresented: $isImporting) {
+            ScriptImportView {
+                // 방금 가져온 대본이 보이게
+                category = ImportedScript.category
+                reshuffle()
+            }
+        }
     }
 
     private var filterBar: some View {
@@ -68,7 +91,8 @@ struct ScriptReaderView: View {
                     ForEach(categories, id: \.self) { Text($0).tag($0) }
                 }
             } label: {
-                Label(category == Self.anyCategory ? "전체 종류" : category, systemImage: "line.3.horizontal.decrease.circle")
+                Label(activeCategory == Self.anyCategory ? "전체 종류" : activeCategory,
+                      systemImage: "line.3.horizontal.decrease.circle")
             }
 
             Menu {
@@ -80,6 +104,14 @@ struct ScriptReaderView: View {
             }
 
             Spacer()
+
+            Button {
+                isImporting = true
+            } label: {
+                Label("AI 대본 가져오기", systemImage: "square.and.arrow.down")
+                    .labelStyle(.iconOnly)
+            }
+            .buttonStyle(.bordered)
 
             Button {
                 if filtered.count > 1 {
@@ -113,6 +145,23 @@ struct ScriptReaderView: View {
                 Text("아직 사실 확인을 거치지 않은 글이에요.")
                     .font(.caption2)
                     .foregroundStyle(.secondary)
+            }
+            if script.isImported {
+                Button(role: .destructive) {
+                    isConfirmingDelete = true
+                } label: {
+                    Label("이 대본 지우기", systemImage: "trash")
+                }
+                .font(.footnote)
+                .confirmationDialog("‘\(script.title)’을 내 대본에서 지울까요?", isPresented: $isConfirmingDelete,
+                                    titleVisibility: .visible) {
+                    Button("지우기", role: .destructive) { delete(script) }
+                }
+                if deleteFailed {
+                    Text("지우지 못했어요. 저장 공간을 확인해 주세요.")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
             }
         }
         .padding()
@@ -172,7 +221,20 @@ struct ScriptReaderView: View {
 
     private func details(for script: PracticeScript) -> String {
         let kind = [script.category, script.topic].compactMap { $0 }.joined(separator: "·")
-        return "\(kind) · \(script.style) · 약 \(Int(script.estimatedSeconds.rounded()))초"
+        // 가져온 대본은 말투를 모른다
+        return [kind, script.style, "약 \(Int(script.estimatedSeconds.rounded()))초"]
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+
+    private func delete(_ script: PracticeScript) {
+        guard let record = imported.first(where: { PracticeScript(imported: $0).id == script.id }) else { return }
+        do {
+            try PracticeArchive.shared.delete(record)
+            deleteFailed = false
+        } catch {
+            deleteFailed = true
+        }
     }
 
     /// 대본을 끝까지 읽을 수 있게 예상 시간을 10초 단위로 올림한다.

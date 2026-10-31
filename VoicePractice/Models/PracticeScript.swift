@@ -17,12 +17,21 @@ struct PracticeScript: Codable, Identifiable, Equatable {
     /// 소리 내어 읽는 음절 수 어림: 한글 음절 + 아라비아 숫자 한 자에 한 음절 (공백·문장부호 제외).
     /// 숫자는 2026-10-31부터 대본에 쓴다 ("3시" → 세 시, "18도" → 십팔 도). 한 자에 한 음절은 어림이다.
     var syllableCount: Int {
-        text.unicodeScalars.filter { (0xAC00...0xD7A3).contains($0.value) || ("0"..."9").contains($0) }.count
+        Self.syllableCount(of: text)
     }
 
     /// 예상 낭독 시간 [s]
     var estimatedSeconds: Double {
-        Double(syllableCount) / Self.syllablesPerSecond
+        Self.estimatedSeconds(of: text)
+    }
+
+    static func syllableCount(of text: String) -> Int {
+        text.unicodeScalars.filter { (0xAC00...0xD7A3).contains($0.value) || ("0"..."9").contains($0) }.count
+    }
+
+    /// 예상 낭독 시간 [s] (가져오기 미리 보기처럼 대본이 되기 전의 글에도 쓴다)
+    static func estimatedSeconds(of text: String) -> Double {
+        Double(syllableCount(of: text)) / syllablesPerSecond
     }
 }
 

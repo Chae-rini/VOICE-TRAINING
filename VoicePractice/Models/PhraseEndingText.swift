@@ -96,7 +96,8 @@ extension PhraseEndingSummary {
         let silence = PhraseEndingAnalysis.number(rules.phraseBreakSilenceSeconds)
         let end = PhraseEndingAnalysis.number(rules.endWindowSeconds)
         let limit = PhraseEndingAnalysis.number(rules.stableMaxDropSemitones)
-        let percent = PhraseEndingAnalysis.percent
+        // 함수 이름만 넘기면 메인 액터 격리가 빠져 경고가 나므로 클로저로 감싼다
+        let percent = { PhraseEndingAnalysis.percent($0) }
         let scope = combinedTakeCount.map { "녹음 \($0)개를 합쳐서, " } ?? ""
         var lines = [
             "문장 끝 (\(scope)무성음 \(silence)초 이상에서 구절을 나누고, 구절마다 마지막 \(end)초를 구절 전체와 비교)",

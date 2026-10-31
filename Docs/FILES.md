@@ -14,7 +14,8 @@
 | `VoicePractice/Views/PhraseEndingListView.swift` | 요약 카드 안의 문장 끝 칸: 요약 한 줄·숫자·안내 문구, 펼치면 구절 목록(화살표·종류·중앙값 → 끝 Hz·하강 반음), 종류별 색 |
 | `VoicePractice/Models/PhraseEndingText.swift` | 문장 끝 분석을 글로 바꾸기: 요약 한 줄, 숫자 줄, 안내 문구, AI 요청문 단락, 구절 한 줄 (웹 `text/phraseEnding.ts`와 같은 글) |
 | `VoicePractice/Models/PracticeRecord.swift` | 기록의 모양: 말하는 언어, 연습 한 번 모으기 규칙(30초·5초 기준), 저장하는 기록 4가지(연습 요약, 남긴 녹음, 기준 목소리 이력, 모음 이력) |
-| `VoicePractice/Models/PracticeArchive.swift` | 기록 저장소: 숫자는 SwiftData, 남긴 녹음은 m4a 파일(백업 제외). 저장·하나 지우기·모두 지우기를 한곳에서 하고, 저장에 실패하면 되돌린 뒤 오류를 알린다 |
+| `VoicePractice/Models/PracticeArchive.swift` | 기록 저장소: 숫자는 SwiftData, 남긴 녹음은 m4a 파일(백업 제외). 저장·하나 지우기·모두 지우기를 한곳에서 하고, 저장에 실패하면 되돌린 뒤 오류를 알린다. 가져온 내 대본도 여기에 (모두 지우기로는 안 지움) |
+| `VoicePractice/Models/ScriptImport.swift` | AI 대본 가져오기: AI 앱에 보낼 부탁 글, 붙여넣은 글을 ‘제목:’·‘---’로 나누기, 내 대본(`ImportedScript`, SwiftData) |
 | `VoicePractice/Models/RecordedTake.swift` | 녹음 한 번의 묶음: 소리, 시작 시각·길이, 그 구간의 피치·포먼트 점, 남긴 기록의 ID. 요약·저장·공유·다시 듣기는 이것만 쓴다 |
 | `VoicePractice/Models/RecordingTimeline.swift` | 녹음·재기 중의 피치 점을 화면 그래프용·재기용으로 나눠 담고, 마지막 녹음 묶음을 들고 있는 곳 |
 | `VoicePracticeTests/RecordedTakeTests.swift` | 외부 리뷰 버그 세 개(요약 구간, 재기 덮어쓰기, 저장 실패)의 재현 테스트 |
@@ -63,9 +64,11 @@
 | `VoicePractice/Models/PracticeDuration.swift` | 연습 시간("지금 들어보기"로 들려줄 최근 길이) 규칙: 10초~3분, 10초 단위, "1분 30초" 같은 표시 문구 |
 | `VoicePractice/Models/PracticeScripts.json` | 낭독 대본 260편(13가지 종류). 직접 고치거나 추가해도 되는 파일 (고친 뒤 ⌘U로 검사, 웹도 같은 파일을 읽는다) |
 | `VoicePractice/Models/PracticeScript.swift` | 대본 파일을 읽고, 음절 수로 예상 낭독 시간을 계산하는 도구. 대본 화면의 섞인 순서(`ScriptOrder`, 씨앗을 고정할 수 있는 `SplitMix64`) |
-| `VoicePractice/Views/ScriptReaderView.swift` | 대본을 고르고 스크롤해서 읽는 화면 조각 (섞인 순서로, 열 때마다 다른 대본부터) |
+| `VoicePractice/Views/ScriptReaderView.swift` | 대본을 고르고 스크롤해서 읽는 화면 조각 (섞인 순서로, 열 때마다 다른 대본부터). 가져온 대본은 ‘내 대본’ 종류, 하나씩 지우기 |
+| `VoicePractice/Views/ScriptImportView.swift` | AI 대본 가져오기 화면: 부탁 글 만들기(편 수·길이·말투·주제 → 공유·복사), 붙여넣기, 미리 보기(제목 고치기·빼기), 내 대본에 남기기 |
 | `VoicePractice/Views/KoreanLineBreaking.swift` | 한글 문장이 단어 중간이 아니라 띄어쓰기에서 줄바꿈되게 하는 도구 |
 | `VoicePracticeTests/PracticeScriptTests.swift` | 대본 260편의 길이·금지어·중복·종류 이름, 숫자를 셈에 넣는 음절 수, 섞인 순서, 꺾은선 끊기 규칙을 확인하는 시험지 |
+| `VoicePracticeTests/ScriptImportTests.swift` | AI 대본 가져오기 시험지: 나누기(제목 줄·나눔 줄·인사말·꾸밈), 제목 짓기, 한도, 부탁 글, 내 대본 저장·지우기 |
 | `VoicePractice/Views/PitchGraphView.swift` | [높이] 위에 고정되는 현재 Hz 숫자와 피치 그래프(반음 눈금, 가로축 = 들려줄 길이, 시간 눈금, 시작·n번째 선, 재생 위치 선, 대본 읽기 모드)와 그 아래 음량·공명 밝기 막대. 같은 파일의 `MeterGuideView`는 막대 보는 법, `TargetRangeControls`는 목표 범위 줄·슬라이더·내 목소리 재기 버튼 |
 | `VoicePractice/Views/AudioFileDocument.swift` | ‘파일로 저장’에서 iOS 파일 저장 창에 넘기는 m4a 파일과 처음 파일 이름(Ullim-날짜-시각) |
 | `VoicePracticeTests/AudioFileExportTests.swift` | 파일 이름·확장자(.m4a), 마지막 녹음 m4a 만들기·다시 재기·임시 파일 정리, 그래프 높이를 확인하는 시험지 |

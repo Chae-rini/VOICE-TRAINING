@@ -11,6 +11,7 @@ final class PracticeArchive {
 
     static let models: [any PersistentModel.Type] = [
         PracticeSession.self, PracticeTake.self, SavedRecording.self, BaselineRecord.self, VowelRecord.self,
+        ImportedScript.self,
     ]
 
     let container: ModelContainer
@@ -144,7 +145,23 @@ final class PracticeArchive {
         try save()
     }
 
-    /// 모든 기록과 녹음 파일을 지운다. 지금 쓰는 기준 목소리·목표 범위·모음 지도(UserDefaults)는 그대로 둔다.
+    // MARK: - 내 대본 (AI 앱 등에서 가져온 대본, 2026-10-31~)
+
+    /// 가져온 대본을 ‘내 대본’에 더한다 (가져오기 화면에서 저장을 눌렀을 때). 붙여넣은 순서대로 남게 시각을 조금씩 다르게 둔다
+    func saveImportedScripts(_ drafts: [ScriptImport.Draft], addedAt: Date = .now) throws {
+        for (offset, draft) in drafts.enumerated() {
+            context.insert(ImportedScript(title: draft.title, text: draft.text,
+                                          addedAt: addedAt.addingTimeInterval(Double(offset) / 1000)))
+        }
+        try save()
+    }
+
+    func delete(_ script: ImportedScript) throws {
+        context.delete(script)
+        try save()
+    }
+
+    /// 모든 기록과 녹음 파일을 지운다. 지금 쓰는 기준 목소리·목표 범위·모음 지도(UserDefaults)와 내 대본은 그대로 둔다.
     /// 한꺼번에 지우는 `delete(model:)`은 화면의 목록(@Query)이 바로 따라 바뀌지 않는다는 보고가 있어 하나씩 지운다.
     func deleteAll() throws {
         try deleteEach(PracticeTake.self)
