@@ -11,23 +11,30 @@
     type ScriptLength,
   } from '../data/scripts'
   import { PracticeDuration } from '../model/practice'
+  import { MY_SCRIPT_CATEGORY, myScriptIdOf, practiceScriptOf } from '../model/scriptImport'
   import { settings } from '../model/settings.svelte'
+  import { store } from '../storage/recordStore.svelte'
   import { resolveParticles } from '../text/korean'
+  import ScriptImportSheet from './ScriptImportSheet.svelte'
 
   /**
    * 대본 낭독 (iOS `ScriptReaderView`). 종류·길이로 거르고, 상자 안에서 스크롤해 읽고,
    * 들려줄 길이를 대본 길이에 맞출 수 있다. 그래프가 화면 위에 고정되어 있어서 대본은 이 상자 안에서 넘기며 읽는다.
    * 대본은 섞인 순서로 보인다 (`shuffledOrder`): 이 조각이 새로 생길 때(대본으로 바꿀 때·앱을 열 때)마다 다른 대본부터.
+   * AI 앱에서 가져온 내 대본(`store.myScripts`)은 ‘내 대본’ 종류로 맨 뒤에 붙고, 그 카드에서만 지울 수 있다.
    */
   let { isPracticing }: { isPracticing: boolean } = $props()
 
-  const categories = scriptCategories()
+  /** 앱에 든 대본 + 내 대본 */
+  const scripts = $derived([...PRACTICE_SCRIPTS, ...store.myScripts.map(practiceScriptOf)])
+  const categories = $derived(scriptCategories(scripts))
+  let importing = $state(false)
   /** 섞인 순서에서 몇 번째인지 (0부터) */
   let position = $state(0)
   let textBox: HTMLDivElement | undefined = $state()
 
   const category = $derived(categories.includes(settings.scriptCategory) ? settings.scriptCategory : ANY_CATEGORY)
-  const filtered = $derived(filterScripts(category, settings.scriptLength))
+  const filtered = $derived(filterScripts(category, settings.scriptLength, scripts))
   // 거르기가 바뀌면(filtered가 새 배열이 되면) 다시 섞는다
   const order = $derived(shuffledOrder(filtered.length))
   const current = $derived(filtered[order[Math.min(position, order.length - 1)]])
@@ -47,6 +54,20 @@
     settings.setScriptLength((event.target as HTMLSelectElement).value as ScriptLength)
     position = 0
   }
+  /** 가져온 대본을 남기면 ‘내 대본’ 종류를 보여 준다 */
+  function showMyScripts() {
+    settings.setScriptCategory(MY_SCRIPT_CATEGORY)
+    position = 0
+  }
+
+  async function removeCurrent() {
+    const id = current === undefined ? null : myScriptIdOf(current)
+    if (id === null) return
+    // 제목 끝 받침에 따라 을/를이 달라지므로 받침이 있는 ‘대본’에 조사를 붙인다 (iOS와 같은 글)
+    if (!confirm(`‘${current!.title}’ 대본을 지울까요?\n내 대본에서 지워지고 되돌릴 수 없어요.`)) return
+    await store.removeScript(id)
+  }
+
   function shuffle() {
     if (filtered.length < 2) return
     const others = filtered.map((_, i) => i).filter((i) => i !== position)
@@ -68,6 +89,7 @@
       {/each}
     </select>
     <span class="spacer"></span>
+    <button class="small" onclick={() => (importing = true)} aria-label="AI 대본 가져오기">⤓</button>
     <button class="small" onclick={shuffle} disabled={filtered.length < 2} aria-label="다른 대본">⤨</button>
   </div>
 
@@ -82,6 +104,9 @@
       </div>
       {#if current.needsFactCheck}
         <p class="details">아직 사실 확인을 거치지 않은 글이에요.</p>
+      {/if}
+      {#if current.category === MY_SCRIPT_CATEGORY}
+        <button class="small danger" onclick={removeCurrent}>이 대본 지우기</button>
       {/if}
     </article>
 
@@ -109,6 +134,8 @@
     <p class="empty">{PRACTICE_SCRIPTS.length === 0 ? '대본 파일을 읽지 못했어요.' : '조건에 맞는 대본이 없어요.'}</p>
   {/if}
 </div>
+
+<ScriptImportSheet open={importing} onClose={() => (importing = false)} onSaved={showMyScripts} />
 
 <style>
   .reader {
@@ -176,6 +203,11 @@
   .fit {
     align-self: center;
     font-size: 0.85rem;
+  }
+  .danger {
+    align-self: flex-start;
+    background: color-mix(in srgb, #ff3b30 14%, transparent);
+    color: #ff3b30;
   }
   .empty {
     color: var(--secondary);

@@ -135,7 +135,10 @@
 | `web/src/components/BaselineSheet.svelte` | 내 목소리 재기 창: 열 때마다 무작위로 고른 문장·대본(‘다른 대본’), 10초 재기, 결과(중앙·범위·F2), 목표 범위를 기준에 맞추기, 저장 |
 | `web/src/model/baselineReading.ts` | 내 목소리 재기에서 읽을 글 (iOS `BaselineReading`과 같은 규칙: 내 문장 + 평소 말투 대본, 무작위·직전 글 빼기, 안내 글) |
 | `web/test/baselineReading.test.ts` | 재기에서 읽을 글 시험지 (iOS `BaselineReadingTests`와 같은 확인) |
-| `web/src/components/SentenceCards.svelte`, `ScriptReader.svelte` | 문장 카드(내 문장·자동 생성, 밀어서 넘기기)와 대본 읽기(섞인 순서, 종류·길이 거르기, 다른 대본, 들려줄 길이 맞추기) |
+| `web/src/components/SentenceCards.svelte`, `ScriptReader.svelte` | 문장 카드(내 문장·자동 생성, 밀어서 넘기기)와 대본 읽기(섞인 순서, 종류·길이 거르기, 다른 대본, 들려줄 길이 맞추기). 가져온 대본은 ‘내 대본’ 종류, 하나씩 지우기 |
+| `web/src/components/ScriptImportSheet.svelte` | AI 대본 가져오기 창 (iOS `ScriptImportView`): 부탁 글(공유·복사), 붙여넣기(앱에서는 칸을 길게 눌러), 미리 보기(제목 고치기·빼기), 내 대본에 남기기 |
+| `web/src/model/scriptImport.ts` | AI 대본 가져오기 규칙 (iOS `ScriptImport`와 같음): 부탁 글, 붙여넣은 글 나누기, 내 대본 모양(`MyScript`)과 대본 화면용으로 바꾸기 |
+| `web/test/scriptImport.test.ts` | AI 대본 가져오기 시험지 (iOS `ScriptImportTests`와 같은 입력·결과, 부탁 글은 글자 하나까지 같게) |
 | `web/src/components/DurationControl.svelte` | ‘들려줄 길이’ 버튼과 조정 창 (10초~3분) |
 | `web/src/practice/session.svelte.ts` | 연습 흐름: 반복 루프(녹음 → 지금 들어보기 → 숨 고르기 → 다시 녹음), 마지막 녹음 다시 듣기, 파일 불러오기, 내 목소리 재기·모음 재기(마이크·파일), 그래프 시계, 15분 쉬어 가기, 정지할 때 연습 기록 남기기, ‘기록에 남기기’ |
 | `web/src/practice/loop.ts` | 연습 순서표(지금 어느 단계인지, iOS `PracticeLoop`) |
@@ -152,11 +155,11 @@
 | `web/src/model/records.ts` | `울림-기록.json`에 남는 기록의 모양(연습 기록·녹음마다 요약·남긴 녹음·기준 이력·모음 이력)과 확인, 말하는 언어. 녹음마다·남긴 녹음의 문장 끝 숫자(`phraseEndings`, 없으면 그 전 기록) |
 | `web/src/practice/sessionLog.ts` | 연습 한 번의 기록: 녹음마다 요약을 쌓고, 정지하면 30초·목소리 5초 이상일 때 연습 기록 하나로 (iOS `PracticeSessionLog`). 연습 기록의 AI 요청문·녹음 한 줄 |
 | `web/src/model/voiceSettings.ts` | 내 기준 값의 모양, 기준을 재면 목표 범위 정하기, 기록 폴더를 열 때 폴더 값과 화면 값 합치기 |
-| `web/src/storage/recordStore.svelte.ts` | 내 기록이 남는 곳: 기록 폴더 고르기·다시 연결·바꾸기·끊기, 바뀐 값을 폴더에 쓰기(0.4초 모아서), 기록 더하기(녹음 소리 먼저, 폴더가 없으면 화면에 담아 두었다가 옮김), 기록 파일(zip) 저장·불러오기, 사파리처럼 폴더를 못 고르는 브라우저(개발 서버에서 `?nofolder`로 흉내) |
-| `web/src/storage/archive.ts` | 기록 폴더의 파일 모양(`울림-설정.json`·`울림-기록.json`, 판 번호), 읽지 못한 까닭과 안내 문구, 기록 더하기·합치기(id로), 남긴 녹음 파일 이름 |
-| `web/src/storage/openFolder.ts` | 기록 폴더 열기(읽기·합치기·빈 폴더면 만들기, 읽지 못하면 아무것도 쓰지 않음), 기록 옮겨 쓰기 |
+| `web/src/storage/recordStore.svelte.ts` | 내 기록이 남는 곳: 기록 폴더 고르기·다시 연결·바꾸기·끊기, 바뀐 값을 폴더에 쓰기(0.4초 모아서), 기록 더하기(녹음 소리 먼저, 폴더가 없으면 화면에 담아 두었다가 옮김), 내 대본 더하기·지우기, 기록 파일(zip) 저장·불러오기(내 대본은 합침), 사파리처럼 폴더를 못 고르는 브라우저(개발 서버에서 `?nofolder`로 흉내) |
+| `web/src/storage/archive.ts` | 기록 폴더의 파일 모양(`울림-설정.json`·`울림-기록.json`·내 대본 `울림-대본.json`, 판 번호), 읽지 못한 까닭과 안내 문구, 기록 더하기·합치기(id로), 남긴 녹음 파일 이름 |
+| `web/src/storage/openFolder.ts` | 기록 폴더 열기(읽기·합치기·빈 폴더면 만들기, 내 대본도 합침, 읽지 못하면 아무것도 쓰지 않음), 기록 옮겨 쓰기 |
 | `web/src/storage/recordFolder.ts` | 기록 폴더 하나의 읽기·쓰기·지우기·목록: 내가 고른 폴더(파일 시스템 접근 API), 메모리 폴더(사파리·테스트) |
-| `web/src/storage/recordZip.ts` | 기록 파일(zip, fflate): 묶기, 풀기(울림 파일만, 폴더째 압축·맥 한글 이름·크기 제한) |
+| `web/src/storage/recordZip.ts` | 기록 파일(zip, fflate): 묶기(내 대본 파일도), 풀기(울림 파일만, 폴더째 압축·맥 한글 이름·크기 제한) |
 | `web/src/storage/handleStore.ts` | 고른 기록 폴더의 연결 정보를 이 브라우저(IndexedDB)에 기억 |
 | `web/src/storage/fileSystemAccess.d.ts` | TypeScript 기본 타입에 아직 없는 폴더 고르기·허락 묻기 타입 |
 | `web/src/components/HistoryScreen.svelte` | [기록] 화면: 기간·언어 거르기, 모아 보기, 그래프, 남긴 녹음·연습 기록·내 목소리 재기 목록, 모두 지우기, 저장 위치(필요할 때는 맨 위). 누르면 자세히 화면으로 바뀐다(돌아오면 스크롤 그대로) |

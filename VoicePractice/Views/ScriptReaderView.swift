@@ -153,7 +153,7 @@ struct ScriptReaderView: View {
                     Label("이 대본 지우기", systemImage: "trash")
                 }
                 .font(.footnote)
-                .confirmationDialog("‘\(script.title)’을 내 대본에서 지울까요?", isPresented: $isConfirmingDelete,
+                .confirmationDialog("‘\(script.title)’ 대본을 지울까요?", isPresented: $isConfirmingDelete,
                                     titleVisibility: .visible) {
                     Button("지우기", role: .destructive) { delete(script) }
                 }

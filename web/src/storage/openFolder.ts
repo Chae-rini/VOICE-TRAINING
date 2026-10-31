@@ -7,27 +7,32 @@ import {
 import {
   EMPTY_RECORDS,
   encodeRecordsFile,
+  encodeScriptsFile,
+  mergeById,
   mergeRecords,
   recordCount,
   encodeSettingsFile,
   parseFailureMessage,
   parseRecordsFile,
+  parseScriptsFile,
   parseSettingsFile,
   RECORDINGS_DIRECTORY,
   RECORDS_FILE,
+  SCRIPTS_FILE,
   SETTINGS_FILE,
   type RecordsData,
 } from './archive'
 import type { RecordFolder } from './recordFolder'
 
 export type OpenResult =
-  | { readonly ok: true; readonly settings: VoiceSettings; readonly records: RecordsData }
+  | { readonly ok: true; readonly settings: VoiceSettings; readonly records: RecordsData; readonly scripts: readonly unknown[] }
   | { readonly ok: false; readonly message: string }
 
 /**
  * 기록 폴더를 연다: 두 파일을 읽고, 화면의 값과 합쳐(`mergeVoiceSettings`) 달라졌으면 설정 파일을 고쳐 쓴다.
  * 화면에 쌓인 기록(`currentRecords`, 폴더를 고르기 전·다시 연결하기 전의 것) 중 폴더에 없는 것은 기록 파일에 더한다.
  * 빈 폴더면 화면의 값(예전에 이 브라우저에 있던 값 포함)으로 두 파일을 새로 만든다.
+ * 내 대본(`울림-대본.json`)도 화면에 담아 둔 것 중 폴더에 없는 것을 더한다. 이 파일은 내 대본이 있을 때만 만든다.
  * 읽지 못한 파일이 하나라도 있으면 아무것도 쓰지 않고 까닭을 돌려준다.
  */
 export async function openRecordFolder(
@@ -36,13 +41,17 @@ export async function openRecordFolder(
   changed: ReadonlySet<VoiceSettingField>,
   currentRecords: RecordsData = EMPTY_RECORDS,
   now = new Date(),
+  currentScripts: readonly unknown[] = [],
 ): Promise<OpenResult> {
   const settingsBlob = await folder.read(SETTINGS_FILE)
   const recordsBlob = await folder.read(RECORDS_FILE)
+  const scriptsBlob = await folder.read(SCRIPTS_FILE)
   const folderSettings = settingsBlob === null ? null : parseSettingsFile(await settingsBlob.text())
   if (folderSettings !== null && !folderSettings.ok) return { ok: false, message: parseFailureMessage(SETTINGS_FILE, folderSettings.reason) }
   const records = recordsBlob === null ? null : parseRecordsFile(await recordsBlob.text())
   if (records !== null && !records.ok) return { ok: false, message: parseFailureMessage(RECORDS_FILE, records.reason) }
+  const scripts = scriptsBlob === null ? null : parseScriptsFile(await scriptsBlob.text())
+  if (scripts !== null && !scripts.ok) return { ok: false, message: parseFailureMessage(SCRIPTS_FILE, scripts.reason) }
 
   const settings = folderSettings === null ? current : mergeVoiceSettings(folderSettings.value, current, changed)
   if (folderSettings === null || !sameVoiceSettings(settings, folderSettings.value)) {
@@ -53,10 +62,18 @@ export async function openRecordFolder(
   if (records === null || recordCount(mergedRecords) > recordCount(folderRecords)) {
     await folder.write(RECORDS_FILE, encodeRecordsFile(mergedRecords, now))
   }
-  return { ok: true, settings, records: mergedRecords }
+  const folderScripts = scripts?.value ?? []
+  const mergedScripts = mergeById(folderScripts, currentScripts)
+  if (mergedScripts.length > folderScripts.length) {
+    await folder.write(SCRIPTS_FILE, encodeScriptsFile(mergedScripts, now))
+  }
+  return { ok: true, settings, records: mergedRecords, scripts: mergedScripts }
 }
 
-/** 한 기록 폴더의 울림 파일(설정·기록·녹음)을 다른 곳으로 옮겨 쓴다 (기록 파일을 고른 폴더에 불러올 때) */
+/**
+ * 한 기록 폴더의 울림 파일(설정·기록·녹음)을 다른 곳으로 옮겨 쓴다 (기록 파일을 고른 폴더에 불러올 때).
+ * 내 대본은 옮기지 않는다: 불러올 때 지금 있는 내 대본과 합쳐서 따로 쓴다 (`RecordStore.importFile`)
+ */
 export async function copyRecordFolder(from: RecordFolder, to: RecordFolder): Promise<void> {
   for (const path of [SETTINGS_FILE, RECORDS_FILE]) {
     const blob = await from.read(path)

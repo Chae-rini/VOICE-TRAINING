@@ -3,13 +3,17 @@ import { describe, expect, it } from 'vitest'
 import { range } from '../src/dsp/range'
 import { EMPTY_VOICE_SETTINGS, mergeVoiceSettings, sameVoiceSettings, type VoiceSettings } from '../src/model/voiceSettings'
 import type { VowelEntry } from '../src/model/vowelMap'
+import type { MyScript } from '../src/model/scriptImport'
 import {
   EMPTY_RECORDS,
   encodeRecordsFile,
+  encodeScriptsFile,
   encodeSettingsFile,
   parseRecordsFile,
+  parseScriptsFile,
   parseSettingsFile,
   RECORDS_FILE,
+  SCRIPTS_FILE,
   SETTINGS_FILE,
 } from '../src/storage/archive'
 import { copyRecordFolder, openRecordFolder } from '../src/storage/openFolder'
@@ -29,6 +33,9 @@ const mine: VoiceSettings = {
   baseline: { median: 152, low: 130, high: 175, f2: 1600 },
   vowelMap: { 아: vowel(800, 1300, '2026-10-20T10:00:00.000Z') },
 }
+
+const myA: MyScript = { id: 'a', title: '새벽 첫차', text: '오늘은 첫차를 탔어요.', addedAt: '2026-10-31T12:00:00.000Z' }
+const myB: MyScript = { id: 'b', title: '우산 빌려주기', text: '비가 와서 우산을 빌려줬어요.', addedAt: '2026-10-31T12:00:00.001Z' }
 
 async function text(folder: RecordFolder, path: string): Promise<string | null> {
   return (await (await folder.read(path))?.text()) ?? null
@@ -58,6 +65,17 @@ describe('파일 모양', () => {
     ['기준에 숫자가 아닌 값', '{"app":"ullim","kind":"settings","version":1,"baseline":{"median":"x","low":1,"high":2,"f2":null}}', 'broken'],
   ])('설정 파일을 읽지 못하는 경우: %s', (_, json, reason) => {
     expect(parseSettingsFile(json)).toEqual({ ok: false, reason })
+  })
+
+  it('내 대본 파일: 항목은 읽은 그대로 다시 쓰고(모르는 모양도), 다른 종류·더 새 판·목록이 아닌 것은 읽지 않는다', () => {
+    const unknownShape = { id: 'c', future: true }
+    const encoded = encodeScriptsFile([myA, unknownShape], now)
+    expect(JSON.parse(encoded)).toMatchObject({ app: 'ullim', kind: 'scripts', version: 1 })
+    expect(parseScriptsFile(encoded)).toEqual({ ok: true, value: [myA, unknownShape] })
+    expect(parseScriptsFile('{"app":"ullim","kind":"scripts","version":1}')).toEqual({ ok: true, value: [] })
+    expect(parseScriptsFile(encodeRecordsFile(EMPTY_RECORDS, now))).toEqual({ ok: false, reason: 'notUllim' })
+    expect(parseScriptsFile('{"app":"ullim","kind":"scripts","version":9,"scripts":[]}')).toEqual({ ok: false, reason: 'newerVersion' })
+    expect(parseScriptsFile('{"app":"ullim","kind":"scripts","version":1,"scripts":{}}')).toEqual({ ok: false, reason: 'broken' })
   })
 
   it('모음 지도의 망가진 모음 하나는 빼고 나머지는 읽는다', () => {
@@ -108,9 +126,11 @@ describe('기록 폴더 열기', () => {
   it('빈 폴더: 화면 값(예전에 브라우저에 있던 값)으로 설정 파일과 빈 기록 파일을 만든다', async () => {
     const folder = new MemoryFolder()
     const result = await openRecordFolder(folder, mine, new Set(), undefined, now)
-    expect(result).toEqual({ ok: true, settings: mine, records: EMPTY_RECORDS })
+    expect(result).toEqual({ ok: true, settings: mine, records: EMPTY_RECORDS, scripts: [] })
     expect(parseSettingsFile((await text(folder, SETTINGS_FILE))!)).toEqual({ ok: true, value: mine })
     expect(parseRecordsFile((await text(folder, RECORDS_FILE))!)).toEqual({ ok: true, value: EMPTY_RECORDS })
+    // 내 대본 파일은 내 대본이 생길 때 처음 만든다
+    expect(await folder.read(SCRIPTS_FILE)).toBeNull()
   })
 
   it('이미 쓰던 폴더: 폴더 값을 읽고, 합친 값이 같으면 파일을 다시 쓰지 않는다', async () => {
@@ -119,7 +139,7 @@ describe('기록 폴더 열기', () => {
     await folder.write(SETTINGS_FILE, original)
     await folder.write(RECORDS_FILE, encodeRecordsFile({ ...EMPTY_RECORDS, sessions: [1] }, now))
     const result = await openRecordFolder(folder, EMPTY_VOICE_SETTINGS, new Set(), undefined, now)
-    expect(result).toEqual({ ok: true, settings: mine, records: { ...EMPTY_RECORDS, sessions: [1] } })
+    expect(result).toEqual({ ok: true, settings: mine, records: { ...EMPTY_RECORDS, sessions: [1] }, scripts: [] })
     expect(await text(folder, SETTINGS_FILE)).toBe(original)
   })
 
@@ -146,11 +166,41 @@ describe('기록 폴더 열기', () => {
     expect(await newer.read(SETTINGS_FILE)).toBeNull()
   })
 
+  it('내 대본: 폴더를 고르기 전에 남긴 대본 중 폴더에 없는 것을 더하고, 새것이 없으면 다시 쓰지 않는다', async () => {
+    const folder = new MemoryFolder()
+    const original = encodeScriptsFile([myA], new Date('2026-10-01T00:00:00Z'))
+    await folder.write(SCRIPTS_FILE, original)
+
+    const same = await openRecordFolder(folder, mine, new Set(), undefined, now, [myA])
+    expect(same.ok && same.scripts).toEqual([myA])
+    expect(await text(folder, SCRIPTS_FILE)).toBe(original)
+
+    const merged = await openRecordFolder(folder, mine, new Set(), undefined, now, [myB, myA])
+    expect(merged.ok && merged.scripts).toEqual([myA, myB])
+    expect(parseScriptsFile((await text(folder, SCRIPTS_FILE))!)).toEqual({ ok: true, value: [myA, myB] })
+
+    // 빈 폴더에 화면의 대본만 있으면 대본 파일을 새로 만든다
+    const empty = new MemoryFolder()
+    await openRecordFolder(empty, mine, new Set(), undefined, now, [myB])
+    expect(parseScriptsFile((await text(empty, SCRIPTS_FILE))!)).toEqual({ ok: true, value: [myB] })
+  })
+
+  it('읽지 못한 내 대본 파일이 있으면 아무것도 쓰지 않는다', async () => {
+    const folder = new MemoryFolder()
+    await folder.write(SCRIPTS_FILE, '{"app":"ullim","kind":"scripts","version":1,"scripts":"망가짐"}')
+    const result = await openRecordFolder(folder, mine, new Set(), undefined, now, [myA])
+    expect(!result.ok && result.message).toContain('울림-대본.json')
+    expect(await folder.read(SETTINGS_FILE)).toBeNull()
+    expect(await text(folder, SCRIPTS_FILE)).toContain('망가짐')
+  })
+
   it('다른 곳으로 옮겨 쓰기: 설정·기록·녹음만 (다른 파일은 옮기지 않는다)', async () => {
     const from = new MemoryFolder()
     await from.write(SETTINGS_FILE, 'S')
     await from.write('녹음/Ullim-1.wav', new Blob([new Uint8Array([1, 2])]))
     await from.write('메모.txt', 'x')
+    // 내 대본은 불러올 때 지금 있는 대본과 합쳐서 따로 쓴다
+    await from.write(SCRIPTS_FILE, encodeScriptsFile([myA], now))
     const to = new MemoryFolder()
     await to.write('녹음/Ullim-0.wav', new Blob([new Uint8Array([9])]))
     await copyRecordFolder(from, to)
@@ -173,14 +223,16 @@ describe('기록 파일 (zip)', () => {
     const folder = new MemoryFolder()
     await folder.write(SETTINGS_FILE, encodeSettingsFile(mine, now))
     await folder.write(RECORDS_FILE, encodeRecordsFile(EMPTY_RECORDS, now))
+    await folder.write(SCRIPTS_FILE, encodeScriptsFile([myA], now))
     await folder.write('녹음/Ullim-20261025-2012.wav', new Blob([new Uint8Array([82, 73, 70, 70])]))
     await folder.write('녹음/메모.txt', 'x')
     const result = await unpackRecordFile(await packRecordFolder(folder, now))
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.recordingCount).toBe(1)
-    expect(result.folder.paths.sort()).toEqual([SETTINGS_FILE, RECORDS_FILE, '녹음/Ullim-20261025-2012.wav'].sort())
+    expect(result.folder.paths.sort()).toEqual([SETTINGS_FILE, RECORDS_FILE, SCRIPTS_FILE, '녹음/Ullim-20261025-2012.wav'].sort())
     expect(parseSettingsFile((await text(result.folder, SETTINGS_FILE))!)).toEqual({ ok: true, value: mine })
+    expect(parseScriptsFile((await text(result.folder, SCRIPTS_FILE))!)).toEqual({ ok: true, value: [myA] })
     const wav = await result.folder.read('녹음/Ullim-20261025-2012.wav')
     expect([...new Uint8Array(await wav!.arrayBuffer())]).toEqual([82, 73, 70, 70])
   })
@@ -201,6 +253,11 @@ describe('기록 파일 (zip)', () => {
     ['zip이 아닌 파일', new TextEncoder().encode('그냥 글자'), 'zip 파일인지'],
     ['울림 파일이 없는 zip', zipSync({ 'a.txt': new Uint8Array([1]) }), '울림 기록 파일이 아니에요'],
     ['망가진 설정 파일', zipSync({ [SETTINGS_FILE]: new TextEncoder().encode('{') }), '울림-설정.json'],
+    [
+      '망가진 내 대본 파일',
+      zipSync({ [RECORDS_FILE]: new TextEncoder().encode(encodeRecordsFile(EMPTY_RECORDS, now)), [SCRIPTS_FILE]: new TextEncoder().encode('{') }),
+      '울림-대본.json',
+    ],
   ])('불러오지 못하는 경우: %s', async (_, bytes, message) => {
     const result = await unpackRecordFile(bytes)
     expect(result.ok).toBe(false)

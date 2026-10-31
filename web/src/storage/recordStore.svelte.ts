@@ -1,4 +1,5 @@
 import type { RecordItems } from '../model/records'
+import { isMyScript, type MyScript } from '../model/scriptImport'
 import { settings } from '../model/settings.svelte'
 import { EMPTY_VOICE_SETTINGS, type VoiceSettingField, type VoiceSettings } from '../model/voiceSettings'
 import { isNativeApp } from '../platform/app'
@@ -6,14 +7,18 @@ import { saveFile } from '../practice/sharing'
 import {
   EMPTY_RECORDS,
   encodeRecordsFile,
+  encodeScriptsFile,
   encodeSettingsFile,
+  mergeById,
   mergeRecords,
   parseRecordsFile,
+  parseScriptsFile,
   recordIdOf,
   parseSettingsFile,
   RECORDINGS_DIRECTORY,
   recordingFileName,
   RECORDS_FILE,
+  SCRIPTS_FILE,
   SETTINGS_FILE,
   withRecord,
   type RecordList,
@@ -89,6 +94,13 @@ class RecordStore {
   }
   /** 연습 기록·남긴 녹음·재기 이력 (항목 모양은 `model/records.ts`) */
   records: RecordsData = $state.raw(EMPTY_RECORDS)
+  /** AI 앱에서 가져온 내 대본 (`울림-대본.json`). 모르는 모양의 항목도 읽은 그대로 두고 다시 쓴다 */
+  scripts: readonly unknown[] = $state.raw([])
+
+  /** 대본 화면에 보일 내 대본 (모양이 맞는 것만, 남긴 순서대로) */
+  get myScripts(): MyScript[] {
+    return this.scripts.filter(isMyScript)
+  }
 
   #handle: FileSystemDirectoryHandle | null = null
   /** 연결된 기록 폴더 (connected일 때만) */
@@ -97,6 +109,8 @@ class RecordStore {
   #memory = new MemoryFolder()
   /** 기록 폴더에 아직 쓰지 않은 기록이 있는지 */
   #recordsDirty = false
+  /** 기록 폴더에 아직 쓰지 않은 내 대본이 있는지 */
+  #scriptsDirty = false
   /** 이번에 화면에서 바꾸고 아직 폴더에 쓰지 않은 값 */
   #changed = new Set<VoiceSettingField>()
   #saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -216,6 +230,8 @@ class RecordStore {
     // 기록은 폴더에 있다. 끊은 뒤 화면에서 고친 기록이 다시 연결할 때 폴더 기록과 엇갈리지 않게 화면의 기록도 비운다.
     this.records = EMPTY_RECORDS
     this.#recordsDirty = false
+    this.scripts = []
+    this.#scriptsDirty = false
     this.status = { kind: 'none' }
     this.#clearMessages()
     this.infoMessage = '연결을 끊었어요. 폴더의 파일은 그대로 있어요.'
@@ -233,7 +249,7 @@ class RecordStore {
     this.busy = true
     this.errorMessage = null
     try {
-      const result = await openRecordFolder(folder, settings.voiceSettings, this.#changed, this.records)
+      const result = await openRecordFolder(folder, settings.voiceSettings, this.#changed, this.records, undefined, this.scripts)
       if (!result.ok) {
         this.errorMessage = result.message
         return 'unreadable'
@@ -245,6 +261,8 @@ class RecordStore {
       this.#folder = folder
       this.records = result.records
       this.#recordsDirty = false
+      this.scripts = result.scripts
+      this.#scriptsDirty = false
       settings.applyVoiceSettings(result.settings)
       settings.forgetLegacyValues()
       this.#changed.clear()
@@ -318,6 +336,32 @@ class RecordStore {
     return result
   }
 
+  /**
+   * 내 대본을 더한다 (AI 대본 가져오기). 기록 폴더가 있으면 바로 쓰고, 없으면 화면에 담아 두었다가
+   * 폴더를 고르거나 기록 파일로 저장할 때 함께 남긴다.
+   */
+  async addScripts(scripts: readonly MyScript[]): Promise<AddResult> {
+    if (scripts.length === 0) return 'saved'
+    return this.#replaceScripts([...this.scripts, ...scripts])
+  }
+
+  /** 내 대본 하나를 지운다 */
+  async removeScript(id: string): Promise<AddResult> {
+    if (!this.#canEditRecords()) return 'failed'
+    return this.#replaceScripts(this.scripts.filter((item) => recordIdOf(item) !== id))
+  }
+
+  async #replaceScripts(next: readonly unknown[]): Promise<AddResult> {
+    this.scripts = next
+    this.#scriptsDirty = true
+    if (this.#folder === null) {
+      this.unsaved = true
+      return 'pending'
+    }
+    await this.#flush()
+    return this.#scriptsDirty ? 'pending' : 'saved'
+  }
+
   /** 남긴 녹음의 소리. 파일이 없으면 null */
   async readRecording(fileName: string): Promise<Blob | null> {
     try {
@@ -384,21 +428,25 @@ class RecordStore {
     this.#saveTimer = null
     this.#writing = this.#writing.then(async () => {
       const folder = this.#folder
-      if (folder === null || (this.#changed.size === 0 && !this.#recordsDirty)) return
+      if (folder === null || (this.#changed.size === 0 && !this.#recordsDirty && !this.#scriptsDirty)) return
       const fields = [...this.#changed]
       const recordsDirty = this.#recordsDirty
+      const scriptsDirty = this.#scriptsDirty
       this.#changed.clear()
       this.#recordsDirty = false
+      this.#scriptsDirty = false
       try {
         const now = new Date()
         if (fields.length > 0) await folder.write(SETTINGS_FILE, encodeSettingsFile(settings.voiceSettings, now))
         if (recordsDirty) await folder.write(RECORDS_FILE, encodeRecordsFile(this.records, now))
-        this.unsaved = this.#changed.size > 0 || this.#recordsDirty
+        if (scriptsDirty) await folder.write(SCRIPTS_FILE, encodeScriptsFile(this.scripts, now))
+        this.unsaved = this.#changed.size > 0 || this.#recordsDirty || this.#scriptsDirty
         this.savedAt = now
         this.errorMessage = null
       } catch (error) {
         fields.forEach((field) => this.#changed.add(field))
         if (recordsDirty) this.#recordsDirty = true
+        if (scriptsDirty) this.#scriptsDirty = true
         this.unsaved = true
         if (isPermissionError(error)) {
           // 브라우저가 허락을 거두었다: 다시 연결하면 바뀐 값을 폴더에 쓴다
@@ -433,6 +481,7 @@ class RecordStore {
       if (this.#folder === null) {
         this.#changed.clear()
         this.#recordsDirty = false
+        this.#scriptsDirty = false
         this.unsaved = false
         this.savedAt = now
         settings.forgetLegacyValues()
@@ -453,6 +502,7 @@ class RecordStore {
 
   /**
    * 기록 파일(zip)을 불러온다. 지금 화면의 내 기준 값과 기록은 파일의 것으로 바뀐다.
+   * 내 대본은 바꾸지 않고 합친다: 지금 있는 대본에 파일에만 있는 대본을 더한다 (직접 모은 글이라 잃지 않게, 2026-10-31).
    * 기록 폴더에 연결돼 있으면 파일의 내용을 폴더에 쓴다(설정·기록 파일은 바뀌고, 다른 녹음은 그대로 둔다).
    */
   async importFile(file: File): Promise<void> {
@@ -468,22 +518,35 @@ class RecordStore {
       }
       const voice = await readSettings(result.folder)
       const records = await readRecords(result.folder)
+      const fileScripts = await readScripts(result.folder)
+      const scripts = mergeById(this.scripts, fileScripts)
+      const addedScripts = scripts.filter(isMyScript).length - this.myScripts.length
+      // 이 화면에만 있고 기록 파일에는 없는 내 대본 (폴더가 없으면 아직 어디에도 남지 않았다)
+      const fileScriptIds = new Set(fileScripts.map(recordIdOf))
+      const scriptsOnlyHere = this.scripts.some((item) => !fileScriptIds.has(recordIdOf(item)))
       const target = this.#folder ?? new MemoryFolder()
       await copyRecordFolder(result.folder, target)
       const now = new Date()
       await target.write(SETTINGS_FILE, encodeSettingsFile(voice, now))
       await target.write(RECORDS_FILE, encodeRecordsFile(records, now))
+      // 폴더에는 대본이 늘었거나 아직 쓰지 못한 대본이 있을 때만 쓴다 (메모리 폴더는 기록 파일로 저장할 때 쓴다)
+      if (this.#folder !== null && (scripts.length > this.scripts.length || this.#scriptsDirty)) {
+        await target.write(SCRIPTS_FILE, encodeScriptsFile(scripts, now))
+      }
       if (this.#folder === null) this.#memory = target as MemoryFolder
       this.records = records
       this.#recordsDirty = false
+      this.scripts = scripts
+      this.#scriptsDirty = this.#folder === null && scriptsOnlyHere
       this.usedRecordFile = true
       settings.applyVoiceSettings(voice)
       settings.forgetLegacyValues()
       this.#changed.clear()
-      this.unsaved = false
+      this.unsaved = this.#scriptsDirty
       this.savedAt = this.#folder === null ? null : now
-      const count = result.recordingCount
-      this.infoMessage = `‘${file.name}’에서 불러왔어요${count > 0 ? ` (녹음 ${count}개)` : ''}.`
+      const parts = [result.recordingCount > 0 ? `녹음 ${result.recordingCount}개` : null, addedScripts > 0 ? `내 대본 ${addedScripts}편` : null]
+      const counts = parts.filter((part) => part !== null).join(', ')
+      this.infoMessage = `‘${file.name}’에서 불러왔어요${counts === '' ? '' : ` (${counts})`}.`
     } catch (error) {
       this.errorMessage = this.#folder !== null ? writeErrorMessage(error) : '기록 파일을 불러오지 못했어요.'
     } finally {
@@ -496,6 +559,8 @@ class RecordStore {
     const now = new Date()
     await this.#memory.write(SETTINGS_FILE, encodeSettingsFile(settings.voiceSettings, now))
     await this.#memory.write(RECORDS_FILE, encodeRecordsFile(this.records, now))
+    if (this.scripts.length > 0) await this.#memory.write(SCRIPTS_FILE, encodeScriptsFile(this.scripts, now))
+    else await this.#memory.remove(SCRIPTS_FILE)
     return this.#memory
   }
 
@@ -516,6 +581,13 @@ async function readRecords(folder: RecordFolder): Promise<RecordsData> {
   const blob = await folder.read(RECORDS_FILE)
   const parsed = blob === null ? null : parseRecordsFile(await blob.text())
   return parsed?.ok ? parsed.value : EMPTY_RECORDS
+}
+
+/** 풀어 둔 기록 파일의 내 대본 (없으면 빈 목록) */
+async function readScripts(folder: RecordFolder): Promise<readonly unknown[]> {
+  const blob = await folder.read(SCRIPTS_FILE)
+  const parsed = blob === null ? null : parseScriptsFile(await blob.text())
+  return parsed?.ok ? parsed.value : []
 }
 
 export const store = new RecordStore()

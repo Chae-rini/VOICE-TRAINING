@@ -38,7 +38,12 @@ export function syllableCount(text: string): number {
 
 /** 예상 낭독 시간 [s] */
 export function estimatedSeconds(script: PracticeScript): number {
-  return syllableCount(script.text) / SYLLABLES_PER_SECOND
+  return estimatedSecondsOf(script.text)
+}
+
+/** 글의 예상 낭독 시간 [s] (가져오기 미리 보기처럼 아직 대본이 아닌 글에도 같은 어림을 쓴다) */
+export function estimatedSecondsOf(text: string): number {
+  return syllableCount(text) / SYLLABLES_PER_SECOND
 }
 
 /** 대본을 예상 길이로 거르는 기준 (화면 글자는 iOS와 같다) */
@@ -96,8 +101,8 @@ export function shuffledOrder(count: number, random: () => number = Math.random)
   return order
 }
 
-/** 예: "비문학·과학 · 해요체 · 약 24초" */
+/** 예: "비문학·과학 · 해요체 · 약 24초". 말투를 모르는 내 대본은 "내 대본 · 약 11초" */
 export function scriptDetails(script: PracticeScript): string {
   const kind = [script.category, script.topic].filter((part) => part !== undefined).join('·')
-  return `${kind} · ${script.style} · 약 ${Math.round(estimatedSeconds(script))}초`
+  return [kind, script.style, `약 ${Math.round(estimatedSeconds(script))}초`].filter((part) => part !== '').join(' · ')
 }

@@ -1,9 +1,18 @@
 import { unzipSync, zipSync, type Zippable } from 'fflate'
-import { parseFailureMessage, parseRecordsFile, parseSettingsFile, RECORDINGS_DIRECTORY, RECORDS_FILE, SETTINGS_FILE } from './archive'
+import {
+  parseFailureMessage,
+  parseRecordsFile,
+  parseScriptsFile,
+  parseSettingsFile,
+  RECORDINGS_DIRECTORY,
+  RECORDS_FILE,
+  SCRIPTS_FILE,
+  SETTINGS_FILE,
+} from './archive'
 import { MemoryFolder, type RecordFolder } from './recordFolder'
 
 /**
- * 기록 파일(zip): 기록 폴더와 같은 모양(`울림-설정.json`, `울림-기록.json`, `녹음/*.wav`)을 파일 하나로 묶는다.
+ * 기록 파일(zip): 기록 폴더와 같은 모양(`울림-설정.json`, `울림-기록.json`, `녹음/*.wav`, 내 대본이 있으면 `울림-대본.json`)을 파일 하나로 묶는다.
  * 폴더를 고를 수 없는 브라우저(아이폰·맥 사파리, Firefox)는 이 파일로 저장하고 다음에 불러온다. 다른 기기로 옮길 때도 쓴다.
  * 압축 풀기는 fflate(MIT)로 한다.
  */
@@ -31,6 +40,7 @@ export async function packRecordFolder(folder: RecordFolder, now = new Date()): 
   }
   await add(SETTINGS_FILE, 6)
   await add(RECORDS_FILE, 6)
+  await add(SCRIPTS_FILE, 6)
   for (const name of (await folder.list(RECORDINGS_DIRECTORY)).filter(isRecordingName).sort()) {
     // WAV는 거의 줄지 않으니 압축하지 않고 담는다 (휴대폰에서 빨리 저장되게)
     await add(`${RECORDINGS_DIRECTORY}/${name}`, 0)
@@ -73,14 +83,17 @@ export async function unpackRecordFile(bytes: Uint8Array): Promise<UnpackResult>
     const path = name.slice(prefix.length)
     const [directory, file, ...rest] = path.split('/')
     const isWanted =
-      path === SETTINGS_FILE || path === RECORDS_FILE || (directory === RECORDINGS_DIRECTORY && file !== undefined && rest.length === 0 && isRecordingName(file))
+      path === SETTINGS_FILE ||
+      path === RECORDS_FILE ||
+      path === SCRIPTS_FILE ||
+      (directory === RECORDINGS_DIRECTORY && file !== undefined && rest.length === 0 && isRecordingName(file))
     if (!isWanted) continue
     wanted.set(raw, path)
     total += size
   }
   if (total > MAX_RECORD_FILE_BYTES) return { ok: false, message: '기록 파일이 너무 커요 (풀면 512 MB가 넘어요). 녹음 일부를 지운 기록 파일로 다시 저장해 주세요.' }
 
-  // 3) 꺼내서 두 JSON을 확인한다 (읽지 못하면 불러오지 않는다)
+  // 3) 꺼내서 JSON 파일들을 확인한다 (읽지 못하면 불러오지 않는다. 내 대본 파일은 없을 수 있다)
   let files: Record<string, Uint8Array>
   try {
     files = unzipSync(bytes, { filter: (file) => wanted.has(file.name) })
@@ -91,9 +104,9 @@ export async function unpackRecordFile(bytes: Uint8Array): Promise<UnpackResult>
   let recordingCount = 0
   for (const [raw, data] of Object.entries(files)) {
     const path = wanted.get(raw)!
-    if (path === SETTINGS_FILE || path === RECORDS_FILE) {
+    if (path === SETTINGS_FILE || path === RECORDS_FILE || path === SCRIPTS_FILE) {
       const text = new TextDecoder().decode(data)
-      const parsed = path === SETTINGS_FILE ? parseSettingsFile(text) : parseRecordsFile(text)
+      const parsed = path === SETTINGS_FILE ? parseSettingsFile(text) : path === RECORDS_FILE ? parseRecordsFile(text) : parseScriptsFile(text)
       if (!parsed.ok) return { ok: false, message: parseFailureMessage(path, parsed.reason) }
       await folder.write(path, text)
     } else {

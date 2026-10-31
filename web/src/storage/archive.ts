@@ -10,12 +10,15 @@ import { VowelMaps } from '../model/vowelMap'
  * - `울림-기록.json`: 연습 기록, 남긴 녹음 정보, 기준·모음 재기 이력 (항목 모양은 `model/records.ts`).
  *   모르는 모양의 항목(더 새 앱이 더한 것 등)도 읽은 그대로 다시 쓴다 (화면에는 쓰지 않는다)
  * - `녹음/Ullim-….wav`: 남긴 녹음의 소리
+ * - `울림-대본.json`: AI 앱에서 가져온 내 대본 (2026-10-31~, 항목 모양은 `model/scriptImport.ts`). 기록 파일에 넣지 않고 따로 두는 것은
+ *   예전 판 앱이 기록 파일을 다시 쓸 때 모르는 칸을 버리기 때문이다 (예전 앱은 이 파일을 건드리지 않는다). 내 대본이 생길 때 처음 만든다
  * 읽지 못한 파일은 절대 덮어쓰지 않는다 (내 기록을 잃지 않게).
  */
 
 export const SETTINGS_FILE = '울림-설정.json'
 export const RECORDS_FILE = '울림-기록.json'
 export const RECORDINGS_DIRECTORY = '녹음'
+export const SCRIPTS_FILE = '울림-대본.json'
 /** 이 앱이 읽고 쓰는 파일 모양의 판. 더 새 판의 파일은 읽기만 하고 고쳐 쓰지 않는다 */
 export const FORMAT_VERSION = 1
 
@@ -39,6 +42,16 @@ export function recordIdOf(item: unknown): string | null {
   return typeof id === 'string' ? id : null
 }
 
+/** `extra`에서 `base`에 없는 id의 항목만 `base` 뒤에 더한다 (id가 없는 항목은 더하지 않는다) */
+export function mergeById(base: readonly unknown[], extra: readonly unknown[]): readonly unknown[] {
+  const ids = new Set(base.map(recordIdOf).filter((id) => id !== null))
+  const added = extra.filter((item) => {
+    const id = recordIdOf(item)
+    return id !== null && !ids.has(id)
+  })
+  return added.length > 0 ? [...base, ...added] : base
+}
+
 /** 목록 하나에 기록을 더한다 */
 export function withRecord(records: RecordsData, list: RecordList, item: unknown): RecordsData {
   return { ...records, [list]: [...records[list], item] }
@@ -50,14 +63,7 @@ export function withRecord(records: RecordsData, list: RecordList, item: unknown
  */
 export function mergeRecords(base: RecordsData, extra: RecordsData): RecordsData {
   const merged: Record<RecordList, readonly unknown[]> = { ...base }
-  for (const list of RECORD_LISTS) {
-    const ids = new Set(base[list].map(recordIdOf).filter((id) => id !== null))
-    const added = extra[list].filter((item) => {
-      const id = recordIdOf(item)
-      return id !== null && !ids.has(id)
-    })
-    if (added.length > 0) merged[list] = [...base[list], ...added]
-  }
+  for (const list of RECORD_LISTS) merged[list] = mergeById(base[list], extra[list])
   return merged
 }
 
@@ -112,7 +118,7 @@ function parseBaseline(value: unknown): VoiceBaseline | null | undefined {
 }
 
 /** JSON 글자 → 머리(app·kind·version)를 확인한 객체 */
-function parseHeader(text: string, kind: 'settings' | 'records'): Parsed<Record<string, unknown>> {
+function parseHeader(text: string, kind: 'settings' | 'records' | 'scripts'): Parsed<Record<string, unknown>> {
   let json: unknown
   try {
     json = JSON.parse(text)
@@ -161,5 +167,18 @@ export function parseRecordsFile(text: string): Parsed<RecordsData> {
 
 export function encodeRecordsFile(records: RecordsData, savedAt: Date): string {
   const file = { app: 'ullim', kind: 'records', version: FORMAT_VERSION, savedAt: savedAt.toISOString(), ...records }
+  return `${JSON.stringify(file, null, 2)}\n`
+}
+
+/** 내 대본 파일: 항목은 읽은 그대로 둔다 (모양 확인은 `model/scriptImport.ts`의 `isMyScript`, 모르는 모양도 그대로 다시 쓴다) */
+export function parseScriptsFile(text: string): Parsed<readonly unknown[]> {
+  const header = parseHeader(text, 'scripts')
+  if (!header.ok) return header
+  const scripts = header.value.scripts ?? []
+  return Array.isArray(scripts) ? { ok: true, value: scripts } : { ok: false, reason: 'broken' }
+}
+
+export function encodeScriptsFile(scripts: readonly unknown[], savedAt: Date): string {
+  const file = { app: 'ullim', kind: 'scripts', version: FORMAT_VERSION, savedAt: savedAt.toISOString(), scripts }
   return `${JSON.stringify(file, null, 2)}\n`
 }
