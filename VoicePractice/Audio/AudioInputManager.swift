@@ -101,6 +101,8 @@ final class AudioInputManager {
     @ObservationIgnored private var recorder: TakeRecorder?
     /// 지금 하고 있는 연습 한 번의 기록. 연습 중에만 있다.
     @ObservationIgnored private var sessionLog: PracticeSessionLog?
+    /// [높이] 화면의 대본이 바뀐 시각들 (녹음마다 읽은 대본을 정하는 데 쓴다)
+    @ObservationIgnored private var scriptTimeline = ScriptTimeline()
     /// [s] "지금 들어보기"를 누르면 들려줄 최근 길이
     @ObservationIgnored private var keepDuration: TimeInterval = PracticeDuration.defaultSeconds
     @ObservationIgnored private var phaseTask: Task<Void, Never>?
@@ -166,6 +168,12 @@ final class AudioInputManager {
         sessionLog = PracticeSessionLog(language: language)
         startRestReminders()
         beginRecording()
+    }
+
+    /// [높이] 화면에 보이는 대본이 바뀔 때 부른다. 대본이 아닌 문장을 보거나 대본 화면이 사라지면 nil.
+    /// 녹음을 마칠 때 목소리가 잡힌 동안 화면에 있던 대본을 그 녹음에 남긴다 (`ScriptTimeline`).
+    func showScript(_ script: TakeScript?) {
+        scriptTimeline.show(script, at: AudioClock.now)
     }
 
     /// 녹음 중에 누르면, 남겨 둔 최근 녹음(최대 N초)을 바로 들려준다. 다 들으면 자동으로 다시 녹음한다.
@@ -518,6 +526,7 @@ final class AudioInputManager {
         phaseInterval = nil
         recordingStart = .now
         sessionLog?.beginTake()  // 연습 중일 때만 있다 (내 목소리 재기는 기록하지 않음)
+        scriptTimeline.forget(before: AudioClock.now)
     }
 
     private func finishRecording() {
@@ -705,9 +714,11 @@ final class AudioInputManager {
         // 연습 중이면 이 녹음의 요약(요약 카드와 같은 숫자: 묶음 안의 점)을 연습 기록에 쌓는다.
         // 다음 녹음이 시작되면 요약 카드가 사라지므로, 나중에 [기록]에서 보고 보낼 수 있게 남겨 둔다.
         // 문장 끝 숫자도 요약 카드와 같은 목표 범위로 재어 같이 쌓는다 (2026-10-30~).
+        // 읽은 대본도 같이 남긴다 (2026-11-03~, 같은 대본끼리 공명 밝기를 견주려고).
         let target = TargetRangeStore.savedTarget(in: .standard)
         sessionLog?.finishTake(readings: take.readings, duration: take.duration, target: target,
-                               phraseEndings: take.phraseEndings(target: target)?.summary, at: take.recordedAt)
+                               phraseEndings: take.phraseEndings(target: target)?.summary,
+                               script: scriptTimeline.script(for: take.readings), at: take.recordedAt)
         return take
     }
 

@@ -16,6 +16,8 @@ struct SentenceCardView: View {
 
     /// 연습 중인지. 대본의 "들려줄 길이 맞추기"를 잠그는 데 쓴다.
     let isPracticing: Bool
+    /// 보이는 대본이 바뀔 때마다 알린다 (`ScriptReaderView`). 대본이 아닌 문장을 보면 nil
+    var onScriptChange: (TakeScript?) -> Void = { _ in }
 
     @AppStorage(Self.sourceKey) private var source = Source.mine
     @State private var generatedSentences: [String] = []
@@ -51,7 +53,7 @@ struct SentenceCardView: View {
             }
 
             if source == .scripts {
-                ScriptReaderView(isPracticing: isPracticing)
+                ScriptReaderView(isPracticing: isPracticing, onScriptChange: onScriptChange)
             } else if sentences.isEmpty {
                 Text("연습 문장이 없어요. PracticeSentences.swift에 문장을 추가해 주세요.")
                     .font(.footnote)

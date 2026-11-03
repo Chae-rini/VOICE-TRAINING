@@ -58,6 +58,10 @@ struct PracticeSessionLog {
         let pitch: PitchSummary
         /// 그 녹음의 문장 끝 분석 숫자 (요약 카드의 문장 끝 칸과 같은 값). 이 기능 전의 기록이면 nil
         var phraseEndings: PhraseEndingSummary? = nil
+        /// 그 녹음에서 읽은 대본 (`ScriptTimeline`). 대본이 아닌 것을 읽었거나 대본이 섞였거나 이 기능 전의 기록이면 nil
+        var script: TakeScript? = nil
+        /// [Hz] 그 녹음의 F2 중앙값 (같은 대본끼리 공명 밝기를 견주는 데 쓴다). 포먼트가 충분히 안 잡혔거나 이 기능 전의 기록이면 nil
+        var f2Median: Double? = nil
     }
 
     let startedAt: Date
@@ -102,11 +106,12 @@ struct PracticeSessionLog {
 
     /// 녹음 한 번이 끝났을 때 그 녹음의 요약을 남긴다. 목소리가 한 번도 안 잡혔으면 남기지 않는다.
     /// 요약 카드와 같은 `readings`·`duration`을 넘겨, 카드에 보이던 숫자가 그대로 남게 한다.
-    /// `phraseEndings`: 같은 녹음의 문장 끝 분석 숫자 (요약 카드와 같은 목표 범위로 잰 것).
+    /// `phraseEndings`: 같은 녹음의 문장 끝 분석 숫자 (요약 카드와 같은 목표 범위로 잰 것). `script`: 그 녹음에서 읽은 대본.
     mutating func finishTake(readings: [PitchReading], duration: TimeInterval, target: ClosedRange<Double>?,
-                             phraseEndings: PhraseEndingSummary? = nil, at endedAt: Date) {
+                             phraseEndings: PhraseEndingSummary? = nil, script: TakeScript? = nil, at endedAt: Date) {
         guard takeCount > 0, let pitch = PitchSummary(readings: readings, duration: duration, target: target) else { return }
-        takes.append(Take(round: takeCount, endedAt: endedAt, pitch: pitch, phraseEndings: phraseEndings))
+        takes.append(Take(round: takeCount, endedAt: endedAt, pitch: pitch, phraseEndings: phraseEndings, script: script,
+                          f2Median: ResonanceMeter.median(readings)))
     }
 
     /// 정지했을 때의 요약. 30초보다 짧은 연습이거나 목소리가 5초보다 짧게 잡혔으면 nil (남기지 않음).
@@ -132,8 +137,10 @@ extension PracticeSessionLog.Take {
     }
 
     /// 요청문 한 줄. 그 녹음의 목표 범위가 연습 기록의 목표 범위(정지한 때)와 다르면 그때 목표를 함께 적는다.
+    /// 읽은 대본이 남았으면 제목을 함께 적는다 (같은 대본을 읽은 녹음끼리 견줄 수 있게).
     func requestLine(sessionTarget: ClosedRange<Double>?) -> String {
-        var line = "- \(round)번째 녹음 (\(PitchSummary.durationLabel(pitch.duration)), 목소리 \(String(format: "%.1f", pitch.voicedSeconds))초): "
+        let scriptPart = script.map { ", 대본 ‘\($0.title)’" } ?? ""
+        var line = "- \(round)번째 녹음 (\(PitchSummary.durationLabel(pitch.duration)), 목소리 \(String(format: "%.1f", pitch.voicedSeconds))초\(scriptPart)): "
             + "중앙 \(Int(pitch.median.rounded())) Hz, 범위 \(Int(pitch.p10.rounded()))~\(Int(pitch.p90.rounded())) Hz"
         if let target = pitch.target, let fraction = pitch.inTargetFraction {
             line += ", 목표 범위 안 \(Int((fraction * 100).rounded()))%"
@@ -286,7 +293,11 @@ final class PracticeTake {
     /// 0~1. 목표 범위 밖 순간 중 문장 끝에 든 비율, 전체 목소리 중 문장 끝에 든 비율
     var phraseOutOfTargetAtEnd: Double?
     var phraseEndFrameShare: Double?
-
+    /// 읽은 대본의 id와 그때 제목 (2026-11-03~). 비어 있으면 대본을 읽지 않았거나 섞였거나 그 전에 남긴 기록이다
+    var scriptID: String?
+    var scriptTitle: String?
+    /// [Hz] 그 녹음의 F2 중앙값 (2026-11-03~). 포먼트가 충분히 안 잡혔거나 그 전에 남긴 기록이면 nil
+    var f2MedianHz: Double?
 
     init(_ take: PracticeSessionLog.Take) {
         round = take.round
@@ -307,6 +318,9 @@ final class PracticeTake {
         phrasePossibleFryCount = phraseEndings?.possibleFryCount
         phraseOutOfTargetAtEnd = phraseEndings?.outOfTargetAtEndFraction
         phraseEndFrameShare = phraseEndings?.endFrameShare
+        scriptID = take.script?.id
+        scriptTitle = take.script?.title
+        f2MedianHz = take.f2Median
     }
 
     /// 남긴 문장 끝 숫자. 그 전에 남긴 기록이면 nil
@@ -318,6 +332,12 @@ final class PracticeTake {
         )
     }
 
+    /// 남긴 읽은 대본. 대본을 읽지 않았거나 그 전에 남긴 기록이면 nil
+    var script: TakeScript? {
+        guard let scriptID, let scriptTitle else { return nil }
+        return TakeScript(id: scriptID, title: scriptTitle)
+    }
+
     var take: PracticeSessionLog.Take {
         var target: ClosedRange<Double>?
         if let targetLowerHz, let targetUpperHz {
@@ -327,7 +347,7 @@ final class PracticeTake {
             round: round, endedAt: endedAt,
             pitch: PitchSummary(duration: durationSeconds, voicedSeconds: voicedSeconds, median: medianHz, p10: lowHz,
                                 p90: highHz, target: target, inTargetFraction: inTargetFraction),
-            phraseEndings: phraseEndings
+            phraseEndings: phraseEndings, script: script, f2Median: f2MedianHz
         )
     }
 }

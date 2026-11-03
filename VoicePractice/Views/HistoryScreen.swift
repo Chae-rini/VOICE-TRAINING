@@ -94,6 +94,8 @@ struct HistoryScreen: View {
     private var historyList: some View {
         let points = PracticeHistory.filter(sessions.map { SessionPoint($0) }, period: period, language: language,
                                             now: .now, calendar: calendar)
+        let scriptTakes = PracticeHistory.filter(sessions.flatMap { ScriptTakePoint.points($0) }, period: period,
+                                                 language: language, now: .now, calendar: calendar)
         let shownRecordings = recordings.filter { isShown($0.recordedAt, $0.language) }
         let shownSessions = sessions.reversed().filter { isShown($0.startedAt, $0.language) }
         let shownBaselines = baselines.filter { isShown($0.measuredAt) }
@@ -128,7 +130,8 @@ struct HistoryScreen: View {
                         target: target,
                         baseline: baselineMedian,
                         resonanceDomain: PracticeHistory.resonanceDomain(points, baseline: baselineF2),
-                        baselineF2: baselineF2
+                        baselineF2: baselineF2,
+                        scriptTakes: scriptTakes
                     )
                     .padding(.vertical, 6)
                 }

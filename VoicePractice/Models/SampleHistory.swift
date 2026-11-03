@@ -46,14 +46,20 @@ extension PracticeArchive {
         guard let pitch = PitchSummary(voiced: voiced, voicedSeconds: duration * 0.4, duration: duration,
                                        target: target) else { return }
         // 녹음마다: 1분씩, 녹음할수록 중앙값이 3 Hz씩 오른다
+        // F2가 남는 연습이면 녹음마다 앞의 대본 셋 중 하나를 읽은 것으로 (4번째 녹음은 두 대본을 이어 읽어 대본이 없다).
+        // 대본마다 모음이 달라 F2가 다르게 나온다.
+        let scripts = PracticeScripts.all.prefix(3).map { TakeScript(id: $0.id, title: $0.title) }
         let takeSummaries: [PracticeSessionLog.Take] = (1...takes).compactMap { round in
             let takeMedian = median - 4 + Double(round - 1) * 3
             let takeVoiced = (0..<50).map { takeMedian - 15 + 30 * Double($0) / 49 }
             guard let takePitch = PitchSummary(voiced: takeVoiced, voicedSeconds: 25, duration: 60, target: target) else {
                 return nil
             }
+            let scriptIndex = (Int(start.timeIntervalSince1970 / 86_400) + round) % 3
+            let script = f2 == nil || round == 4 || scripts.count < 3 ? nil : scripts[scriptIndex]
             return PracticeSessionLog.Take(round: round, endedAt: start.addingTimeInterval(Double(round) * 90),
-                                           pitch: takePitch)
+                                           pitch: takePitch, script: script,
+                                           f2Median: f2.map { $0 + Double(scriptIndex - 1) * 120 + Double(round) * 5 })
         }
         try? saveSession(PracticeSessionLog.Summary(startedAt: start, endedAt: start.addingTimeInterval(duration),
                                                     takeCount: takes, language: language, pitch: pitch,

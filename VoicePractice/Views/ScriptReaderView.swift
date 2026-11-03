@@ -7,6 +7,8 @@ import SwiftUI
 struct ScriptReaderView: View {
     /// 연습 중에는 들려줄 길이를 바꾸지 못하게 한다.
     let isPracticing: Bool
+    /// 보이는 대본이 바뀔 때마다 알린다 (녹음마다 읽은 대본을 남기려고). 이 조각이 사라지면 nil
+    var onScriptChange: (TakeScript?) -> Void = { _ in }
 
     private static let anyCategory = "전체"
 
@@ -58,6 +60,10 @@ struct ScriptReaderView: View {
         return filtered[order[min(position, order.count - 1)]]
     }
 
+    private var shownScript: TakeScript? {
+        current.map { TakeScript(id: $0.id, title: $0.title) }
+    }
+
     var body: some View {
         VStack(spacing: 8) {
             filterBar
@@ -74,6 +80,9 @@ struct ScriptReaderView: View {
         }
         .onChange(of: category) { reshuffle() }
         .onChange(of: length) { reshuffle() }
+        .onAppear { onScriptChange(shownScript) }
+        .onChange(of: shownScript) { onScriptChange(shownScript) }
+        .onDisappear { onScriptChange(nil) }
         .sheet(isPresented: $isImporting) {
             ScriptImportView {
                 // 방금 가져온 대본이 보이게

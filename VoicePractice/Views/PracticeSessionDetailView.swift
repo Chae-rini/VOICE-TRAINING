@@ -68,7 +68,7 @@ struct PracticeSessionDetailView: View {
             } header: {
                 Text("녹음마다")
             } footer: {
-                Text("‘지금 들어보기’를 누르거나 녹음 중에 정지할 때마다 하나씩 남아요. 목소리가 잡히지 않은 녹음은 빠져요. 목표 범위 안 비율은 그 녹음을 마친 때의 목표 범위로 쟀어요.")
+                Text("‘지금 들어보기’를 누르거나 녹음 중에 정지할 때마다 하나씩 남아요. 목소리가 잡히지 않은 녹음은 빠져요. 목표 범위 안 비율은 그 녹음을 마친 때의 목표 범위로 쟀어요. 대본은 목소리가 나오는 동안 화면에 있던 대본이고, 두 대본을 이어 읽은 녹음에는 남지 않아요.")
             }
 
             Section {
@@ -103,6 +103,11 @@ struct PracticeSessionDetailView: View {
             Text(take.numbersLine)
                 .font(.footnote)
                 .monospacedDigit()
+            if let script = take.script {
+                Text("대본 ‘\(script.title)’")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             if let rules = PhraseEndingRules.standard, let phrase = take.phraseEndings?.shortPhrase(rules: rules) {
                 Text(phrase)
                     .font(.caption)

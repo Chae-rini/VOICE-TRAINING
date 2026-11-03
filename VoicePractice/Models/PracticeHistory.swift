@@ -58,6 +58,37 @@ extension SessionPoint {
     }
 }
 
+/// 대본을 읽은 녹음 한 번 (같은 대본끼리 공명 밝기를 견주는 그래프용, 2026-11-03~)
+struct ScriptTakePoint: Identifiable, Equatable {
+    let endedAt: Date
+    let script: TakeScript
+    /// [Hz] 그 녹음의 F2 중앙값
+    let f2: Double
+    /// 그 녹음이 든 연습의 언어
+    let language: PracticeLanguage
+
+    var id: Date { endedAt }
+}
+
+extension ScriptTakePoint {
+    /// 연습 기록 하나에서 읽은 대본과 F2가 모두 남은 녹음만 꺼낸다
+    static func points(_ session: PracticeSession) -> [ScriptTakePoint] {
+        session.takes.compactMap { take in
+            guard let script = take.script, let f2 = take.f2MedianHz else { return nil }
+            return ScriptTakePoint(endedAt: take.endedAt, script: script, f2: f2, language: session.language)
+        }
+    }
+}
+
+/// 공명 밝기 그래프에서 고를 수 있는 대본 하나
+struct ScriptChoice: Identifiable, Equatable {
+    let script: TakeScript
+    /// 이 대본을 읽은 녹음 수
+    let takeCount: Int
+
+    var id: String { script.id }
+}
+
 /// 하루 동안 연습한 시간 (막대그래프용)
 struct DailyPractice: Identifiable, Equatable {
     /// 그날 0시
@@ -84,6 +115,26 @@ enum PracticeHistory {
             period.contains(point.startedAt, now: now, calendar: calendar)
                 && (language == nil || point.language == language)
         }
+    }
+
+    /// 대본을 읽은 녹음도 같은 규칙(기간·언어)으로 거른다. 날짜는 녹음을 마친 때다.
+    static func filter(_ takes: [ScriptTakePoint], period: HistoryPeriod, language: PracticeLanguage?,
+                       now: Date, calendar: Calendar) -> [ScriptTakePoint] {
+        takes.filter { take in
+            period.contains(take.endedAt, now: now, calendar: calendar)
+                && (language == nil || take.language == language)
+        }
+    }
+
+    /// 녹음에서 읽은 대본들: 많이 읽은 순, 같으면 최근에 읽은 순. 제목은 가장 최근에 읽은 때의 것.
+    static func scriptChoices(_ takes: [ScriptTakePoint]) -> [ScriptChoice] {
+        Dictionary(grouping: takes) { $0.script.id }
+            .compactMap { _, takes -> (choice: ScriptChoice, latest: Date)? in
+                guard let latest = takes.max(by: { $0.endedAt < $1.endedAt }) else { return nil }
+                return (ScriptChoice(script: latest.script, takeCount: takes.count), latest.endedAt)
+            }
+            .sorted { ($0.choice.takeCount, $0.latest) > ($1.choice.takeCount, $1.latest) }
+            .map { $0.choice }
     }
 
     /// 날마다 연습한 시간을 더한다. 연습을 시작한 날로 센다 (자정을 넘긴 연습도 시작한 날).
@@ -140,6 +191,11 @@ enum PracticeHistory {
     /// 모음 지도의 F2 범위(600~3000 Hz) 안으로 자른다. F2가 없는 연습은 세지 않는다.
     static func resonanceDomain(_ points: [SessionPoint], baseline: Double?) -> ClosedRange<Double> {
         semitoneDomain(values: points.compactMap(\.f2) + [baseline].compactMap { $0 }, axis: VowelSpace.f2Range)
+    }
+
+    /// 같은 대본을 읽은 녹음만 그릴 때의 세로축. 규칙은 위와 같다.
+    static func resonanceDomain(_ takes: [ScriptTakePoint], baseline: Double?) -> ClosedRange<Double> {
+        semitoneDomain(values: takes.map(\.f2) + [baseline].compactMap { $0 }, axis: VowelSpace.f2Range)
     }
 
     /// 값 [Hz]들이 모두 들어가는 반음(로그) 눈금 축. 위아래 반음 `pitchPaddingSemitones`개 여유, 최소 반음 `minimumPitchSpanSemitones`개 폭,

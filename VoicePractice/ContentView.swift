@@ -209,7 +209,7 @@ struct ContentView: View {
                 )
             }
 
-            SentenceCardView(isPracticing: audio.isRunning)
+            SentenceCardView(isPracticing: audio.isRunning, onScriptChange: { audio.showScript($0) })
 
             // 말하는 언어는 문장 아래에 둔다 (그래프가 커져서, 문장이 먼저 보이게).
             languageRow
