@@ -2,14 +2,14 @@
   import { formantTicks, position, ticks } from '../dsp/pitchScale'
   import type { Range } from '../dsp/range'
   import { dayCount, dayTicks, historyPlotRect, markerPath, minuteTicks, timeX, type DateDomain } from '../graph/historyChart'
-  import type { DailyPractice, SessionPoint } from '../model/history'
+  import { scriptChoices, takeResonanceDomain, type DailyPractice, type ScriptTakePoint, type SessionPoint } from '../model/history'
   import { PRACTICE_LANGUAGES } from '../model/records'
   import { formatAxisDay } from '../text/dates'
   import LanguageTag from './LanguageTag.svelte'
 
   /**
    * [기록]의 그래프 세 개 (iOS `HistoryChartView`): 연습마다 목소리 높이(중앙값 점 + 아래 10%~위 10% 세로줄),
-   * 연습마다 공명 밝기(F2 중앙값 점), 날마다 연습한 시간(막대).
+   * 연습마다 공명 밝기(F2 중앙값 점, 읽은 대본을 고르면 그 대본을 읽은 녹음마다), 날마다 연습한 시간(막대).
    * 점은 목소리 색(분홍), 파란 띠는 지금 목표 범위, 보라 점선은 지금 기준(목소리 높이·F2), 막대는 기록 색(초록)이다 ([높이]와 같은 색).
    * 언어는 색이 아니라 점 모양으로 나눈다. 높이·F2 축은 반음 눈금이다. 좋아졌다·나빠졌다 같은 판정은 하지 않는다.
    */
@@ -22,6 +22,7 @@
     baseline,
     resonanceDomain,
     baselineF2,
+    scriptTakes = [],
   }: {
     points: readonly SessionPoint[]
     daily: readonly DailyPractice[]
@@ -33,7 +34,17 @@
     resonanceDomain: Range
     /** [Hz] 지금 기준 F2 (내 목소리 재기 때 저장). 없으면 점선을 그리지 않는다 */
     baselineF2: number | null
+    /** 대본을 읽은 녹음들 (기간·언어로 거른 것). 공명 밝기 그래프에서 같은 대본만 골라 볼 때 쓴다 */
+    scriptTakes?: readonly ScriptTakePoint[]
   } = $props()
+
+  /** 공명 밝기 그래프에서 고른 대본의 id. null이면 모든 연습 */
+  let scriptId: string | null = $state(null)
+  const choices = $derived(scriptChoices(scriptTakes))
+  /** 고른 대본. 기간·언어를 바꿔 그 대본을 읽은 녹음이 없어지면 null(모든 연습) */
+  const activeChoice = $derived(choices.find((choice) => choice.script.id === scriptId) ?? null)
+  const chosenTakes = $derived(activeChoice === null ? [] : scriptTakes.filter((take) => take.script.id === activeChoice.script.id))
+  const shownResonanceDomain = $derived(activeChoice === null ? resonanceDomain : takeResonanceDomain(chosenTakes, baselineF2))
 
   let width = $state(320)
   const pitchHeight = 220
@@ -45,10 +56,17 @@
   const y = (frequency: number) => pitchPlot.y + pitchPlot.height - position(frequency, pitchDomain) * pitchPlot.height
   const resonancePlot = $derived(historyPlotRect(width, resonanceHeight))
   const resonanceY = (f2: number) =>
-    resonancePlot.y + resonancePlot.height - position(f2, resonanceDomain) * resonancePlot.height
-  const f2Ticks = $derived(formantTicks(resonanceDomain))
-  /** F2 중앙값이 남은 연습만 (2026-10-25 전의 연습과 포먼트를 충분히 못 잡은 연습은 빠진다) */
-  const resonancePoints = $derived(points.flatMap((point) => (point.f2 === null ? [] : [{ point, f2: point.f2 }])))
+    resonancePlot.y + resonancePlot.height - position(f2, shownResonanceDomain) * resonancePlot.height
+  const f2Ticks = $derived(formantTicks(shownResonanceDomain))
+  /**
+   * 공명 밝기 점: 고른 대본이 있으면 그 대본을 읽은 녹음마다, 없으면 F2 중앙값이 남은 연습마다
+   * (2026-10-25 전의 연습과 포먼트를 충분히 못 잡은 연습은 빠진다)
+   */
+  const resonanceDots = $derived(
+    activeChoice !== null
+      ? chosenTakes.map((take) => ({ time: take.endedAt, f2: take.f2, language: take.language }))
+      : points.flatMap((point) => (point.f2 === null ? [] : [{ time: point.startedAt, f2: point.f2, language: point.language }])),
+  )
   const dayWidth = $derived(barPlot.width / dayCount(domain))
   const days = $derived(dayTicks(domain))
   const hzTicks = $derived(ticks(pitchDomain))
@@ -57,7 +75,11 @@
   const minuteTop = $derived(minuteMarks[minuteMarks.length - 1])
   const barY = (minutes: number) => barPlot.y + barPlot.height - (minutes / minuteTop) * barPlot.height
   /** 그래프에 나온 언어만 범례에 넣는다 */
-  const languages = $derived(PRACTICE_LANGUAGES.filter((l) => points.some((p) => p.language === l.id)).map((l) => l.id))
+  const languages = $derived(
+    PRACTICE_LANGUAGES.filter((l) => points.some((p) => p.language === l.id) || scriptTakes.some((t) => t.language === l.id)).map(
+      (l) => l.id,
+    ),
+  )
 
   const pitchDescription = $derived.by(() => {
     if (points.length === 0) return ''
@@ -67,11 +89,26 @@
     }`
   })
   const resonanceDescription = $derived.by(() => {
-    if (resonancePoints.length === 0) return ''
-    const values = resonancePoints.map((item) => Math.round(item.f2))
-    return `연습 ${resonancePoints.length}번의 F2 중앙값이 ${Math.min(...values)}~${Math.max(...values)} Hz 사이에 있어요.${
+    if (resonanceDots.length === 0) return ''
+    const values = resonanceDots.map((dot) => Math.round(dot.f2))
+    const which = activeChoice === null ? `연습 ${resonanceDots.length}번` : `‘${activeChoice.script.title}’ 대본을 읽은 녹음 ${resonanceDots.length}번`
+    return `${which}의 F2 중앙값이 ${Math.min(...values)}~${Math.max(...values)} Hz 사이에 있어요.${
       baselineF2 === null ? '' : ` 지금 기준은 ${Math.round(baselineF2)} Hz예요.`
     }`
+  })
+  /** 그래프 아래 안내 (iOS `resonanceNote`와 같은 글). 제목 뒤 조사가 받침에 따라 달라지지 않게 ‘대본’에 조사를 붙인다 */
+  const resonanceNote = $derived.by(() => {
+    if (activeChoice === null) {
+      const base =
+        '점은 연습 한 번의 F2 중앙값이에요. 위쪽이 밝은 쪽이고, 보라 점선은 지금 기준이에요. F2는 말한 모음에 따라 달라져서, 같은 대본을 읽은 연습끼리 비교해야 정확해요.'
+      return (
+        base +
+        (choices.length === 0
+          ? ' [높이]에서 대본을 읽으며 연습하면 같은 대본을 읽은 녹음끼리 골라 볼 수 있어요.'
+          : ' ‘읽은 대본’에서 하나를 고르면 그 대본을 읽은 녹음만 보여요.')
+      )
+    }
+    return `점은 ‘${activeChoice.script.title}’ 대본을 읽은 녹음 한 번의 F2 중앙값이에요(녹음 ${activeChoice.takeCount}개). 같은 글이라 점끼리 견줄 수 있어요. 보라 점선은 지금 기준인데, 기준은 다른 글로 쟀을 수 있어서 참고로만 보세요.`
   })
   const barDescription = $derived(
     `연습한 날 ${daily.length}일, 가장 오래 연습한 날은 ${Math.round(maxMinutes)}분이에요.`,
@@ -123,8 +160,26 @@
   <!-- 공명 밝기(F2)는 내 기준과만 견준다. 성별 평균 같은 바깥 기준은 쓰지 않는다 (원칙 3).
        문장 속 F2는 말한 모음에 따라 달라지므로 같은 대본끼리 견줘야 한다는 안내를 빼지 않는다 ([높이] 공명 막대와 같은 안내). -->
   <div class="chart">
-    <h3>연습마다 공명 밝기 (F2, Hz)</h3>
-    {#if resonancePoints.length === 0}
+    <h3>{activeChoice === null ? '연습마다 공명 밝기 (F2, Hz)' : '같은 대본을 읽은 녹음마다 공명 밝기 (F2, Hz)'}</h3>
+    {#if choices.length > 0}
+      <!-- 많이 읽은 대본부터, 녹음 수를 함께 보인다 -->
+      <label class="picker">
+        <span>읽은 대본</span>
+        <select
+          value={activeChoice?.script.id ?? ''}
+          onchange={(event) => {
+            const value = (event.currentTarget as HTMLSelectElement).value
+            scriptId = value === '' ? null : value
+          }}
+        >
+          <option value="">모든 연습</option>
+          {#each choices as choice (choice.script.id)}
+            <option value={choice.script.id}>{choice.script.title} · {choice.takeCount}번</option>
+          {/each}
+        </select>
+      </label>
+    {/if}
+    {#if resonanceDots.length === 0}
       <p class="caption">
         이 기간의 연습에는 공명 밝기 기록이 없어요. 공명 밝기는 이 기능이 생긴 뒤의 연습부터 남고, 목소리의 공명이 충분히 잡히지 않은
         연습은 빠져요.
@@ -134,7 +189,7 @@
         width={width}
         height={resonanceHeight}
         role="img"
-        aria-label="연습마다 공명 밝기"
+        aria-label={activeChoice === null ? '연습마다 공명 밝기' : '같은 대본을 읽은 녹음마다 공명 밝기'}
         aria-describedby="resonance-chart-description"
       >
         {#each f2Ticks as hz (hz)}
@@ -161,15 +216,12 @@
           />
           <text class="baseline-label" x={resonancePlot.x + 4} y={resonanceY(baselineF2) - 4}>기준</text>
         {/if}
-        {#each resonancePoints as item}
-          <path class="point" d={markerPath(item.point.language, timeX(item.point.startedAt, domain, resonancePlot), resonanceY(item.f2), 3.8)} />
+        {#each resonanceDots as dot}
+          <path class="point" d={markerPath(dot.language, timeX(dot.time, domain, resonancePlot), resonanceY(dot.f2), 3.8)} />
         {/each}
       </svg>
       <span id="resonance-chart-description" class="visually-hidden">{resonanceDescription}</span>
-      <p class="caption">
-        점은 연습 한 번의 F2 중앙값이에요. 위쪽이 밝은 쪽이고, 보라 점선은 지금 기준이에요. F2는 말한 모음에 따라 달라져서, 같은 대본을 읽은
-        연습끼리 비교해야 정확해요.
-      </p>
+      <p class="caption">{resonanceNote}</p>
     {/if}
   </div>
 
@@ -253,6 +305,25 @@
   .bar {
     fill: var(--record);
     opacity: 0.8;
+  }
+  .picker {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    color: var(--secondary);
+    font-size: 0.8rem;
+  }
+  .picker select {
+    /* 긴 제목이 화면 밖으로 나가지 않게 */
+    min-width: 0;
+    max-width: 70%;
+    font: inherit;
+    color: var(--target);
+    background: var(--fill);
+    border: none;
+    border-radius: 8px;
+    padding: 4px 8px;
   }
   .legend {
     display: flex;

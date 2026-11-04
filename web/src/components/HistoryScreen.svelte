@@ -6,10 +6,12 @@
     dailyPractice,
     dateDomain,
     filterPoints,
+    filterScriptTakes,
     HISTORY_PERIODS,
     historyTotals,
     periodContains,
     resonanceDomain,
+    scriptTakePoints,
     sessionPitchDomain,
     sessionPoint,
     totalLabel,
@@ -60,6 +62,8 @@
 
   const points = $derived(filterPoints(records.sessions.map(sessionPoint), period, language, now))
   const totals = $derived(historyTotals(points))
+  /** 대본을 읽은 녹음들 (공명 밝기 그래프에서 같은 대본만 골라 볼 때) */
+  const scriptTakes = $derived(filterScriptTakes(records.sessions.flatMap(scriptTakePoints), period, language, now))
   const shownRecordings = $derived(records.recordings.filter((r) => isShown(r.recordedAt, r.language)))
   const shownSessions = $derived(records.sessions.filter((s) => isShown(s.startedAt, s.language)).reverse())
   const shownBaselines = $derived(records.baselines.filter((b) => isShown(b.measuredAt)))
@@ -197,6 +201,7 @@
             baseline={settings.baseline?.median ?? null}
             resonanceDomain={resonanceDomain(points, settings.baseline?.f2 ?? null)}
             baselineF2={settings.baseline?.f2 ?? null}
+            {scriptTakes}
           />
         {/if}
       </section>

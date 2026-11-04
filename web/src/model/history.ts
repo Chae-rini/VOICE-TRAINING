@@ -3,6 +3,7 @@ import { offsetBySemitones, semitones } from '../dsp/pitchScale'
 import type { Range } from '../dsp/range'
 import { VowelSpace } from '../dsp/vowelSpace'
 import type { PracticeLanguage, SessionRecord } from './records'
+import { takeScriptOf, type TakeScript } from './takeScript'
 
 /**
  * [기록] 화면의 계산 규칙 (iOS `Models/PracticeHistory.swift`). 점수·향상률·연속 기록(스트릭)은 만들지 않고, 있는 숫자를 모으기만 한다.
@@ -74,6 +75,34 @@ export function sessionPoint(record: SessionRecord): SessionPoint {
   }
 }
 
+/** 대본을 읽은 녹음 한 번 (같은 대본끼리 공명 밝기를 견주는 그래프용, iOS `ScriptTakePoint`) */
+export interface ScriptTakePoint {
+  readonly endedAt: Date
+  readonly script: TakeScript
+  /** [Hz] 그 녹음의 F2 중앙값 */
+  readonly f2: number
+  /** 그 녹음이 든 연습의 언어 */
+  readonly language: PracticeLanguage
+}
+
+/** 연습 기록 하나에서 읽은 대본과 F2가 모두 남은 녹음만 꺼낸다 */
+export function scriptTakePoints(record: SessionRecord): ScriptTakePoint[] {
+  return record.takes.flatMap((take) => {
+    const script = takeScriptOf(take.script)
+    const f2 = take.f2Median
+    return script === null || typeof f2 !== 'number' || !Number.isFinite(f2)
+      ? []
+      : [{ endedAt: new Date(take.endedAt), script, f2, language: record.language }]
+  })
+}
+
+/** 공명 밝기 그래프에서 고를 수 있는 대본 하나 */
+export interface ScriptChoice {
+  readonly script: TakeScript
+  /** 이 대본을 읽은 녹음 수 */
+  readonly takeCount: number
+}
+
 /** 하루 동안 연습한 시간 (막대그래프용) */
 export interface DailyPractice {
   /** 그날 0시 */
@@ -97,6 +126,32 @@ export function filterPoints(
   now: Date,
 ): SessionPoint[] {
   return points.filter((point) => periodContains(period, point.startedAt, now) && (language === null || point.language === language))
+}
+
+/** 대본을 읽은 녹음도 같은 규칙(기간·언어)으로 거른다. 날짜는 녹음을 마친 때다 */
+export function filterScriptTakes(
+  takes: readonly ScriptTakePoint[],
+  period: HistoryPeriod,
+  language: PracticeLanguage | null,
+  now: Date,
+): ScriptTakePoint[] {
+  return takes.filter((take) => periodContains(period, take.endedAt, now) && (language === null || take.language === language))
+}
+
+/** 녹음에서 읽은 대본들: 많이 읽은 순, 같으면 최근에 읽은 순. 제목은 가장 최근에 읽은 때의 것 */
+export function scriptChoices(takes: readonly ScriptTakePoint[]): ScriptChoice[] {
+  const groups = new Map<string, { latest: ScriptTakePoint; count: number }>()
+  for (const take of takes) {
+    const group = groups.get(take.script.id)
+    if (group === undefined) groups.set(take.script.id, { latest: take, count: 1 })
+    else {
+      group.count += 1
+      if (take.endedAt > group.latest.endedAt) group.latest = take
+    }
+  }
+  return [...groups.values()]
+    .sort((a, b) => b.count - a.count || b.latest.endedAt.getTime() - a.latest.endedAt.getTime())
+    .map((group) => ({ script: group.latest.script, takeCount: group.count }))
 }
 
 /** 날마다 연습한 시간을 더한다. 연습을 시작한 날로 센다 (자정을 넘긴 연습도 시작한 날) */
@@ -147,6 +202,12 @@ export function pitchDomain(values: readonly number[], target: Range | null, bas
  */
 export function resonanceDomain(points: readonly SessionPoint[], baseline: number | null): Range {
   const values = points.flatMap((point) => (point.f2 === null ? [] : [point.f2]))
+  return semitoneDomain(baseline === null ? values : [...values, baseline], VowelSpace.f2Range)
+}
+
+/** 같은 대본을 읽은 녹음만 그릴 때의 공명 밝기 세로축 (iOS `resonanceDomain(_:[ScriptTakePoint], baseline:)`). 규칙은 위와 같다 */
+export function takeResonanceDomain(takes: readonly ScriptTakePoint[], baseline: number | null): Range {
+  const values = takes.map((take) => take.f2)
   return semitoneDomain(baseline === null ? values : [...values, baseline], VowelSpace.f2Range)
 }
 

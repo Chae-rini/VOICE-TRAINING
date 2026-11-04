@@ -1,9 +1,11 @@
+import { PRACTICE_SCRIPTS } from '../data/scripts'
 import { PitchSummary } from '../dsp/pitchSummary'
 import type { Range } from '../dsp/range'
 import { sessionRecord, type TakeSummary } from '../practice/sessionLog'
 import { EMPTY_RECORDS, type RecordsData } from '../storage/archive'
 import { addDays, startOfDay } from './history'
 import { newRecordId, type BaselineRecord, type PracticeLanguage, type SessionRecord } from './records'
+import type { TakeScript } from './takeScript'
 
 /**
  * 개발용 가짜 연습 기록 (iOS `Models/SampleHistory.swift`와 같은 규칙). 미리보기 브라우저는 마이크를 막아서 진짜 기록을 만들기 어려워,
@@ -58,11 +60,21 @@ function sample(
   // 중앙값 ±20 Hz에 고르게 퍼진 높이 → 아래 10%·위 10%는 중앙값 ±16 Hz
   const pitch = PitchSummary.fromVoiced(spread(median, 20, 100), duration * 0.4, duration, target)!
   // 녹음마다: 1분씩, 녹음할수록 중앙값이 3 Hz씩 오른다
-  const takeSummaries: TakeSummary[] = Array.from({ length: takes }, (_, i) => ({
-    round: i + 1,
-    endedAt: new Date(start.getTime() + (i + 1) * 90_000),
-    pitch: PitchSummary.fromVoiced(spread(median - 4 + i * 3, 15, 50), 25, 60, target)!,
-  }))
+  // F2가 남는 연습이면 녹음마다 앞의 대본 셋 중 하나를 읽은 것으로 (4번째 녹음은 두 대본을 이어 읽어 대본이 없다).
+  // 대본마다 모음이 달라 F2가 다르게 나온다 (iOS와 같은 규칙)
+  const scripts: TakeScript[] = PRACTICE_SCRIPTS.slice(0, 3).map(({ id, title }) => ({ id, title }))
+  const takeSummaries: TakeSummary[] = Array.from({ length: takes }, (_, i) => {
+    const round = i + 1
+    const scriptIndex = (Math.floor(start.getTime() / 86_400_000) + round) % 3
+    const script = f2 === null || round === 4 || scripts.length < 3 ? undefined : scripts[scriptIndex]
+    return {
+      round,
+      endedAt: new Date(start.getTime() + round * 90_000),
+      pitch: PitchSummary.fromVoiced(spread(median - 4 + i * 3, 15, 50), 25, 60, target)!,
+      ...(script === undefined ? {} : { script }),
+      ...(f2 === null ? {} : { f2Median: f2 + (scriptIndex - 1) * 120 + round * 5 }),
+    }
+  })
   return sessionRecord({
     startedAt: start,
     endedAt: new Date(start.getTime() + duration * 1000),

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from 'svelte'
   import {
     ANY_CATEGORY,
     estimatedSeconds,
@@ -13,8 +14,11 @@
   import { PracticeDuration } from '../model/practice'
   import { MY_SCRIPT_CATEGORY, myScriptIdOf, practiceScriptOf } from '../model/scriptImport'
   import { settings } from '../model/settings.svelte'
+  import type { TakeScript } from '../model/takeScript'
+  import { session } from '../practice/session.svelte'
   import { store } from '../storage/recordStore.svelte'
   import { resolveParticles } from '../text/korean'
+  import { navigation } from './navigation.svelte'
   import ScriptImportSheet from './ScriptImportSheet.svelte'
 
   /**
@@ -22,6 +26,7 @@
    * 들려줄 길이를 대본 길이에 맞출 수 있다. 그래프가 화면 위에 고정되어 있어서 대본은 이 상자 안에서 넘기며 읽는다.
    * 대본은 섞인 순서로 보인다 (`shuffledOrder`): 이 조각이 새로 생길 때(대본으로 바꿀 때·앱을 열 때)마다 다른 대본부터.
    * AI 앱에서 가져온 내 대본(`store.myScripts`)은 ‘내 대본’ 종류로 맨 뒤에 붙고, 그 카드에서만 지울 수 있다.
+   * 보이는 대본은 연습 흐름에 알린다 (녹음마다 읽은 대본을 연습 기록에 남기려고, iOS `onScriptChange`).
    */
   let { isPracticing }: { isPracticing: boolean } = $props()
 
@@ -39,6 +44,14 @@
   const order = $derived(shuffledOrder(filtered.length))
   const current = $derived(filtered[order[Math.min(position, order.length - 1)]])
   const suggested = $derived(current ? PracticeDuration.suggestedFor(estimatedSeconds(current)) : null)
+
+  // 녹음마다 읽은 대본을 정하려고 보이는 대본을 알린다. 다른 탭으로 가면 이 화면은 숨기만 하므로(App.svelte) 대본이 없는 것으로 알린다
+  // ([모음]에서 녹음해도 [높이]의 대본을 읽은 것으로 세지 않게. iOS는 탭을 바꾸면 화면이 사라진다)
+  const shownScript: TakeScript | null = $derived(
+    current === undefined || navigation.tab !== 'pitch' ? null : { id: current.id, title: current.title },
+  )
+  $effect(() => session.showScript(shownScript))
+  onDestroy(() => session.showScript(null))
 
   // 대본이 바뀌면 스크롤을 맨 위로 되돌린다.
   $effect(() => {

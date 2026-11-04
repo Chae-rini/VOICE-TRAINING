@@ -10,6 +10,7 @@ import { REST_REMINDER_SECONDS, restMessage } from '../graph/descriptions'
 import { Baseline, type BaselineMeasurement } from '../model/practice'
 import { newRecordId, phraseNumbers, pitchNumbers, recordingDisplayTitle, type RecordingRecord } from '../model/records'
 import { settings } from '../model/settings.svelte'
+import { ScriptTimeline, type TakeScript } from '../model/takeScript'
 import { VowelMaps, type VowelEntry } from '../model/vowelMap'
 import { vibrate } from '../platform/haptics'
 import { store, type AddResult } from '../storage/recordStore.svelte'
@@ -74,6 +75,8 @@ class PracticeSession {
   #loop = new PracticeLoop()
   /** 연습 한 번의 기록 (‘반복 루프 재생’부터 정지까지). 재기·다시 듣기 중에는 없다 */
   #log: PracticeSessionLog | null = null
+  /** [높이] 화면에 보이는 대본이 바뀐 때 (녹음마다 읽은 대본을 정해 연습 기록에 남긴다) */
+  #scripts = new ScriptTimeline()
   /** [s] 들려줄 길이 = 녹음 통에 남길 길이 = 그래프 가로축 */
   #keepSeconds = 60
   #measureReadings: PitchReading[] = []
@@ -86,6 +89,11 @@ class PracticeSession {
   /** [s] 지금 시각 (소리 시계) */
   now(): number {
     return audio.now()
+  }
+
+  /** [높이] 대본 화면이 보이는 대본을 알린다 (대본이 아니거나 화면이 사라지면 null) */
+  showScript(script: TakeScript | null): void {
+    this.#scripts.show(script, audio.now())
   }
 
   /** 녹음·듣기·숨 고르기·다시 듣기·재기 중이거나 마이크를 켜는 중·파일을 분석하는 중 */
@@ -246,6 +254,7 @@ class PracticeSession {
     this.history = new PitchHistory(this.#keepSeconds + 2)
     audio.beginRecording(this.#keepSeconds)
     this.#log?.beginTake()
+    this.#scripts.restart()
     const round = this.#loop.phase.kind === 'recording' ? this.#loop.phase.round : null
     const start = audio.now()
     this.clock = { kind: 'live', start, duration: this.#keepSeconds, round }
@@ -287,7 +296,14 @@ class PracticeSession {
     const log = this.#log
     if (log !== null) {
       const target = settings.target
-      log.finishTake(take.readings, takeDuration(take), target, take.recordedAt, analyzePhraseEndings(take.readings, target).summary)
+      log.finishTake(
+        take.readings,
+        takeDuration(take),
+        target,
+        take.recordedAt,
+        analyzePhraseEndings(take.readings, target).summary,
+        this.#scripts.scriptFor(take.readings),
+      )
     }
     return take
   }

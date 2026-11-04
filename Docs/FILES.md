@@ -137,12 +137,12 @@
 | `web/src/components/BaselineSheet.svelte` | 내 목소리 재기 창: 열 때마다 무작위로 고른 문장·대본(‘다른 대본’), 10초 재기, 결과(중앙·범위·F2), 목표 범위를 기준에 맞추기, 저장 |
 | `web/src/model/baselineReading.ts` | 내 목소리 재기에서 읽을 글 (iOS `BaselineReading`과 같은 규칙: 내 문장 + 평소 말투 대본, 무작위·직전 글 빼기, 안내 글) |
 | `web/test/baselineReading.test.ts` | 재기에서 읽을 글 시험지 (iOS `BaselineReadingTests`와 같은 확인) |
-| `web/src/components/SentenceCards.svelte`, `ScriptReader.svelte` | 문장 카드(내 문장·자동 생성, 밀어서 넘기기)와 대본 읽기(섞인 순서, 종류·길이 거르기, 다른 대본, 들려줄 길이 맞추기). 가져온 대본은 ‘내 대본’ 종류, 하나씩 지우기 |
+| `web/src/components/SentenceCards.svelte`, `ScriptReader.svelte` | 문장 카드(내 문장·자동 생성, 밀어서 넘기기)와 대본 읽기(섞인 순서, 종류·길이 거르기, 다른 대본, 들려줄 길이 맞추기). 가져온 대본은 ‘내 대본’ 종류, 하나씩 지우기. 보이는 대본을 연습 흐름에 알린다([높이] 탭이 아니면 없음) |
 | `web/src/components/ScriptImportSheet.svelte` | AI 대본 가져오기 창 (iOS `ScriptImportView`): 부탁 글(공유·복사), 붙여넣기(앱에서는 칸을 길게 눌러), 미리 보기(제목 고치기·빼기), 내 대본에 남기기 |
 | `web/src/model/scriptImport.ts` | AI 대본 가져오기 규칙 (iOS `ScriptImport`와 같음): 부탁 글, 붙여넣은 글 나누기, 내 대본 모양(`MyScript`)과 대본 화면용으로 바꾸기 |
 | `web/test/scriptImport.test.ts` | AI 대본 가져오기 시험지 (iOS `ScriptImportTests`와 같은 입력·결과, 부탁 글은 글자 하나까지 같게) |
 | `web/src/components/DurationControl.svelte` | ‘들려줄 길이’ 버튼과 조정 창 (10초~3분) |
-| `web/src/practice/session.svelte.ts` | 연습 흐름: 반복 루프(녹음 → 지금 들어보기 → 숨 고르기 → 다시 녹음), 마지막 녹음 다시 듣기, 파일 불러오기, 내 목소리 재기·모음 재기(마이크·파일), 그래프 시계, 15분 쉬어 가기, 정지할 때 연습 기록 남기기, ‘기록에 남기기’ |
+| `web/src/practice/session.svelte.ts` | 연습 흐름: 반복 루프(녹음 → 지금 들어보기 → 숨 고르기 → 다시 녹음), 마지막 녹음 다시 듣기, 파일 불러오기, 내 목소리 재기·모음 재기(마이크·파일), 그래프 시계, 15분 쉬어 가기, 정지할 때 연습 기록 남기기, ‘기록에 남기기’. 녹음마다 읽은 대본을 정한다(`ScriptTimeline`) |
 | `web/src/practice/loop.ts` | 연습 순서표(지금 어느 단계인지, iOS `PracticeLoop`) |
 | `web/src/practice/takeRecorder.ts` | 최근 N초만 남기는 고리 모양 녹음 통 (iOS `TakeRecorder`) |
 | `web/src/practice/take.ts` | 녹음 묶음: 소리와 같은 구간의 점만 담고, 요약·F2·가로축·다시 듣기 기록을 낸다 (iOS `RecordedTake`) |
@@ -154,8 +154,8 @@
 | `web/src/graph/descriptions.ts` | 그래프·막대를 말로 바꾼 설명(iOS와 같은 문장), 쉬어 가기 안내 문구 |
 | `web/src/model/practice.ts` | 들려줄 길이, 내 기준 목소리 재기·처음 목표 범위·먼 범위 판정, 목표 범위 슬라이더 규칙 |
 | `web/src/model/settingsStorage.ts`, `settings.svelte.ts` | 화면 설정(들려줄 길이·문장 종류·대본 거르기·고른 모음)은 이 브라우저(localStorage, `ullim.` 키)에. 내 기준 값(목표 범위·기준·모음 지도)은 화면이 함께 보고 바뀌면 기록 폴더에 알린다. W5까지 브라우저에 있던 내 기준 값을 읽고(옮기기용) 지우기 |
-| `web/src/model/records.ts` | `울림-기록.json`에 남는 기록의 모양(연습 기록·녹음마다 요약·남긴 녹음·기준 이력·모음 이력)과 확인, 말하는 언어. 녹음마다·남긴 녹음의 문장 끝 숫자(`phraseEndings`, 없으면 그 전 기록) |
-| `web/src/practice/sessionLog.ts` | 연습 한 번의 기록: 녹음마다 요약을 쌓고, 정지하면 30초·목소리 5초 이상일 때 연습 기록 하나로 (iOS `PracticeSessionLog`). 연습 기록의 AI 요청문·녹음 한 줄 |
+| `web/src/model/records.ts` | `울림-기록.json`에 남는 기록의 모양(연습 기록·녹음마다 요약·남긴 녹음·기준 이력·모음 이력)과 확인, 말하는 언어. 녹음마다·남긴 녹음의 문장 끝 숫자(`phraseEndings`, 없으면 그 전 기록). 녹음마다 읽은 대본·F2(`script`·`f2Median`, 2026-11-04~) |
+| `web/src/practice/sessionLog.ts` | 연습 한 번의 기록: 녹음마다 요약을 쌓고, 정지하면 30초·목소리 5초 이상일 때 연습 기록 하나로 (iOS `PracticeSessionLog`). 녹음마다 읽은 대본과 F2 중앙값도. 연습 기록의 AI 요청문·녹음 한 줄 |
 | `web/src/model/voiceSettings.ts` | 내 기준 값의 모양, 기준을 재면 목표 범위 정하기, 기록 폴더를 열 때 폴더 값과 화면 값 합치기 |
 | `web/src/storage/recordStore.svelte.ts` | 내 기록이 남는 곳: 기록 폴더 고르기·다시 연결·바꾸기·끊기, 바뀐 값을 폴더에 쓰기(0.4초 모아서), 기록 더하기(녹음 소리 먼저, 폴더가 없으면 화면에 담아 두었다가 옮김), 내 대본 더하기·지우기, 기록 파일(zip) 저장·불러오기(내 대본은 합침), 사파리처럼 폴더를 못 고르는 브라우저(개발 서버에서 `?nofolder`로 흉내) |
 | `web/src/storage/archive.ts` | 기록 폴더의 파일 모양(`울림-설정.json`·`울림-기록.json`·내 대본 `울림-대본.json`, 판 번호), 읽지 못한 까닭과 안내 문구, 기록 더하기·합치기(id로), 남긴 녹음 파일 이름 |
@@ -165,15 +165,16 @@
 | `web/src/storage/handleStore.ts` | 고른 기록 폴더의 연결 정보를 이 브라우저(IndexedDB)에 기억 |
 | `web/src/storage/fileSystemAccess.d.ts` | TypeScript 기본 타입에 아직 없는 폴더 고르기·허락 묻기 타입 |
 | `web/src/components/HistoryScreen.svelte` | [기록] 화면: 기간·언어 거르기, 모아 보기, 그래프, 남긴 녹음·연습 기록·내 목소리 재기 목록, 모두 지우기, 저장 위치(필요할 때는 맨 위). 누르면 자세히 화면으로 바뀐다(돌아오면 스크롤 그대로) |
-| `web/src/components/HistoryCharts.svelte`, `LanguageTag.svelte` | [기록] 그래프 세 개(연습마다 높이: 반음 눈금·목표 띠·기준 점선·언어별 점 모양 / 연습마다 공명 밝기 F2 / 날마다 연습 시간 막대, SVG)와 언어 표시 |
-| `web/src/components/RecordingDetail.svelte`, `SessionDetail.svelte` | 남긴 녹음 자세히(메모·언어 고치기, [높이]에서 다시 듣기, 파일로 저장, 지우기)와 연습 기록 자세히(녹음마다 숫자, AI에게 피드백 받기·요약 복사, 지우기) |
+| `web/src/components/HistoryCharts.svelte`, `LanguageTag.svelte` | [기록] 그래프 세 개(연습마다 높이: 반음 눈금·목표 띠·기준 점선·언어별 점 모양 / 연습마다 공명 밝기 F2, ‘읽은 대본’을 고르면 그 대본을 읽은 녹음마다 / 날마다 연습 시간 막대, SVG)와 언어 표시 |
+| `web/src/components/RecordingDetail.svelte`, `SessionDetail.svelte` | 남긴 녹음 자세히(메모·언어 고치기, [높이]에서 다시 듣기, 파일로 저장, 지우기)와 연습 기록 자세히(녹음마다 숫자와 읽은 대본, AI에게 피드백 받기·요약 복사, 지우기) |
 | `web/src/components/StorageCard.svelte` | ‘내 기록 저장 위치’ 카드 |
 | `web/src/components/CompareScreen.svelte`, `CompareChart.svelte` | 두 녹음 비교: A·B 고르기(메모 붙임)·바꾸기, 나란히 보기(높낮이 폭 포함)·중앙값 차이 한 문장, 높이 분포(반음 반 칸, SVG), 하나씩·A → B 이어 듣기 |
 | `web/src/model/comparison.ts` | 두 녹음 비교의 계산: 처음 짝, 높낮이 폭(반음), 중앙값 차이 글(판정 없음), 반음 반 칸 분포(440 Hz 기준), 분포 가로축 (iOS `RecordingComparison`) |
 | `web/src/practice/comparePlayer.svelte.ts` | 두 녹음 비교의 재생기: 남긴 녹음을 읽어 분석하고(늦게 끝난 예전 읽기는 버림), 가장 큰 소리를 맞춰 하나씩·A → 0.7초 → B로 들려준다 |
-| `web/src/model/history.ts` | [기록]의 계산: 기간(7일·30일·전체), 거르기, 날마다 연습 시간, 모아 보기, 가로·세로축(높이·공명 밝기 F2, 반음 여유·최소 폭), 시간 표시 (iOS `PracticeHistory`) |
+| `web/src/model/history.ts` | [기록]의 계산: 기간(7일·30일·전체), 거르기, 날마다 연습 시간, 모아 보기, 가로·세로축(높이·공명 밝기 F2, 반음 여유·최소 폭), 시간 표시, 대본을 읽은 녹음(`ScriptTakePoint`)과 고를 대본 순서 (iOS `PracticeHistory`) |
 | `web/src/graph/historyChart.ts` | [기록] 그래프 자리: 날짜 위치·날짜 눈금·분 눈금·언어별 점 모양 |
-| `web/src/model/sampleHistory.ts` | 개발용 가짜 기록 40일치 (개발 서버 `?seed`, 배포 빌드에는 없음). 30일 전부터는 F2도 |
+| `web/src/model/sampleHistory.ts` | 개발용 가짜 기록 40일치 (개발 서버 `?seed`, 배포 빌드에는 없음). 30일 전부터는 F2와, 녹음마다 대본 셋 중 하나(iOS와 같은 규칙) |
+| `web/src/model/takeScript.ts` | 녹음 하나가 읽은 대본(`TakeScript`)과 그것을 정하는 규칙(`ScriptTimeline`, iOS와 같은 90% 규칙. 녹음 시작 때 `restart()`) |
 | `web/src/text/dates.ts` | 날짜·시각 글자 (10월 25일 (일) 오후 8:12 등) |
 | `web/src/components/StorageNotice.svelte` | [높이]·[모음] 위의 한 줄 안내(다시 연결, 폴더 고르기, 파일로 저장, 불러오기 안내) |
 | `web/src/text/korean.ts`, `sentenceGenerator.ts` | 조사 고르기(을/를 등), 단모음 세기, 자동 생성 문장 (iOS와 같은 규칙) |
@@ -198,4 +199,5 @@
 | `web/test/signals.ts` | 웹 테스트용 합성 신호 (iOS 테스트·`Tools/WebGolden`과 같은 식) |
 | `web/test/golden/swift-golden.json` | `Tools/WebGolden`이 만든 정답표. 손으로 고치지 않는다 |
 | `web/test/phraseEnding.test.ts` | 구절별 문장 끝 분석의 시험지 (iOS `PhraseEndingAnalysisTests`와 같은 입력·기대값 파일을 읽는다) |
+| `web/test/takeScript.test.ts` | 녹음마다 읽은 대본 시험지 (iOS `TakeScriptTests`와 같은 경우·같은 글 + 웹만: 마이크 켜기 전 다른 시계로 적은 대본) |
 | `web/test/phraseRecords.test.ts` | 기록에 남긴 문장 끝 숫자: 연습 기록·남긴 녹음 저장·되읽기, 예전 기록·망가진 칸, 녹음 여러 개 합치기, 연습 기록 요청문 (iOS `PhraseEndingRecordTests`와 같은 숫자·같은 글) |

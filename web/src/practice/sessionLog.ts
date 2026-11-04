@@ -14,6 +14,7 @@ import {
   type PracticeLanguage,
   type SessionRecord,
 } from '../model/records'
+import { takeScriptOf, type TakeScript } from '../model/takeScript'
 import { formatDayTime } from '../text/dates'
 import { combinedPhraseSummary, summaryRequestLines, summaryShortPhrase } from '../text/phraseEnding'
 
@@ -26,6 +27,10 @@ export interface TakeSummary {
   readonly pitch: PitchSummary
   /** 그 녹음의 문장 끝 분석 숫자 (요약 카드의 문장 끝 칸과 같은 값). 이 기능 전의 기록이면 없다 */
   readonly phraseEndings?: PhraseEndingSummary
+  /** 그 녹음이 읽은 대본 (`ScriptTimeline`이 정한 것). 대본을 읽지 않았거나 이 기능 전의 기록이면 없다 */
+  readonly script?: TakeScript
+  /** [Hz] 그 녹음의 F2 중앙값 (같은 대본끼리 공명 밝기를 견주는 그래프용). 포먼트가 충분히 잡히지 않았거나 이 기능 전의 기록이면 없다 */
+  readonly f2Median?: number
 }
 
 /** 정지했을 때 남길 내용 */
@@ -94,7 +99,7 @@ export class PracticeSessionLog {
   /**
    * 녹음 한 번이 끝났을 때 그 녹음의 요약을 남긴다. 목소리가 한 번도 안 잡혔으면 남기지 않는다.
    * 요약 카드와 같은 점·길이를 넘겨, 카드에 보이던 숫자가 그대로 남게 한다.
-   * `phraseEndings`: 같은 녹음의 문장 끝 분석 숫자 (요약 카드와 같은 목표 범위로 잰 것).
+   * `phraseEndings`: 같은 녹음의 문장 끝 분석 숫자 (요약 카드와 같은 목표 범위로 잰 것). `script`: 그 녹음이 읽은 대본.
    */
   finishTake(
     readings: readonly PitchReading[],
@@ -102,10 +107,20 @@ export class PracticeSessionLog {
     target: Range | null,
     endedAt: Date,
     phraseEndings?: PhraseEndingSummary,
+    script: TakeScript | null = null,
   ): void {
     if (this.takeCount === 0) return
     const pitch = PitchSummary.fromReadings(readings, duration, target)
-    if (pitch !== null) this.takes.push({ round: this.takeCount, endedAt, pitch, phraseEndings })
+    if (pitch === null) return
+    const f2Median = ResonanceMeter.median(readings)
+    this.takes.push({
+      round: this.takeCount,
+      endedAt,
+      pitch,
+      phraseEndings,
+      ...(script === null ? {} : { script }),
+      ...(f2Median === null ? {} : { f2Median }),
+    })
   }
 
   /** 정지했을 때의 요약. 30초보다 짧은 연습이거나 목소리가 5초보다 짧게 잡혔으면 null (남기지 않음) */
@@ -141,6 +156,8 @@ export function sessionRecord(summary: SessionSummary, id = newRecordId()): Sess
       endedAt: take.endedAt.toISOString(),
       pitch: pitchNumbers(take.pitch),
       ...(take.phraseEndings === undefined ? {} : { phraseEndings: phraseNumbers(take.phraseEndings) }),
+      ...(take.script === undefined ? {} : { script: { id: take.script.id, title: take.script.title } }),
+      ...(take.f2Median === undefined ? {} : { f2Median: take.f2Median }),
     })),
   }
 }
@@ -155,12 +172,19 @@ export function sessionSummaryOf(record: SessionRecord): SessionSummary {
     pitch: pitchSummaryOf(record.pitch),
     takes: [...record.takes]
       .sort((a, b) => a.round - b.round)
-      .map((take) => ({
-        round: take.round,
-        endedAt: new Date(take.endedAt),
-        pitch: pitchSummaryOf(take.pitch),
-        phraseEndings: phraseSummaryOf(take.phraseEndings) ?? undefined,
-      })),
+      .map((take) => {
+        // 모양이 다른 칸(손으로 고친 기록 파일 등)은 없는 것으로 읽는다
+        const script = takeScriptOf(take.script)
+        const f2 = take.f2Median
+        return {
+          round: take.round,
+          endedAt: new Date(take.endedAt),
+          pitch: pitchSummaryOf(take.pitch),
+          phraseEndings: phraseSummaryOf(take.phraseEndings) ?? undefined,
+          ...(script === null ? {} : { script }),
+          ...(typeof f2 === 'number' && Number.isFinite(f2) ? { f2Median: f2 } : {}),
+        }
+      }),
     f2Median: record.f2Median,
   }
 }
@@ -186,8 +210,9 @@ export function takeOwnTarget(take: TakeSummary, sessionTarget: Range | null): R
 /** 요청문 한 줄. 그 녹음의 목표 범위가 정지한 때와 다르면 그때 목표를 함께 적는다 */
 export function takeRequestLine(take: TakeSummary, sessionTarget: Range | null): string {
   const { pitch } = take
+  const script = take.script === undefined ? '' : `, 대본 ‘${take.script.title}’`
   let line =
-    `- ${take.round}번째 녹음 (${PitchSummary.durationLabel(pitch.duration)}, 목소리 ${pitch.voicedSeconds.toFixed(1)}초): ` +
+    `- ${take.round}번째 녹음 (${PitchSummary.durationLabel(pitch.duration)}, 목소리 ${pitch.voicedSeconds.toFixed(1)}초${script}): ` +
     `중앙 ${Math.round(pitch.median)} Hz, 범위 ${Math.round(pitch.p10)}~${Math.round(pitch.p90)} Hz`
   if (pitch.target !== null && pitch.inTargetFraction !== null) {
     line += `, 목표 범위 안 ${Math.round(pitch.inTargetFraction * 100)}%`

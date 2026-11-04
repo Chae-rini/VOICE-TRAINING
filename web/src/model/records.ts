@@ -4,6 +4,7 @@ import type { Range } from '../dsp/range'
 import { formatShortDateTime } from '../text/dates'
 import { KOREAN_VOWELS, type KoreanVowel } from '../text/korean'
 import type { VoiceBaseline } from './practice'
+import type { TakeScript } from './takeScript'
 import { VowelMaps, type VowelEntry } from './vowelMap'
 
 /**
@@ -118,6 +119,10 @@ export interface TakeRecord {
   readonly pitch: PitchNumbers
   /** 그 녹음의 문장 끝 숫자 (요약 카드의 문장 끝 칸과 같은 값). 이 기능 전의 기록에는 없다 */
   readonly phraseEndings?: PhraseNumbers
+  /** 그 녹음이 읽은 대본 (`ScriptTimeline`이 정한 것). 대본을 읽지 않았거나 2026-11-04 전의 기록에는 없다 */
+  readonly script?: TakeScript
+  /** [Hz] 그 녹음의 F2 중앙값. 포먼트가 충분히 잡히지 않았거나 2026-11-04 전의 기록에는 없다 */
+  readonly f2Median?: number
 }
 
 /** 연습 한 번(‘반복 루프 재생’부터 정지까지)의 요약. 정지하면 자동으로 남는다 */

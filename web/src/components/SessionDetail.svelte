@@ -118,6 +118,9 @@
         <div class="take">
           <div class="line"><strong>{take.round}번째 녹음</strong><span>{PitchSummary.durationLabel(take.pitch.duration)}</span></div>
           <span class="numbers">{takeNumbersLine(take)}</span>
+          {#if take.script !== undefined}
+            <span class="secondary small">대본 ‘{take.script.title}’</span>
+          {/if}
           {#if phraseLine !== null}
             <span class="secondary small">{phraseLine}</span>
           {/if}
@@ -129,7 +132,7 @@
     {/if}
     <p class="note">
       ‘지금 들어보기’를 누르거나 녹음 중에 정지할 때마다 하나씩 남아요. 목소리가 잡히지 않은 녹음은 빠져요. 목표 범위 안 비율은 그 녹음을
-      마친 때의 목표 범위로 쟀어요.
+      마친 때의 목표 범위로 쟀어요. 대본은 목소리가 나오는 동안 화면에 있던 대본이고, 두 대본을 이어 읽은 녹음에는 남지 않아요.
     </p>
   </section>
 
