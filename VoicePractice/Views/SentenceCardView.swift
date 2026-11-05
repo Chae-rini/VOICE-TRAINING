@@ -155,3 +155,14 @@ private struct TrailingIconLabelStyle: LabelStyle {
     SentenceCardView(isPracticing: false)
         .padding()
 }
+
+/// 문장 카드는 ‘연습 중인지’가 바뀔 때만 다시 그린다 (`ContentView`가 `.equatable()`로 쓴다).
+/// 넘겨받는 `onScriptChange`는 클로저라 SwiftUI가 같은지 비교하지 못해서, 그대로 두면 [높이] 화면이 다시 그려질 때마다
+/// (메모 창의 자판이 올라오는 동안 프레임마다 등) 대본 칸까지 다시 계산된다 (2026-11-05, 기록에 남길 때 버벅임).
+/// 클로저는 늘 같은 일(`audio.showScript`)을 하므로 비교에서 빼도 된다. 문장 종류·대본 고르기처럼 이 화면 안의 상태는
+/// 비교와 상관없이 바뀌면 다시 그려진다.
+extension SentenceCardView: Equatable {
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.isPracticing == rhs.isPracticing
+    }
+}

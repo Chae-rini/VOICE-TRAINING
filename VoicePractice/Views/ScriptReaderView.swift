@@ -27,52 +27,50 @@ struct ScriptReaderView: View {
     /// [pt] 대본 상자 높이. 글자가 커지면 같이 커져서 보이는 줄 수가 크게 줄지 않는다.
     @ScaledMetric(relativeTo: .body) private var scriptHeight: CGFloat = 240
 
-    /// 앱에 든 대본 + 가져온 내 대본
-    private var scripts: [PracticeScript] {
-        PracticeScripts.all + imported.map { PracticeScript(imported: $0) }
-    }
+    /// 한 번 그릴 때 쓰는 대본 목록과 지금 대본. 대본 260편을 거르는 일(읽는 시간을 셈하려고 글자를 센다)이 가볍지 않아서,
+    /// 그릴 때마다 한 번만 계산해 나눠 쓴다 (2026-11-05: 계산 속성으로 두었을 때 한 번 그릴 때 열 번 가까이 되풀이했다).
+    private struct Shelf {
+        /// 앱에 든 대본 + 가져온 내 대본
+        let scripts: [PracticeScript]
+        /// 파일에 처음 나오는 순서대로의 종류 목록 (내 대본이 있으면 맨 뒤에 ‘내 대본’)
+        let categories: [String]
+        /// 고른 종류. 없어졌으면(내 대본을 모두 지웠을 때) 전체
+        let activeCategory: String
+        let filtered: [PracticeScript]
+        /// 섞인 순서에서 `position`번째 대본
+        let current: PracticeScript?
 
-    /// 파일에 처음 나오는 순서대로의 종류 목록 (내 대본이 있으면 맨 뒤에 ‘내 대본’)
-    private var categories: [String] {
-        var seen: Set<String> = []
-        return scripts.map(\.category).filter { seen.insert($0).inserted }
-    }
-
-    /// 고른 종류가 없어졌으면(내 대본을 모두 지웠을 때) 전체로
-    private var activeCategory: String {
-        categories.contains(category) ? category : Self.anyCategory
-    }
-
-    private var filtered: [PracticeScript] {
-        scripts.filter {
-            (activeCategory == Self.anyCategory || $0.category == activeCategory) && length.contains($0.estimatedSeconds)
+        /// 지금 대본 (녹음마다 읽은 대본을 남기려고 알린다)
+        var shownScript: TakeScript? {
+            current.map { TakeScript(id: $0.id, title: $0.title) }
         }
     }
 
-    /// 섞인 순서 (filtered 안의 자리들)
-    private var order: [Int] {
-        ScriptOrder.shuffled(count: filtered.count, seed: seed)
-    }
-
-    private var current: PracticeScript? {
-        let order = order
-        guard !order.isEmpty else { return nil }
-        return filtered[order[min(position, order.count - 1)]]
-    }
-
-    private var shownScript: TakeScript? {
-        current.map { TakeScript(id: $0.id, title: $0.title) }
+    private var shelf: Shelf {
+        let scripts = PracticeScripts.all + imported.map { PracticeScript(imported: $0) }
+        var seen: Set<String> = []
+        let categories = scripts.map(\.category).filter { seen.insert($0).inserted }
+        let activeCategory = categories.contains(category) ? category : Self.anyCategory
+        let filtered = scripts.filter {
+            (activeCategory == Self.anyCategory || $0.category == activeCategory) && length.contains($0.estimatedSeconds)
+        }
+        // 섞인 순서 (filtered 안의 자리들)
+        let order = ScriptOrder.shuffled(count: filtered.count, seed: seed)
+        let current = order.isEmpty ? nil : filtered[order[min(position, order.count - 1)]]
+        return Shelf(scripts: scripts, categories: categories, activeCategory: activeCategory, filtered: filtered,
+                     current: current)
     }
 
     var body: some View {
+        let shelf = shelf
         VStack(spacing: 8) {
-            filterBar
+            filterBar(shelf)
 
-            if let script = current {
+            if let script = shelf.current {
                 card(for: script)
-                navigation(for: script)
+                navigation(for: script, count: shelf.filtered.count)
             } else {
-                Text(scripts.isEmpty ? "대본 파일을 읽지 못했어요." : "조건에 맞는 대본이 없어요.")
+                Text(shelf.scripts.isEmpty ? "대본 파일을 읽지 못했어요." : "조건에 맞는 대본이 없어요.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, minHeight: 120)
@@ -80,8 +78,8 @@ struct ScriptReaderView: View {
         }
         .onChange(of: category) { reshuffle() }
         .onChange(of: length) { reshuffle() }
-        .onAppear { onScriptChange(shownScript) }
-        .onChange(of: shownScript) { onScriptChange(shownScript) }
+        .onAppear { onScriptChange(shelf.shownScript) }
+        .onChange(of: shelf.shownScript) { _, shown in onScriptChange(shown) }
         .onDisappear { onScriptChange(nil) }
         .sheet(isPresented: $isImporting) {
             ScriptImportView {
@@ -92,15 +90,16 @@ struct ScriptReaderView: View {
         }
     }
 
-    private var filterBar: some View {
-        HStack {
+    private func filterBar(_ shelf: Shelf) -> some View {
+        let count = shelf.filtered.count
+        return HStack {
             Menu {
                 Picker("종류", selection: $category) {
                     Text("전체 종류").tag(Self.anyCategory)
-                    ForEach(categories, id: \.self) { Text($0).tag($0) }
+                    ForEach(shelf.categories, id: \.self) { Text($0).tag($0) }
                 }
             } label: {
-                Label(activeCategory == Self.anyCategory ? "전체 종류" : activeCategory,
+                Label(shelf.activeCategory == Self.anyCategory ? "전체 종류" : shelf.activeCategory,
                       systemImage: "line.3.horizontal.decrease.circle")
             }
 
@@ -123,15 +122,15 @@ struct ScriptReaderView: View {
             .buttonStyle(.bordered)
 
             Button {
-                if filtered.count > 1 {
-                    position = (filtered.indices.filter { $0 != position }).randomElement() ?? 0
+                if count > 1 {
+                    position = ((0..<count).filter { $0 != position }).randomElement() ?? 0
                 }
             } label: {
                 Label("다른 대본", systemImage: "shuffle")
                     .labelStyle(.iconOnly)
             }
             .buttonStyle(.bordered)
-            .disabled(filtered.count < 2)
+            .disabled(count < 2)
         }
         .font(.subheadline)
     }
@@ -180,7 +179,8 @@ struct ScriptReaderView: View {
         .id(script.id)
     }
 
-    private func navigation(for script: PracticeScript) -> some View {
+    /// `count`: 거른 대본 수
+    private func navigation(for script: PracticeScript, count: Int) -> some View {
         let suggested = suggestedDuration(for: script)
         return VStack(spacing: 8) {
             HStack {
@@ -192,21 +192,21 @@ struct ScriptReaderView: View {
                 .disabled(position == 0)
 
                 Spacer()
-                Text("\(min(position, filtered.count - 1) + 1) / \(filtered.count)")
+                Text("\(min(position, count - 1) + 1) / \(count)")
                     .font(.footnote)
                     .monospacedDigit()
                     .foregroundStyle(.secondary)
                 Spacer()
 
                 Button {
-                    position = min(filtered.count - 1, position + 1)
+                    position = min(count - 1, position + 1)
                 } label: {
                     HStack(spacing: 4) {
                         Text("다음")
                         Image(systemName: "chevron.right")
                     }
                 }
-                .disabled(position >= filtered.count - 1)
+                .disabled(position >= count - 1)
             }
 
             Button {
