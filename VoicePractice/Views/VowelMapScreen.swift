@@ -27,8 +27,7 @@ struct VowelMapScreen: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                VowelChartView(history: audio.history, clock: audio.graphClock, caption: caption,
-                               map: map, selected: selected)
+                LiveVowelChart(audio: audio, caption: caption, map: map, selected: selected)
                 myMapSection
                 guide
             }
@@ -152,5 +151,18 @@ struct VowelMapScreen: View {
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+/// 실시간 모음 지도. 녹음 중에 초당 수십 번 바뀌는 값(그래프 점·그래프 시계)은 이 조각에서만 읽는다
+/// (화면 전체의 body에서 읽으면 내 모음 지도·보는 법까지 매번 다시 계산된다, `ContentView`의 `LivePitchGraph`와 같은 까닭).
+private struct LiveVowelChart: View {
+    let audio: AudioInputManager
+    let caption: String
+    let map: VowelMap
+    let selected: KoreanVowel
+
+    var body: some View {
+        VowelChartView(history: audio.history, clock: audio.graphClock, caption: caption, map: map, selected: selected)
     }
 }

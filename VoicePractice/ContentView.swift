@@ -131,10 +131,8 @@ struct ContentView: View {
         GeometryReader { proxy in
             let isReading = sentenceSource == .scripts
             VStack(spacing: 0) {
-                PitchGraphView(
-                    history: audio.history,
-                    currentFrequency: audio.currentFrequency,
-                    clock: audio.graphClock,
+                LivePitchGraph(
+                    audio: audio,
                     caption: graphCaption,
                     idleDuration: practiceDuration,
                     isCompact: isReading,
@@ -310,6 +308,29 @@ struct ContentView: View {
         case .idle:
             audio.hasLastTake ? "마지막 녹음" : "‘반복 루프 재생’을 누르면 녹음과 분석을 시작해요"
         }
+    }
+}
+
+/// [높이] 그래프. 녹음 중에 초당 수십 번 바뀌는 값(지금 높이·그래프 점·그래프 시계)은 이 조각에서만 읽는다.
+/// 화면 전체의 body에서 읽으면 값이 바뀔 때마다 그래프 아래(목표 범위·문장 카드·대본)까지 다시 계산된다
+/// (2026-11-05: 대본 화면에서 녹음하면 대본 거르기·섞기가 초당 수십 번 돌아 CPU를 다 썼다).
+private struct LivePitchGraph: View {
+    let audio: AudioInputManager
+    let caption: String
+    let idleDuration: TimeInterval
+    let isCompact: Bool
+    let graphHeight: CGFloat
+
+    var body: some View {
+        PitchGraphView(
+            history: audio.history,
+            currentFrequency: audio.currentFrequency,
+            clock: audio.graphClock,
+            caption: caption,
+            idleDuration: idleDuration,
+            isCompact: isCompact,
+            graphHeight: graphHeight
+        )
     }
 }
 
